@@ -5,9 +5,12 @@ use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
 use nocter_checking::value_access::accepted::{FutureCaptureCases, FutureInputCleanup};
 use nocter_checking::value_access::flow::{
     Location, Operation,
-    resources::{Condition, Holder, Step as ResourceStep},
+    resources::{
+        ActivationInput, Condition, Holder, Payload as CheckedPayload, Step as ResourceStep,
+    },
 };
-use nocter_model::{AccessInstanceId, TypeId};
+use nocter_declarations::value_access::FunctionInput;
+use nocter_model::AccessInstanceId;
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     sync::Arc,
@@ -30,7 +33,7 @@ pub enum Step {
         source: Holder,
         destination: Holder,
         selector: bool,
-        captures: FutureCaptureCases<TypeId>,
+        captures: FutureCaptureCases<FunctionInput>,
     },
     /// Dispose the selected local activation's owned inputs without invoking its body.
     CancelLocalFuture {
@@ -40,7 +43,7 @@ pub enum Step {
     /// Install prepared inputs in the newly committed local activation.
     CaptureFutureInputs {
         destination: Holder,
-        inputs: Box<[(Holder, TypeId)]>,
+        inputs: Box<[ActivationInput<CheckedPayload>]>,
     },
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.

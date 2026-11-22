@@ -159,7 +159,34 @@ pub(super) struct FutureActivation<'a> {
     pub inputs: Box<[(&'a Argument, Payload)]>,
 }
 
-/// Form the ownership receipt for a selected producer with represented take inputs.
+/// The exact prepared source committed to a local activation.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ActivationInput<P> {
+    Take { source: Place, payload: P },
+    Read(ActivationRead),
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ActivationRead {
+    pub place: nocter_model::AccessPlaceId,
+    pub data: TypeId,
+    pub region: super::access::Region,
+    pub created: Location,
+}
+
+impl ActivationInput<Payload> {
+    #[must_use]
+    pub fn contract(&self) -> nocter_declarations::value_access::FunctionInput {
+        use nocter_model::ValueInputOperation;
+        let (data, operation) = match self {
+            Self::Take { payload, .. } => (payload.data(), ValueInputOperation::Take),
+            Self::Read(read) => (read.data, ValueInputOperation::Read),
+        };
+        nocter_declarations::value_access::FunctionInput { data, operation }
+    }
+}
+
+/// Form the ownership receipt for a selected producer and its represented inputs.
 /// The checked unit must separately establish the producer's effects and backing.
 pub(super) fn future_activation(
     typed: &TypedQuery,
@@ -198,8 +225,10 @@ pub(super) fn future_activation(
         .zip(declaration.parameters())
         .map(|(argument, &id)| {
             let parameter = program.parameters().get(id).ok_or(INVALID)?;
-            if argument.operation != nocter_model::ValueInputOperation::Take
-                || parameter.operation() != argument.operation
+            if !matches!(
+                argument.operation,
+                nocter_model::ValueInputOperation::Take | nocter_model::ValueInputOperation::Read
+            ) || parameter.operation() != argument.operation
             {
                 return Err(INVALID);
             }

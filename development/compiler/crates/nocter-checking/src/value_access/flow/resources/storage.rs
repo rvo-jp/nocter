@@ -1,7 +1,7 @@
 //! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
 use super::{
-    Disposal, Frame, Holder, INVALID, Missing, OwnedValue, Payload, Place, Program, Result, State,
-    Step, TypedQuery, payload,
+    ActivationInput, ActivationRead, Disposal, Frame, Holder, INVALID, Missing, OwnedValue,
+    Payload, Place, Program, Result, State, Step, TypedQuery, payload,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
 
@@ -152,6 +152,9 @@ impl State {
         Ok(value)
     }
     pub fn take(&mut self, program: &Program, source: &Place) -> Result<Payload> {
+        self.take_value(program, source).map(|value| value.payload)
+    }
+    fn take_value(&mut self, program: &Program, source: &Place) -> Result<OwnedValue> {
         if source.holder().is_backing() {
             return Err(INVALID);
         }
@@ -162,14 +165,15 @@ impl State {
             return Err(INVALID);
         }
         if source.fields().is_root() {
-            self.remove_root(source.holder())?;
-        } else {
-            self.owned
-                .get_mut(&source.holder())
-                .ok_or(INVALID)?
-                .remove(source.fields());
+            let mut owner = self.remove_root(source.holder())?;
+            owner.payload = selected;
+            return Ok(owner);
         }
-        Ok(selected)
+        self.owned
+            .get_mut(&source.holder())
+            .ok_or(INVALID)?
+            .remove(source.fields());
+        Ok(OwnedValue::new(selected))
     }
     fn install(
         &mut self,
@@ -235,21 +239,34 @@ impl State {
         program: &Program,
         destination: Holder,
         payload: Payload,
-        sources: &[(Place, Payload)],
+        sources: &[ActivationInput<Payload>],
         steps: &mut Vec<Step>,
     ) -> Result<()> {
         let mut staged = self.clone();
         let mut inputs = Vec::with_capacity(sources.len());
+        let mut retained_reads = Vec::new();
         let mut changes = Vec::new();
-        for (source, expected) in sources {
-            staged.retain_source(program, source, &mut changes)?;
-            let received = staged.take(program, source)?;
-            if received != *expected {
-                return Err(INVALID);
+        for input in sources {
+            match input {
+                ActivationInput::Take { source, payload } => {
+                    staged.retain_source(program, source, &mut changes)?;
+                    let received = staged.take(program, source)?;
+                    if received != *payload {
+                        return Err(INVALID);
+                    }
+                }
+                ActivationInput::Read(read) => retained_reads.push(read.clone()),
             }
-            inputs.push((source.clone(), received));
+            inputs.push(input.clone());
         }
         staged.insert(destination, payload, false)?;
+        if !retained_reads.is_empty() {
+            staged
+                .owned
+                .get_mut(&destination)
+                .ok_or(INVALID)?
+                .retained_reads = Some(retained_reads.into());
+        }
         changes.push(Step::ConstructActivation {
             destination,
             payload,
@@ -259,6 +276,13 @@ impl State {
         *self = staged;
         steps.extend(changes);
         Ok(())
+    }
+    pub(in crate::value_access::flow) fn retained_reads(
+        &self,
+    ) -> impl Iterator<Item = &ActivationRead> {
+        self.owned
+            .values()
+            .flat_map(|value| value.retained_reads.iter().flat_map(|reads| reads.iter()))
     }
     pub fn receive(
         &mut self,
@@ -331,7 +355,8 @@ impl State {
         let mut staged = self.clone();
         let mut changes = Vec::new();
         staged.retain_source(program, source, &mut changes)?;
-        let value = staged.take(program, source)?;
+        let moved = staged.take_value(program, source)?;
+        let value = moved.payload;
         if let Some(owner) = staged.owned.get(&destination.holder())
             && owner.container(program, destination.fields())? != value
         {
@@ -341,6 +366,16 @@ impl State {
             staged.clear(program, destination, true, &mut changes)?;
         }
         staged.install(program, destination, value, outer)?;
+        if let Some(reads) = moved.retained_reads {
+            if !destination.fields().is_root() {
+                return Err(INVALID);
+            }
+            staged
+                .owned
+                .get_mut(&destination.holder())
+                .ok_or(INVALID)?
+                .retained_reads = Some(reads);
+        }
         changes.push(Step::Move {
             source: source.clone(),
             destination: destination.clone(),

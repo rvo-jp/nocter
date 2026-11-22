@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify a local future's retained read inputs rooted in existing places. Activate the input's
-access at construction, carry it through ownership moves, and relinquish it after drive or
-cancellation. Verify diagnostics on an intervening conflicting update and keep caller-owned
-temporary extents as a separate obligation.
+Qualify retained read inputs selected from existing fields. Preserve the original selection
+through preparation and use its exact current root when installing the activation address.
+Verify that the selected field stays protected and that disjoint fields remain writable.
 
 ## Remaining Contextual Representation Qualification
 
@@ -811,6 +810,9 @@ not a language restriction derived from the current realization boundary.
   cancellation. Verify structural cleanup for the selected record over both optional states,
   preserve wide integer and error data through indirect input transport, and exclude the scalar
   alternative from compound cleanup.
+- [x] Retain reads of stable named places in the exact local future owner. Verify conflicting
+  writes after an ownership move, release at explicit and scoped cancellation, and address
+  transport when read and take producers of the same data type meet at a drive.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
@@ -819,6 +821,8 @@ not a language restriction derived from the current realization boundary.
   activation occurrences where exact transport evidence permits it.
   Extend input cancellation to contextual take inputs and retained accesses using their
   exact release obligations and construction/completion phases.
+  Qualify evaluated read places, caller-owned temporary input extents, deferred edit delegation
+  and the corresponding post-drive/cancellation state through the original ledgers.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

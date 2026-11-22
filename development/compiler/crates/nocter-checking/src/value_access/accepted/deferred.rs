@@ -32,15 +32,20 @@ pub(super) fn require_local_activation(
     let mut known = BTreeSet::new();
     let cancellation =
         DataUse::backing_or_cleanup(context.target().and_then(RuntimeAbiIdentity::for_target));
-    let inputs_are_owned_and_releasable = code.parameters().iter().all(|&id| {
+    let inputs_are_represented = code.parameters().iter().all(|&id| {
         program.parameters().get(id).is_some_and(|parameter| {
-            parameter.operation() == nocter_model::ValueInputOperation::Take
-                && flow::resources::local_future_input(program, parameter.data()).is_some()
-                && local_data(program, parameter.data(), cancellation, &mut known)
+            use nocter_model::ValueInputOperation;
+            flow::resources::local_future_input(program, parameter.data()).is_some()
+                && match parameter.operation() {
+                    ValueInputOperation::Take => {
+                        local_data(program, parameter.data(), cancellation, &mut known)
+                    }
+                    ValueInputOperation::Read => true,
+                    ValueInputOperation::Edit => false,
+                }
         })
     });
-    if !inputs_are_owned_and_releasable || !local_data(program, output, DataUse::Output, &mut known)
-    {
+    if !inputs_are_represented || !local_data(program, output, DataUse::Output, &mut known) {
         return Err(body_failure(callable, modifier(context, callable)));
     }
     Ok(())

@@ -1,21 +1,21 @@
 mod scoped;
 use super::{
-    Action, Alternative, BitValue, Body, Disposal, Effect, Failure, FutureInputDisposal, Location,
-    Place, Projection, Slot, SlotKey, Storage,
+    Action, Alternative, BitValue, Body, Disposal, Effect, Failure, FutureInputDisposal,
+    FutureMoveInput, Location, Place, Projection, Slot, SlotKey, Storage,
 };
 use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind, ValueSourceSlot,
     accepted::{FutureCaptureCases, FutureInputCleanup},
     flow::{
         self, Operation,
-        resources::{Disposal as CheckedDisposal, Holder, Step},
+        resources::{ActivationInput, Disposal as CheckedDisposal, Holder, Step},
     },
 };
 use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
 use nocter_model::{ArenaBuilder, ValueAccessMode, ValueInputOperation};
 use nocter_runtime_contract::RuntimeDataId;
 use nocter_target_program::value_access::{
-    Drive, Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
+    Drive, FunctionInput, Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
 };
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::{BTreeMap, BTreeSet};
@@ -110,26 +110,42 @@ impl Builder<'_> {
         &mut self,
         owner: Holder,
         index: usize,
-        data: TypeId,
+        input: FunctionInput,
     ) -> Result<Place, Failure> {
-        let physical = self.closed_data(data)?;
-        self.snapshot(SlotKey::FutureInput { owner, index, data }, physical)
+        let data = self.closed_data(input.data)?;
+        let slot = self.slot(
+            SlotKey::FutureInput {
+                owner,
+                index,
+                data: input.data,
+                operation: input.operation,
+            },
+            data,
+            form(input.operation.access_mode()),
+        )?;
+        Ok(Place {
+            slot,
+            root: data,
+            data,
+            projections: Box::new([]),
+        })
     }
     fn future_transfers(
         &mut self,
         source: Holder,
         destination: Holder,
-        fields: &[TypeId],
-    ) -> Result<Box<[(Place, Place)]>, Failure> {
+        fields: &[FunctionInput],
+    ) -> Result<Box<[FutureMoveInput]>, Failure> {
         fields
             .iter()
             .copied()
             .enumerate()
-            .map(|(index, data)| {
-                Ok((
-                    self.future_input(source, index, data)?,
-                    self.future_input(destination, index, data)?,
-                ))
+            .map(|(index, input)| {
+                Ok(FutureMoveInput {
+                    source: self.future_input(source, index, input)?,
+                    destination: self.future_input(destination, index, input)?,
+                    operation: input.operation,
+                })
             })
             .collect()
     }
@@ -142,7 +158,14 @@ impl Builder<'_> {
             .iter()
             .map(|input| {
                 Ok(FutureInputDisposal {
-                    source: self.future_input(source, input.position, input.payload.data())?,
+                    source: self.future_input(
+                        source,
+                        input.position,
+                        FunctionInput {
+                            data: input.payload.data(),
+                            operation: ValueInputOperation::Take,
+                        },
+                    )?,
                     disposal: self.disposal(input.payload.disposal())?,
                 })
             })
@@ -772,9 +795,17 @@ impl Builder<'_> {
                                 self.future_transfers(*source, *destination, fields)?
                                     .into_vec()
                                     .into_iter()
-                                    .map(|(source, destination)| Effect::Transfer {
-                                        source,
-                                        destination,
+                                    .map(|input| match input.operation {
+                                        ValueInputOperation::Take => Effect::Transfer {
+                                            source: input.source,
+                                            destination: input.destination,
+                                        },
+                                        ValueInputOperation::Read | ValueInputOperation::Edit => {
+                                            Effect::BindAddress {
+                                                source: input.source,
+                                                destination: input.destination.slot,
+                                            }
+                                        }
                                     }),
                             );
                         }
@@ -837,11 +868,18 @@ impl Builder<'_> {
                     destination,
                     inputs,
                 } => {
-                    for (index, &(source, data)) in inputs.iter().enumerate() {
-                        let physical = self.closed_data(data)?;
-                        output.push(Effect::Transfer {
-                            source: self.root(source, physical, false)?,
-                            destination: self.future_input(*destination, index, data)?,
+                    for (index, input) in inputs.iter().enumerate() {
+                        let destination =
+                            self.future_input(*destination, index, input.contract())?;
+                        output.push(match input {
+                            ActivationInput::Take { source, .. } => Effect::Transfer {
+                                source: self.root(source.holder(), destination.data, false)?,
+                                destination,
+                            },
+                            ActivationInput::Read(read) => Effect::BindAddress {
+                                source: self.selected(read.place, destination.data)?,
+                                destination: destination.slot,
+                            },
                         });
                     }
                 }

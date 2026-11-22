@@ -290,11 +290,11 @@ fn validate_drives(
                     .explicit()
                     .iter()
                     .zip(target.inputs.iter())
-                    .any(|(input, &data)| {
-                        input.operation != nocter_model::ValueInputOperation::Take
+                    .any(|(input, expected)| {
+                        input.operation != expected.operation
                             || child
                                 .input(input.local)
-                                .is_none_or(|payload| payload.data() != data)
+                                .is_none_or(|payload| payload.data() != expected.data)
                     })
                 || !child
                     .result()

@@ -357,8 +357,16 @@ impl<'a> Builder<'a> {
                 let tags = cases.iter().map(|case| i128::from(case.tag));
                 self.select_integer_cases(subject, tags, |builder, index| {
                     let case = cases.get(index).ok_or_else(Self::invalid)?;
-                    for (source, destination) in &case.fields {
-                        builder.copy(source, destination)?;
+                    for field in &case.fields {
+                        match field.operation {
+                            nocter_model::ValueInputOperation::Take => {
+                                builder.copy(&field.source, &field.destination)?;
+                            }
+                            nocter_model::ValueInputOperation::Read => {
+                                builder.bind_address(field.destination.slot, &field.source)?;
+                            }
+                            nocter_model::ValueInputOperation::Edit => return Err(Self::invalid()),
+                        }
                     }
                     Ok(())
                 })?;
@@ -411,17 +419,7 @@ impl<'a> Builder<'a> {
                 destination,
                 source,
             } => {
-                let source_address = self.place(source)?;
-                let value = self.value(
-                    source.data,
-                    true,
-                    MachineOperationKind::AddressOf {
-                        source: source_address,
-                    },
-                )?;
-                let stack = *self.slots.get(destination).ok_or_else(Self::invalid)?;
-                let destination = self.slot_address(stack);
-                self.emit(MachineOperationKind::Store { destination, value });
+                self.bind_address(*destination, source)?;
             }
             mir::Effect::DisposeArrayElements { source, range } => {
                 self.dispose_array_elements(source, *range)?;
@@ -456,6 +454,22 @@ impl<'a> Builder<'a> {
                 None,
             )));
         }
+        Ok(())
+    }
+    fn bind_address(
+        &mut self,
+        destination: nocter_model::MirLocalId,
+        source: &mir::Place,
+    ) -> Result<(), Failure> {
+        let address = self.place(source)?;
+        let value = self.value(
+            source.data,
+            true,
+            MachineOperationKind::AddressOf { source: address },
+        )?;
+        let stack = *self.slots.get(&destination).ok_or_else(Self::invalid)?;
+        let destination = self.slot_address(stack);
+        self.emit(MachineOperationKind::Store { destination, value });
         Ok(())
     }
     fn effects(&mut self, effects: &[mir::Effect]) -> Result<(), Failure> {

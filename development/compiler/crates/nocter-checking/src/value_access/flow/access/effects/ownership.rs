@@ -1,7 +1,8 @@
 use super::super::super::{
     Operation,
-    resources::{self, Holder},
+    resources::{self, ActivationInput, ActivationRead, Holder},
 };
+use super::super::{AccessRule, Violation, liveness::Carrier, state::Prepared};
 use super::{Context, Failure, Result};
 use crate::value_access::{
     Argument, ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
@@ -168,12 +169,14 @@ impl Context<'_, '_> {
             Operation::ExitScope { ref locals, .. } => {
                 for &local in locals {
                     if self.world.resources.contains(Holder::Local(local)) {
+                        self.destroy(local)?;
                         self.world.resources.dispose(
                             self.typed.program(),
                             &Holder::Local(local).place(),
                             &mut self.steps,
                         )?;
                     }
+                    self.world.values.remove(&Carrier::Local(local));
                 }
             }
             Operation::PrepareArgument {
@@ -565,9 +568,43 @@ impl Context<'_, '_> {
         Ok(())
     }
     fn construct_activation(&mut self, call: AccessExpressionId) -> Result<()> {
+        let preparations = self.commit_preparations(call)?;
         let activation = resources::future_activation(self.typed, call)?;
+        if preparations.len() != activation.inputs.len() {
+            return Err(Failure::Integrity);
+        }
         let mut sources = Vec::with_capacity(activation.inputs.len());
         for (index, &(argument, expected)) in activation.inputs.iter().enumerate() {
+            if let ArgumentAction::ReserveRead(Referent::Place(place)) = argument.action {
+                let Prepared::Reserved {
+                    region,
+                    permission: Mode::Read,
+                    ..
+                } = &preparations[index]
+                else {
+                    return Err(Failure::Integrity);
+                };
+                if matches!(
+                    region.root,
+                    super::Root::Expression(_) | super::Root::Temporary { .. }
+                ) {
+                    return Err(Violation {
+                        location: self.at,
+                        rule: AccessRule::ExpiredRoot,
+                        root: region.root,
+                        fields: region.fields.clone(),
+                        retained: None,
+                    }
+                    .into());
+                }
+                sources.push(ActivationInput::Read(ActivationRead {
+                    place,
+                    data: expected.data(),
+                    region: region.clone(),
+                    created: self.at,
+                }));
+                continue;
+            }
             let prepared = Holder::Prepared { call, index }.place();
             let source = self
                 .committed_input_source(call, index, argument)?
@@ -581,7 +618,10 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             }
-            sources.push((prepared, expected));
+            sources.push(ActivationInput::Take {
+                source: prepared,
+                payload: expected,
+            });
         }
         self.world.resources.construct_activation(
             self.typed.program(),

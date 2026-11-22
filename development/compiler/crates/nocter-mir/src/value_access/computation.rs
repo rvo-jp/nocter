@@ -386,16 +386,16 @@ impl Builder<'_> {
     fn future_call_inputs(
         &mut self,
         holder: Holder,
-        types: &[nocter_model::TypeId],
+        inputs: &[nocter_target_program::value_access::FunctionInput],
     ) -> Result<Box<[CallInput]>, Failure> {
-        types
+        inputs
             .iter()
             .copied()
             .enumerate()
-            .map(|(index, data)| {
+            .map(|(index, input)| {
                 Ok(CallInput {
-                    source: self.future_input(holder, index, data)?,
-                    operation: nocter_model::ValueInputOperation::Take,
+                    source: self.future_input(holder, index, input)?,
+                    operation: input.operation,
                 })
             })
             .collect()

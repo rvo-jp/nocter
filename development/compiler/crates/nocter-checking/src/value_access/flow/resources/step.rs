@@ -1,5 +1,7 @@
 //! One operation vocabulary for checked and concretely instantiated payload obligations.
-use super::{ArrayFrontier, Holder, IndexBacking, Missing, Payload, Place, RetainedIndex};
+use super::{
+    ActivationInput, ArrayFrontier, Holder, IndexBacking, Missing, Payload, Place, RetainedIndex,
+};
 use nocter_model::AccessExpressionId;
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Step<P = Payload> {
@@ -38,7 +40,7 @@ pub enum Step<P = Payload> {
     ConstructActivation {
         destination: Holder,
         payload: P,
-        inputs: Box<[(Place, P)]>,
+        inputs: Box<[ActivationInput<P>]>,
     },
     /// Surrender the exact activation to a drive, without running its cancellation.
     DriveFuture {
@@ -193,8 +195,14 @@ impl<P> Step<P> {
                 payload: map(PayloadSite::Destination(*destination), payload)?,
                 inputs: inputs
                     .iter()
-                    .map(|(source, payload)| {
-                        Ok((source.clone(), map(PayloadSite::Source(source), payload)?))
+                    .map(|input| {
+                        Ok(match input {
+                            ActivationInput::Take { source, payload } => ActivationInput::Take {
+                                source: source.clone(),
+                                payload: map(PayloadSite::Source(source), payload)?,
+                            },
+                            ActivationInput::Read(read) => ActivationInput::Read(read.clone()),
+                        })
                     })
                     .collect::<std::result::Result<_, E>>()?,
             },

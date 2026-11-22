@@ -61,7 +61,9 @@ pub(super) fn apply(
     let operation_state = context.world.resources.condition();
     match operation {
         Operation::IndexFailure(id) => context.index_failure(*id)?,
-        Operation::BeginEvaluation(_) => {}
+        Operation::BeginEvaluation(_)
+        | Operation::ConstructFuture(_)
+        | Operation::ExitScope { .. } => {}
         Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
         Operation::Evaluate(id) => {
             let value = context.evaluate(*id)?;
@@ -112,7 +114,6 @@ pub(super) fn apply(
         Operation::Drop(local) => context.destroy(*local)?,
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
         Operation::CommitCall(call) => return context.apply_call(*call),
-        Operation::ConstructFuture(call) => context.commit_preparations(*call)?,
         Operation::CancelCall { call, prepared } => {
             for index in 0..*prepared {
                 context
@@ -124,16 +125,6 @@ pub(super) fn apply(
         }
         Operation::Discard(value) => context.read(context.world.value(*value)?)?,
         Operation::StageReturn(value) => context.stage_return(*value)?,
-        Operation::ExitScope { locals, .. } => {
-            for &local in locals {
-                if context.local_mode(local)? == Mode::Own
-                    && context.world.alive(Root::Owned(local))
-                {
-                    context.destroy(local)?;
-                }
-                context.world.values.remove(&Carrier::Local(local));
-            }
-        }
     }
     context.ownership_after(operation)?;
     Ok(vec![(
@@ -161,7 +152,7 @@ impl Context<'_, '_> {
         Ok(())
     }
     fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
-        self.commit_preparations(call)?;
+        let _ = self.commit_preparations(call)?;
         self.commit_inputs(call)?;
         let before = self.steps.len();
         let operation_state = self.world.resources.condition();

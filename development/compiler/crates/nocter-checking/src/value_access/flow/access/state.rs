@@ -53,6 +53,11 @@ impl World {
             .values()
             .map(|node| node.region.clone())
             .chain(
+                self.resources
+                    .retained_reads()
+                    .map(|read| read.region.clone()),
+            )
+            .chain(
                 self.prepared
                     .values()
                     .filter_map(|prepared| match prepared {
@@ -375,6 +380,28 @@ impl World {
         tag_only: bool,
     ) -> Result<(), Violation> {
         self.check_lifetime(region, location)?;
+        if permission != Mode::Read
+            && let Some(read) = self
+                .resources
+                .retained_reads()
+                .find(|read| read.region.overlaps(region))
+        {
+            return Err(Violation {
+                location,
+                rule: if permission == Mode::Update {
+                    AccessRule::ConflictingUpdate
+                } else {
+                    AccessRule::ConflictingTransfer
+                },
+                root: region.root,
+                fields: region.fields.clone(),
+                retained: Some(RetainedAccess {
+                    created: Creation::Action(read.created),
+                    kind: RetentionKind::Access(Mode::Read),
+                    required: None,
+                }),
+            });
+        }
         let mut ancestors = BTreeSet::new();
         let mut cursor = actor;
         while let Some(key) = cursor {

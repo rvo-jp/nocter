@@ -290,7 +290,14 @@ fn activation_construction_receives_ordered_take_snapshots_before_a_later_drive(
                     assert_eq!(*destination, Holder::Expression(call));
                     assert_eq!(payload.disposal(), Disposal::UnstartedFuture(producer));
                     assert_eq!(inputs.len(), 2);
-                    for (index, (source, payload)) in inputs.iter().enumerate() {
+                    for (index, input) in inputs.iter().enumerate() {
+                        let crate::value_access::flow::resources::ActivationInput::Take {
+                            source,
+                            payload,
+                        } = input
+                        else {
+                            panic!("expected one owned prepared input");
+                        };
                         let holder = Holder::Prepared { call, index };
                         assert_eq!(source, &holder.place());
                         assert_eq!(payload.disposal(), Disposal::Trivial);

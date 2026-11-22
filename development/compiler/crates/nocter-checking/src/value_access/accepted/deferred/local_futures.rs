@@ -4,11 +4,12 @@ use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
         self, Location, Operation,
-        resources::{Disposal, Holder, Payload, Step},
+        resources::{ActivationInput, Disposal, Holder, Payload, Step},
     },
     results,
 };
-use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCode};
+use nocter_declarations::value_access::FunctionInput;
+use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCode, ValueInputOperation};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -24,8 +25,8 @@ struct Body {
     drives: BTreeMap<AccessExpressionId, Drive>,
     constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
     tags: BTreeMap<AccessCodeId, u64>,
-    captures: BTreeMap<(Holder, AccessCodeId), Arc<[TypeId]>>,
-    moves: BTreeMap<Movement, FutureCaptureCases<TypeId>>,
+    captures: BTreeMap<(Holder, AccessCodeId), Arc<[FunctionInput]>>,
+    moves: BTreeMap<Movement, FutureCaptureCases<FunctionInput>>,
     cancellations: BTreeMap<(Location, Holder), FutureCaptureCases<FutureInputCleanup>>,
 }
 
@@ -42,7 +43,7 @@ struct Movement {
 }
 
 struct CapturedInputs {
-    fields: Arc<[TypeId]>,
+    fields: Arc<[FunctionInput]>,
     cleanup: Arc<[FutureInputCleanup]>,
 }
 
@@ -149,7 +150,7 @@ impl LocalFutures {
         code: ValueCode,
         holder: Holder,
         producer: AccessCodeId,
-    ) -> Option<&Arc<[TypeId]>> {
+    ) -> Option<&Arc<[FunctionInput]>> {
         self.bodies.get(&code)?.captures.get(&(holder, producer))
     }
     pub(in crate::value_access::accepted) fn movement(
@@ -158,7 +159,7 @@ impl LocalFutures {
         at: Location,
         source: Holder,
         destination: Holder,
-    ) -> Option<&FutureCaptureCases<TypeId>> {
+    ) -> Option<&FutureCaptureCases<FunctionInput>> {
         self.bodies.get(&code)?.moves.get(&Movement {
             at,
             source,
@@ -300,7 +301,7 @@ fn inspect(
 impl Body {
     fn close_selections(
         &mut self,
-        moves: BTreeMap<Movement, ObservedCaptures<TypeId>>,
+        moves: BTreeMap<Movement, ObservedCaptures<FunctionInput>>,
         cancellations: BTreeMap<(Location, Holder), ObservedCaptures<FutureInputCleanup>>,
     ) -> Result<(), Failure> {
         self.tagged.extend(
@@ -351,7 +352,7 @@ impl Body {
             } => {
                 if inputs
                     .iter()
-                    .map(|(_, payload)| payload.data())
+                    .map(ActivationInput::contract)
                     .ne(signature.fields.iter().copied())
                 {
                     return Err(INVALID);
@@ -430,15 +431,21 @@ fn inputs(
             program
                 .parameters()
                 .get(id)
-                .map(nocter_declarations::value_access::Parameter::data)
+                .map(|parameter| FunctionInput {
+                    data: parameter.data(),
+                    operation: parameter.operation(),
+                })
                 .ok_or(INVALID)
         })
         .collect::<Result<Arc<[_]>, Failure>>()?;
     let mut cleanup = Vec::new();
-    for (position, &data) in fields.iter().enumerate().rev() {
-        let payload = flow::resources::local_future_input(program, data).ok_or(INVALID)?;
-        if payload.disposal() != Disposal::Trivial {
-            cleanup.push(FutureInputCleanup { position, payload });
+    for (position, input) in fields.iter().enumerate().rev() {
+        if input.operation == ValueInputOperation::Take {
+            let payload =
+                flow::resources::local_future_input(program, input.data).ok_or(INVALID)?;
+            if payload.disposal() != Disposal::Trivial {
+                cleanup.push(FutureInputCleanup { position, payload });
+            }
         }
     }
     Ok(CapturedInputs {

@@ -318,15 +318,7 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
-            Effect::SelectedFutureMove { selector, cases } => {
-                self.future_cases(selector, cases.iter().map(|case| case.tag))?;
-                for case in cases {
-                    for (source, destination) in &case.fields {
-                        self.transfer(source, destination)?;
-                    }
-                }
-                Ok(())
-            }
+            Effect::SelectedFutureMove { selector, cases } => self.future_move(selector, cases),
             Effect::SelectedFutureCleanup { selector, cases } => {
                 self.future_cleanup(selector, cases)
             }
@@ -726,6 +718,34 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn future_input_slot(&self, place: &Place, mode: ValueInputOperation) -> bool {
+        let storage = match mode {
+            ValueInputOperation::Take => Storage::Payload,
+            ValueInputOperation::Read => Storage::Address,
+            ValueInputOperation::Edit => return false,
+        };
+        place.projections.is_empty() && self.body.slots.get(place.slot).is_some_and(|slot| {
+            slot.storage == storage
+                && matches!(slot.key, SlotKey::FutureInput { operation, .. } if operation == mode)
+        })
+    }
+    fn future_move(
+        &self,
+        selector: &Place,
+        cases: &[super::FutureCaptureCase<super::FutureMoveInput>],
+    ) -> Result<(), Failure> {
+        self.future_cases(selector, cases.iter().map(|case| case.tag))?;
+        for case in cases {
+            for field in &case.fields {
+                self.transfer(&field.source, &field.destination)?;
+                self.require(
+                    self.future_input_slot(&field.source, field.operation)
+                        && self.future_input_slot(&field.destination, field.operation),
+                )?;
+            }
+        }
+        Ok(())
+    }
     fn future_cleanup(
         &self,
         selector: &Place,
@@ -752,7 +772,7 @@ impl Context<'_> {
                 self.require(
                     input_owner == owner
                         && previous.is_none_or(|prior| prior > index)
-                        && input.source.projections.is_empty()
+                        && self.future_input_slot(&input.source, ValueInputOperation::Take)
                         && self.matches_input_disposal(input.source.data, input.disposal),
                 )?;
                 previous = Some(index);
@@ -802,8 +822,8 @@ impl Context<'_> {
             for (actual, expected) in case.inputs.iter().zip(signature.explicit()) {
                 self.place(&actual.source)?;
                 self.require(
-                    expected.operation == ValueInputOperation::Take
-                        && actual.operation == expected.operation
+                    actual.operation == expected.operation
+                        && self.future_input_slot(&actual.source, actual.operation)
                         && self
                             .program
                             .runtime

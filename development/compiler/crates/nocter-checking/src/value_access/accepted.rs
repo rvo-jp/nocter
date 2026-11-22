@@ -232,7 +232,7 @@ impl Unit {
         code: nocter_model::ValueCode,
         holder: flow::resources::Holder,
         producer: AccessCodeId,
-    ) -> Option<&Arc<[TypeId]>> {
+    ) -> Option<&Arc<[nocter_declarations::value_access::FunctionInput]>> {
         self.local_futures.captures(code, holder, producer)
     }
     /// Exact captured input transport for a reached original ownership move.
@@ -243,7 +243,7 @@ impl Unit {
         at: flow::Location,
         source: flow::resources::Holder,
         destination: flow::resources::Holder,
-    ) -> Option<&FutureCaptureCases<TypeId>> {
+    ) -> Option<&FutureCaptureCases<nocter_declarations::value_access::FunctionInput>> {
         self.local_futures.movement(code, at, source, destination)
     }
     /// Exact nontrivial input cleanup for a reached cancellation, in initialization-reverse order.

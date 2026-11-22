@@ -357,7 +357,10 @@ producer through ownership transfer. The drive consumes that receipt before exec
 the output through the shared normal-result transition after execution. The same construction
 step commits prepared take inputs in source order to an unstarted local activation when the
 input descriptor determines the layout. Closed compound inputs retain their structural cleanup
-and use the ordinary value ABI when the drive supplies them to the body.
+and use the ordinary value ABI when the drive supplies them to the body. A local activation can
+also retain a read of an existing named place. Its ownership receipt keeps that place accessible
+through moves and releases the read on cancellation or drive. The backend transports the saved
+address and distinguishes it from a take input of the same data type.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
 A future type in a body uses a producer selector when a reached drive has multiple producers

@@ -54,6 +54,39 @@ fn private_fallible_void_entry_exits_without_a_success_payload() {
 }
 
 #[test]
+fn local_future_read_inputs_use_the_original_place_and_release_it() {
+    let source = r"
+        async func observe(source: i32): i32 { source }
+        async func snapshot(take source: i32): i32 { source + 10 }
+        async func abandon(source: i32): i32 { source / (source - source) }
+        func cancel_implicit(): void {
+            let inner: i32 = 1
+            let unstarted = abandon(inner)
+        }
+
+        async func run(): i32 {
+            var watched: i32 = 20
+            var iteration: i32 = 0
+            while iteration < 2 {
+                let pending = if iteration == 0 { observe(watched) } else { snapshot(watched) }
+                let moved = pending^
+                let answer = await moved^
+                if answer != watched + iteration * 10 { return 3 }
+                watched += 1
+                iteration += 1
+            }
+            let pending = abandon(watched)
+            drop pending
+            watched += 1
+            cancel_implicit()
+            watched + 19
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "local-future-read-inputs", 42);
+}
+
+#[test]
 fn private_type_and_value_names_select_independently_through_native_execution() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

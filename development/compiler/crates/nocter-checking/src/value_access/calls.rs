@@ -2,7 +2,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{CallKind, ExpressionKind, value_type},
+    ir::{Argument, ArgumentAction, CallKind, ExpressionKind, Referent, value_type},
 };
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
 use nocter_model::{
@@ -258,6 +258,21 @@ impl Checker<'_, '_> {
         let selected = self.value_callee(node, value)?;
         self.selected_call(node, suffix, &selected, reachable)
     }
+    fn local_future_argument(&self, input: FunctionInput, plan: &Argument) -> bool {
+        use nocter_model::ValueInputOperation;
+        let supported = match (input.operation, &plan.action) {
+            (ValueInputOperation::Take, _) => true,
+            (ValueInputOperation::Read, ArgumentAction::ReserveRead(Referent::Place(place))) => {
+                self.places
+                    .get(*place)
+                    .is_some_and(|place| place.fields.is_root())
+            }
+            _ => false,
+        };
+        supported
+            && super::flow::resources::local_future_input(self.program(), input.data).is_some()
+    }
+
     fn selected_call(
         &mut self,
         node: NodeId,
@@ -295,14 +310,11 @@ impl Checker<'_, '_> {
                 Some(nocter_declarations::CallableExecution::Deferred { .. })
             ) {
                 if kind != CallKind::Direct
-                    || !contract.inputs.iter().all(|input| {
-                        input.operation == nocter_model::ValueInputOperation::Take
-                            && super::flow::resources::local_future_input(
-                                self.program(),
-                                input.data,
-                            )
-                            .is_some()
-                    })
+                    || !contract
+                        .inputs
+                        .iter()
+                        .zip(&plans)
+                        .all(|(input, plan)| self.local_future_argument(*input, plan))
                 {
                     return self.reject(Rule::UnqualifiedFuture, callee);
                 }

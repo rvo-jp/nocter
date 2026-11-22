@@ -6,7 +6,10 @@ use crate::value_access::{ArgumentAction, ExpressionKind, Referent};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use std::collections::BTreeSet;
 impl Context<'_, '_> {
-    pub(super) fn commit_preparations(&mut self, call: AccessExpressionId) -> Result<()> {
+    pub(super) fn commit_preparations(
+        &mut self,
+        call: AccessExpressionId,
+    ) -> Result<Vec<Prepared>> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
             .body()
@@ -34,7 +37,7 @@ impl Context<'_, '_> {
         for index in 0..arguments.len() {
             self.world.prepared.remove(&(call, index));
         }
-        Ok(())
+        Ok(prepared)
     }
     fn check_bundle(&self, call: AccessExpressionId, prepared: &[Prepared]) -> Result<()> {
         let mut caps = Vec::new();

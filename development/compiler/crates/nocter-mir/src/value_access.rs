@@ -44,6 +44,7 @@ pub enum SlotKey {
         owner: nocter_checking::value_access::flow::resources::Holder,
         index: usize,
         data: nocter_model::TypeId,
+        operation: nocter_model::ValueInputOperation,
     },
     IndexSnapshot(nocter_checking::value_access::flow::resources::RetainedIndex),
     ArrayFrontier(nocter_checking::value_access::flow::resources::ArrayFrontier),
@@ -126,7 +127,7 @@ pub struct Preserved {
 pub enum Effect {
     SelectedFutureMove {
         selector: Place,
-        cases: Box<[FutureCaptureCase<(Place, Place)>]>,
+        cases: Box<[FutureCaptureCase<FutureMoveInput>]>,
     },
     SelectedFutureCleanup {
         selector: Place,
@@ -245,6 +246,13 @@ pub struct FutureDriveCase {
 pub struct FutureCaptureCase<T> {
     pub tag: u64,
     pub fields: Box<[T]>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FutureMoveInput {
+    pub source: Place,
+    pub destination: Place,
+    pub operation: nocter_model::ValueInputOperation,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

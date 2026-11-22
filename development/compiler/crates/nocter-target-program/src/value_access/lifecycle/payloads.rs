@@ -1,7 +1,9 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
 use nocter_checking::value_access::accepted::{FutureCaptureCases, LocalFutureStorage, Unit};
-use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Transition};
+use nocter_checking::value_access::flow::resources::{
+    ActivationInput, Holder, Missing, Place, Transition,
+};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::{AccessInstanceId, ValueCode};
@@ -230,22 +232,15 @@ fn partition_local_future_steps<'a>(
                     ..
                 },
             ) if !inputs.is_empty() => {
-                let inputs = inputs
-                    .iter()
-                    .map(|(source, payload)| {
-                        if !source.fields().is_root()
-                            || !matches!(source.holder(), Holder::Prepared { .. })
-                        {
-                            return Err(Failure::InvalidInstanceProgram);
-                        }
-                        Ok((source.holder(), payload.data()))
-                    })
-                    .collect::<Result<Box<[_]>, Failure>>()?;
+                if inputs.iter().any(|input| matches!(input, ActivationInput::Take { source, .. }
+                    if !source.fields().is_root() || !matches!(source.holder(), Holder::Prepared { .. }))) {
+                    return Err(Failure::InvalidInstanceProgram);
+                }
                 activations.push((
                     ordinary.len(),
                     Step::CaptureFutureInputs {
                         destination: *destination,
-                        inputs,
+                        inputs: inputs.clone(),
                     },
                 ));
             }
