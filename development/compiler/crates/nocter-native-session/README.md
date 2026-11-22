@@ -33,8 +33,8 @@ command-line policy and artifact publication belong to their respective stages.
   The query-session corpus additionally exercises the production v2 package selection and image
   entry. The root and child modules each declare their own `main` and execute the selected result.
   A fallible entry with a contextual error verifies the process exit status and stderr bytes.
-  A selected child reads the actual argument count through the trusted primitive and the shared
-  native process context. Its image runs with different argument vectors without recompilation.
+  A selected child reads the argument and environment counts through trusted primitives and the
+  shared native process context. Its image runs with independent argument and environment changes.
   Two same-code factory closures from a different module retain distinct captured values through
   required evaluation and native execution. Native compilation shares the query-owned checked Unit.
   A header-only query cannot replace source acceptance.

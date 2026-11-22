@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend v2 process-context admission to environment count and argument/environment values. Retain
-the existing native startup protocol and keep raw OS bytes private until encoding validation.
-Keep context reads out of required evaluation. Then qualify async entries, installed library and
-editor integration.
+Admit the adopted v2 async syntax and retain original execution intent in source headers and
+contract pairing. Keep async checking and executable admission closed until the future dependency,
+effect and cancellation evidence exists. Reuse the target's established deferred execution path
+as each v2 semantic boundary closes.
 
 ## Remaining Contextual Representation Qualification
 
@@ -729,8 +729,14 @@ not a language restriction derived from the current realization boundary.
 - [x] Admit the trusted v2 process-argument-count role through the common process context. Execute
   the same selected native image with different argument vectors and reject the count in required
   constant evaluation.
-- [ ] Qualify environment count and argument/environment value access under the selected v2
-  standard profile. Preserve absence, native argument boundaries and invalid-encoding behavior.
+- [x] Admit environment count through the same value signature and native context. Qualify
+  independent argument/environment changes under real launches and reject both counts in required
+  evaluation.
+- [ ] Qualify argument/environment value access under the selected v2 standard profile. Preserve
+  absence, native argument boundaries, and encoding validation before raw OS bytes become user text.
+- [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
+  source recognition and header matching through body/call typing, invocation/await, dependency
+  extent, effects, cancellation, target representation and native entry driving.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

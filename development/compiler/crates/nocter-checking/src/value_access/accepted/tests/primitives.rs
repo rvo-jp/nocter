@@ -22,6 +22,11 @@ pub(super) fn authority() -> declarations::PrimitiveAuthority {
             module.clone(),
             "argument_count",
         ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessEnvironmentCount,
+            module.clone(),
+            "environment_count",
+        ),
     ]);
     declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap()
 }
@@ -131,15 +136,18 @@ fn runtime_primitive_calls_in_required_closures_report_the_call_domain() {
 }
 
 #[test]
-fn argument_count_is_a_runtime_call_in_required_evaluation() {
-    let fixture = nocter_test_support::ValueSourceFixture::new(
-        "primitive func argument_count(): usize\nconst COUNT: usize = argument_count()",
-    );
-    let result = SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority());
-    assert!(
-        matches!(result, Err(SourceFailure::Checking(Failure::Const { diagnostic, .. }))
-        if matches!(diagnostic.rule(), crate::value_access::constant::Rule::RuntimeCall(_)))
-    );
+fn process_counts_are_runtime_calls_in_required_evaluation() {
+    for name in ["argument_count", "environment_count"] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(&format!(
+            "primitive func {name}(): usize\nconst COUNT: usize = {name}()",
+        ));
+        let result = SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority());
+        assert!(
+            matches!(result, Err(SourceFailure::Checking(Failure::Const { diagnostic, .. }))
+            if matches!(diagnostic.rule(), crate::value_access::constant::Rule::RuntimeCall(_))),
+            "{name}"
+        );
+    }
 }
 
 #[test]

@@ -1,1 +1,2 @@
 primitive func arg_count(): usize
+primitive func environment_count(): usize

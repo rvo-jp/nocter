@@ -62,8 +62,13 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         ),
         PrimitiveRoleLocator::new(
             PrimitiveRole::ProcessArgumentCount,
-            ModuleIdentity::new(std, ["process"]),
+            ModuleIdentity::new(std.clone(), ["process"]),
             "arg_count",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessEnvironmentCount,
+            ModuleIdentity::new(std, ["process"]),
+            "environment_count",
         ),
     ])
 }
@@ -149,14 +154,15 @@ fn physical_query_session_unit_executes_selected_entries() {
         let image = crate::compile_value_access_image(&session, &selector).unwrap();
         assert_eq!(image.identity().name(), name);
         assert_eq!(image.identity().package(), &identity("app"));
-        execute_native_status(
-            image.image(),
-            &directory.0,
-            &format!("image-{name}"),
-            status,
-        );
         if name == "math" {
-            assert_process_arguments(image.image(), &directory.0);
+            assert_process_context(image.image(), &directory.0, status);
+        } else {
+            execute_native_status(
+                image.image(),
+                &directory.0,
+                &format!("image-{name}"),
+                status,
+            );
         }
     }
     let image =
@@ -165,16 +171,35 @@ fn physical_query_session_unit_executes_selected_entries() {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn assert_process_arguments(image: &crate::NativeImage, root: &std::path::Path) {
-    let status = super::super::native_command(image, root, "image-with-args")
-        .args(["--example", "two words", ""])
-        .status()
-        .unwrap();
-    assert_eq!(status.code(), Some(20));
+fn assert_process_context(image: &crate::NativeImage, root: &std::path::Path, base_status: i32) {
+    for (name, arguments, environment, expected) in [
+        ("plain", &[][..], &[][..], base_status),
+        (
+            "with-args",
+            &["--example", "two words", ""][..],
+            &[][..],
+            base_status + 3,
+        ),
+        (
+            "with-environment",
+            &[][..],
+            &[("NOCTER_FIRST", ""), ("NOCTER_SECOND", "two words")][..],
+            base_status + 16,
+        ),
+    ] {
+        let status = super::super::native_command(image, root, &format!("image-{name}"))
+            .env_clear()
+            .args(arguments)
+            .envs(environment.iter().copied())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(expected), "{name}");
+    }
 }
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-fn assert_process_arguments(_image: &crate::NativeImage, _root: &std::path::Path) {}
+fn assert_process_context(_image: &crate::NativeImage, _root: &std::path::Path, _base_status: i32) {
+}
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn assert_failure_report(image: &crate::NativeImage, root: &std::path::Path) {
