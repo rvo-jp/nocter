@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify v2 executable entries from explicit single-file command inputs. Use discovery's exact
-synthetic root and the checked declaration scope of the selected file. Keep direct entry lookup,
-package export lookup and file contract admission distinct. Then qualify async entries, process
-context, installed library and editor integration.
+Project executable-entry failures onto the exact current authored target or selected source file.
+Preserve one typed failure and its source envelope through `check`, `build` and `run`. Then qualify
+async entries, process context, installed library and editor integration.
 
 ## Remaining Contextual Representation Qualification
 
@@ -720,8 +719,9 @@ not a language restriction derived from the current realization boundary.
   planning and launch. Verify typed diagnostics, target/entry failures without partial outputs,
   deterministic native images, and the exact selected child status. The installed profile remains
   a separate integration step.
-- [ ] Close the v2 explicit single-file build/run entry with the same checked source and native
-  result path. A package `main` remains an authored contract; file-local `main` remains local.
+- [x] Close the v2 explicit single-file build/run entry with the same checked source and native
+  result path. Derive the image name from the selected source stem. Allow ordinary `see` suppliers
+  without exposing their `main` as the selected file's entry. Qualify native exit and rejection.
 - [ ] Attach current-source locations to v2 executable-entry errors when their exact authored
   declaration or target directive is available. Retain CLI diagnostic-envelope ownership.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,

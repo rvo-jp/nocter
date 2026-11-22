@@ -18,11 +18,11 @@ construction consumes its closed unit-analysis product through the sole session 
 cannot invoke or order semantic stages.
 
 The command toolchain selects the source grammar and standard-library declaration profile together.
-With an explicit v2 profile, declared packages reach the checked v2 session through the same
+With an explicit v2 profile, packages and explicit source files reach the checked v2 session through the same
 package resolution and discovery. `check` validates the selected entries and target capability.
 `build` and `run` lower those entries and use the common output planning, artifact persistence and
-process launcher. The installed CLI still selects its released profile. V2 standalone executable
-entry, test execution and editor integration require further work.
+process launcher. The installed CLI still selects its released profile. V2 test execution and
+editor integration require further work.
 
 ## Internal Responsibilities
 

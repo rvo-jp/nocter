@@ -78,6 +78,15 @@ impl Names {
             Entry::Qualifier(_) => None,
         }
     }
+    pub fn authored(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        name: Symbol,
+    ) -> Option<DeclarationId> {
+        let binding = self.bindings.get(&(scope, namespace, name))?;
+        binding.canonical.then_some(binding.declaration)
+    }
     pub fn visible_from(
         &self,
         scope: ScopeId,

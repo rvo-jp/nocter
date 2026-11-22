@@ -212,7 +212,7 @@ fn package_entry_checks_the_authored_main_contract() {
         let error =
             select_value_access_executable(&analysis, &ExecutableSelector::Only).unwrap_err();
         assert!(
-            matches!(error, ValueAccessEntryError::InvalidMain { executable, rule: got }
+            matches!(error, ValueAccessEntryError::InvalidMain { executable, rule: got, .. }
             if executable.name() == "app" && got == rule),
             "{body}"
         );
@@ -242,7 +242,7 @@ fn package_entry_preserves_valid_results_and_target_selection() {
         );
         let executable =
             select_value_access_executable(&analysis, &ExecutableSelector::named("app")).unwrap();
-        assert_eq!(executable.declaration().name(), "app");
+        assert_eq!(executable.package_declaration().unwrap().name(), "app");
         assert_eq!(executable.result().success(), success);
         assert_eq!(executable.result().is_fallible(), fallible);
         assert!(matches!(
@@ -272,6 +272,6 @@ fn reexported_namespace_with_main_does_not_supply_the_entry_contract() {
     assert!(analysis.diagnostics().is_empty());
     assert!(matches!(
         select_value_access_executable(&analysis, &ExecutableSelector::Only),
-        Err(ValueAccessEntryError::InvalidMain { executable, rule: None }) if executable.name() == "app"
+        Err(ValueAccessEntryError::InvalidMain { executable, rule: None, single_file: false }) if executable.name() == "app"
     ));
 }

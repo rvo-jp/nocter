@@ -335,6 +335,16 @@ impl Program {
     ) -> Option<DeclarationId> {
         self.namespace.get(scope, namespace, name)
     }
+    /// Finds a declaration authored in this exact scope, independently of visible aliases.
+    #[must_use]
+    pub fn authored_declaration_in(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        name: Symbol,
+    ) -> Option<DeclarationId> {
+        self.namespace.authored(scope, namespace, name)
+    }
     /// Query an outward name using its audience and an explicit original logical caller.
     /// This grants a declaration identity, not header or value readiness.
     #[must_use]

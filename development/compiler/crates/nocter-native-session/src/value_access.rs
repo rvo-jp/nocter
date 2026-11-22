@@ -1,4 +1,4 @@
-//! Lowers a selected v2 package executable through the common native backend.
+//! Lowers selected v2 executables through the common native backend.
 use std::{fmt, sync::Arc};
 
 use nocter_session::{
@@ -35,7 +35,7 @@ impl fmt::Display for ValueAccessLoweringError {
 
 impl std::error::Error for ValueAccessLoweringError {}
 
-/// Selects and lowers one executable from a checked v2 package session.
+/// Selects and lowers one executable from a checked v2 source session.
 ///
 /// # Errors
 /// Preserves entry selection and native lowering failures.

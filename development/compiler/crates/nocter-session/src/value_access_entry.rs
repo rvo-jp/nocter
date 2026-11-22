@@ -1,8 +1,10 @@
-//! Selects a package entry from one sealed v2 analysis and its exact discovery input.
+//! Selects an entry from one sealed v2 analysis and its exact discovery input.
 use std::{fmt, sync::Arc};
 
 use nocter_checking::value_access::accepted::Unit;
-use nocter_compile_input::{CompileUnitInput, PackageTargetResolutionInput};
+use nocter_compile_input::{
+    CompileUnitInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
+};
 use nocter_declarations::value_access::{DeclarationId, Namespace};
 use nocter_diagnostics::DiagnosticCode;
 use nocter_model::{AccessCodeId, CompilationTarget, PackageTargetKind};
@@ -17,10 +19,10 @@ use crate::{
     executable::select_candidate,
 };
 
-/// Checked entry paired with the target declaration and accepted unit that selected it.
+/// Checked entry paired with its exact discovery origin and accepted unit.
 #[derive(Debug)]
 pub struct ValueAccessExecutable<'a> {
-    declaration: &'a PackageTargetResolutionInput,
+    origin: EntryOrigin<'a>,
     target: CompilationTarget,
     accepted: &'a AcceptedValueAccess,
     entry: AccessCodeId,
@@ -30,12 +32,15 @@ pub struct ValueAccessExecutable<'a> {
 impl ValueAccessExecutable<'_> {
     #[must_use]
     pub fn identity(&self) -> ExecutableIdentity {
-        executable_identity(self.declaration)
+        self.origin.identity()
     }
 
     #[must_use]
-    pub const fn declaration(&self) -> &PackageTargetResolutionInput {
-        self.declaration
+    pub const fn package_declaration(&self) -> Option<&PackageTargetResolutionInput> {
+        match self.origin {
+            EntryOrigin::Package(declaration) => Some(declaration),
+            EntryOrigin::SingleFile { .. } => None,
+        }
     }
 
     #[must_use]
@@ -54,19 +59,44 @@ impl ValueAccessExecutable<'_> {
     }
 }
 
-fn executable_identity(declaration: &PackageTargetResolutionInput) -> ExecutableIdentity {
-    ExecutableIdentity::new(declaration.module().package().clone(), declaration.name())
+#[derive(Clone, Copy, Debug)]
+enum EntryOrigin<'a> {
+    Package(&'a PackageTargetResolutionInput),
+    SingleFile {
+        module: &'a ModuleIdentity,
+        path: &'a str,
+        name: &'a str,
+    },
+}
+
+impl<'a> EntryOrigin<'a> {
+    fn name(self) -> &'a str {
+        match self {
+            Self::Package(declaration) => declaration.name(),
+            Self::SingleFile { name, .. } => name,
+        }
+    }
+
+    fn identity(self) -> ExecutableIdentity {
+        let module = match self {
+            Self::Package(declaration) => declaration.module(),
+            Self::SingleFile { module, .. } => module,
+        };
+        ExecutableIdentity::new(module.package().clone(), self.name())
+    }
 }
 
 #[derive(Debug)]
 pub enum ValueAccessEntryError {
     RequiresAcceptedUnit,
     CompileInput(nocter_discovery::CompileInputError),
+    InvalidSingleFileInput,
     Target(TargetUnavailable),
     Selection(ExecutableSelectionError),
     InvalidMain {
         executable: ExecutableIdentity,
         rule: Option<EntryContractRule>,
+        single_file: bool,
     },
 }
 
@@ -76,7 +106,9 @@ impl ValueAccessEntryError {
         match self {
             Self::Selection(_) | Self::InvalidMain { .. } => Some(DiagnosticCode::E0800),
             Self::Target(_) => Some(DiagnosticCode::E0701),
-            Self::RequiresAcceptedUnit | Self::CompileInput(_) => None,
+            Self::RequiresAcceptedUnit | Self::CompileInput(_) | Self::InvalidSingleFileInput => {
+                None
+            }
         }
     }
 }
@@ -88,15 +120,24 @@ impl fmt::Display for ValueAccessEntryError {
                 formatter.write_str("executable selection requires successful v2 analysis")
             }
             Self::CompileInput(error) => error.fmt(formatter),
+            Self::InvalidSingleFileInput => {
+                formatter.write_str("v2 standalone input does not identify one entry file")
+            }
             Self::Target(error) => error.fmt(formatter),
             Self::Selection(error) => error.fmt(formatter),
             Self::InvalidMain {
                 executable,
                 rule: None,
+                single_file,
             } => {
+                let location = if *single_file {
+                    "the selected source file"
+                } else {
+                    "its module's index.nct"
+                };
                 write!(
                     formatter,
-                    "executable {} in {} requires main in its module's index.nct",
+                    "executable {} in {} requires main in {location}",
                     executable.name(),
                     executable.package().as_str()
                 )
@@ -104,6 +145,7 @@ impl fmt::Display for ValueAccessEntryError {
             Self::InvalidMain {
                 executable,
                 rule: Some(rule),
+                ..
             } => {
                 write!(
                     formatter,
@@ -127,7 +169,7 @@ impl std::error::Error for ValueAccessEntryError {
     }
 }
 
-/// Selects an executable declared by a root package and checks its own authored entry contract.
+/// Selects a root package or explicit-file executable and checks its authored entry.
 ///
 /// # Errors
 /// Rejects a failed or non-v2 analysis, unavailable compile input, ambiguous target, or invalid
@@ -145,12 +187,12 @@ fn select_entry<'a>(
     input: &'a CompileUnitInput<'static>,
     selector: &ExecutableSelector,
 ) -> Result<ValueAccessExecutable<'a>, ValueAccessEntryError> {
-    let declaration = select_candidate(root_executables(input), selector, |target| target.name())
+    let origin = select_candidate(entry_origins(input)?, selector, |origin| origin.name())
         .map_err(ValueAccessEntryError::Selection)?;
-    close_entry(accepted, input.target(), declaration)
+    close_entry(accepted, input.target(), origin)
 }
 
-/// Checks every root-package executable in package target declaration order.
+/// Checks every selected executable in package target declaration order.
 ///
 /// # Errors
 /// Rejects a failed or non-v2 analysis, unavailable compile input, or invalid entry contract.
@@ -158,12 +200,12 @@ pub fn select_all_value_access_executables(
     analysis: &AnalyzedUnit,
 ) -> Result<Vec<ValueAccessExecutable<'_>>, ValueAccessEntryError> {
     let (accepted, input) = accepted_input(analysis)?;
-    root_executables(input)
-        .map(|declaration| close_entry(accepted, input.target(), declaration))
+    entry_origins(input)?
+        .map(|origin| close_entry(accepted, input.target(), origin))
         .collect()
 }
 
-/// Qualifies the selected v2 package entries and platform before any native lowering.
+/// Qualifies the selected v2 entries and platform before any native lowering.
 /// A library package has no entry to qualify.
 ///
 /// # Errors
@@ -176,8 +218,8 @@ pub fn check_value_access_target(
     if let Some(selector) = selector {
         select_entry(accepted, input, selector)?;
     } else {
-        for declaration in root_executables(input) {
-            close_entry(accepted, input.target(), declaration)?;
+        for origin in entry_origins(input)? {
+            close_entry(accepted, input.target(), origin)?;
         }
     }
     value_access::executable_abi(input.target()).map_err(ValueAccessEntryError::Target)?;
@@ -197,31 +239,82 @@ fn accepted_input(
     Ok((accepted, input))
 }
 
-fn root_executables<'a>(
-    input: &'a CompileUnitInput<'_>,
-) -> impl Iterator<Item = &'a PackageTargetResolutionInput> {
-    input.package_target_resolutions().iter().filter(|target| {
-        target.kind() == PackageTargetKind::Executable
-            && input.root_packages().contains(target.module().package())
-    })
+fn entry_origins<'a>(
+    input: &'a CompileUnitInput<'static>,
+) -> Result<impl Iterator<Item = EntryOrigin<'a>>, ValueAccessEntryError> {
+    let package_targets = input
+        .package_target_resolutions()
+        .iter()
+        .filter(|target| {
+            target.kind() == PackageTargetKind::Executable
+                && input.root_packages().contains(target.module().package())
+        })
+        .map(EntryOrigin::Package);
+    Ok(single_file(input)?.into_iter().chain(package_targets))
+}
+
+fn single_file<'a>(
+    input: &'a CompileUnitInput<'static>,
+) -> Result<Option<EntryOrigin<'a>>, ValueAccessEntryError> {
+    let Some(package) = input.packages().iter().find(|package| {
+        package.mode() == PackageMode::SingleFile
+            && input.root_packages().contains(package.identity())
+    }) else {
+        return Ok(None);
+    };
+    if input.root_packages().len() != 1 {
+        return Err(ValueAccessEntryError::InvalidSingleFileInput);
+    }
+    let mut sources = input
+        .modules()
+        .iter()
+        .filter(|module| {
+            module.identity().package() == package.identity() && module.identity().path().is_empty()
+        })
+        .flat_map(|module| {
+            module
+                .sources()
+                .iter()
+                .filter(|source| source.kind() == ModuleSourceKind::SingleFile)
+                .map(move |source| (module.identity(), source.canonical_path()))
+        });
+    let (module, path) = sources
+        .next()
+        .ok_or(ValueAccessEntryError::InvalidSingleFileInput)?;
+    if sources.next().is_some() {
+        return Err(ValueAccessEntryError::InvalidSingleFileInput);
+    }
+    Ok(Some(EntryOrigin::SingleFile {
+        module,
+        path,
+        name: package.display_name(),
+    }))
 }
 
 fn close_entry<'a>(
     accepted: &'a AcceptedValueAccess,
     target: CompilationTarget,
-    declaration: &'a PackageTargetResolutionInput,
+    origin: EntryOrigin<'a>,
 ) -> Result<ValueAccessExecutable<'a>, ValueAccessEntryError> {
-    let module = declaration.module();
     let headers = accepted.headers();
     let invalid_main = |rule| ValueAccessEntryError::InvalidMain {
-        executable: executable_identity(declaration),
+        executable: origin.identity(),
         rule,
+        single_file: matches!(origin, EntryOrigin::SingleFile { .. }),
     };
     let entry = headers
         .program()
         .symbols()
         .get(EXECUTABLE_ENTRY_NAME)
-        .and_then(|name| headers.lookup_export(module, module, Namespace::Value, name));
+        .and_then(|name| match origin {
+            EntryOrigin::Package(declaration) => {
+                let module = declaration.module();
+                headers.lookup_export(module, module, Namespace::Value, name)
+            }
+            EntryOrigin::SingleFile { module, path, .. } => {
+                headers.lookup_single_file_declaration(module, path, Namespace::Value, name)
+            }
+        });
     let entry = match entry {
         Some(DeclarationId::Code(entry)) => entry,
         None => return Err(invalid_main(None)),
@@ -230,7 +323,7 @@ fn close_entry<'a>(
     let result = value_access::immediate_entry_result(accepted.unit(), entry)
         .map_err(|rule| invalid_main(Some(rule)))?;
     Ok(ValueAccessExecutable {
-        declaration,
+        origin,
         target,
         accepted,
         entry,

@@ -710,9 +710,8 @@ fn validate_sources(
             .ok_or_else(|| LoweringError::UnknownPackage(module.identity().package().clone()))?;
         let valid = match package_mode {
             PackageMode::Declared => roots == 1 && single_files == 0,
-            PackageMode::SingleFile => {
-                roots == 0 && single_files == 1 && module.sources().len() == 1
-            }
+            // Discovery may add ordinary files reached by `see` beside the one selected file.
+            PackageMode::SingleFile => roots == 0 && single_files == 1,
         };
         if !valid {
             return Err(LoweringError::InvalidModuleLayout(
@@ -748,11 +747,7 @@ fn validate_sources(
                 .expect("validated declared module has one root source");
             package_declaration_sources.insert(root_source.syntax().source());
         }
-        if package.mode() == PackageMode::SingleFile
-            && (package_modules.len() != 1
-                || package_modules[0].sources().len() != 1
-                || package_modules[0].sources()[0].kind() != ModuleSourceKind::SingleFile)
-        {
+        if package.mode() == PackageMode::SingleFile && package_modules.len() != 1 {
             return Err(LoweringError::InvalidSingleFilePackage(
                 package.identity().clone(),
             ));

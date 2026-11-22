@@ -2,7 +2,7 @@
 use super::{ModuleContext, ModuleSourcesFailure, ScopedModuleSources, syntax};
 use crate::access_declarations::{BodySources, Failure, ModuleSources};
 use nocter_compile_input::{CompileUnitInput, ModuleIdentity, ModuleSourceKind};
-use nocter_declarations::value_access::Program;
+use nocter_declarations::value_access::{DeclarationId, Namespace, Program, ScopeId};
 use nocter_model::CompilationTarget;
 use nocter_syntax::{DeclarationSyntaxSurface, project_declaration_syntax};
 use std::sync::Arc;
@@ -23,6 +23,7 @@ struct SourceRecipe {
     module: ModuleIdentity,
     path: Box<str>,
     kind: ModuleSourceKind,
+    scope: ScopeId,
     surface: DeclarationSyntaxSurface,
 }
 impl ModuleContext<'_> {
@@ -53,11 +54,29 @@ impl ModuleQuery {
         &self,
         module: &ModuleIdentity,
         caller: &ModuleIdentity,
-        namespace: nocter_declarations::value_access::Namespace,
+        namespace: Namespace,
         name: nocter_model::Symbol,
-    ) -> Option<nocter_declarations::value_access::DeclarationId> {
+    ) -> Option<DeclarationId> {
         self.exports
             .lookup(&self.program, module, caller, namespace, name)
+    }
+
+    /// Resolves a name authored in the selected standalone file's own scope.
+    #[must_use]
+    pub fn lookup_single_file_declaration(
+        &self,
+        module: &ModuleIdentity,
+        path: &str,
+        namespace: Namespace,
+        name: nocter_model::Symbol,
+    ) -> Option<DeclarationId> {
+        let source = self.sources.iter().find(|source| {
+            &source.module == module
+                && &*source.path == path
+                && source.kind == ModuleSourceKind::SingleFile
+        })?;
+        self.program
+            .authored_declaration_in(source.scope, namespace, name)
     }
 
     /// Validate current selected topology/names/headers and bind the retained authority to it.
@@ -119,6 +138,7 @@ fn source_recipes(
                 module: physical.module().clone(),
                 path: physical.canonical_path().into(),
                 kind: physical.kind(),
+                scope: binding.scopes[source.index()],
                 surface: project_declaration_syntax(syntax).surface().clone(),
             })
         })

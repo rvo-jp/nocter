@@ -134,9 +134,10 @@ fn physical_query_session_unit_executes_selected_entries() {
     for (name, path, status) in [("app", &[][..], 42), ("math", &["math"][..], 17)] {
         let selector = ExecutableSelector::named(name);
         let executable = select_value_access_executable(&session, &selector).unwrap();
-        assert_eq!(executable.declaration().name(), name);
+        let declaration = executable.package_declaration().unwrap();
+        assert_eq!(declaration.name(), name);
         assert_eq!(
-            executable.declaration().module(),
+            declaration.module(),
             &ModuleIdentity::new(identity("app"), path.iter().copied())
         );
         let image = crate::compile_value_access_image(&session, &selector).unwrap();

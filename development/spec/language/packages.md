@@ -51,6 +51,10 @@ released and v2 packages.
 module cannot supply this contract. Entry selection takes place in the declaring module, so the
 contract may restrict its audience. `main` remains an ordinary callable name.
 
+An explicitly selected single-file executable uses the top-level `main` authored in that file.
+Ordinary visibility through `see` remains available within its body. Selecting a file grants no
+package contract or outward audience.
+
 V2 retains the signature and process result rules from
 [Executable Entry](../../../spec/overview.md#executable-entry). The function has no generic or
 value parameters. Immediate and async forms admit `void`, `i32`, or `usize`, and any of

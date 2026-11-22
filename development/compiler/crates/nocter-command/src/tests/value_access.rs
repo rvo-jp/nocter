@@ -197,3 +197,65 @@ fn prepared_v2_run_launches_the_selected_native_entry() {
     assert_eq!(executed.status().code(), Some(17));
     assert!(!fixture.directory.join("app/second").exists());
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn prepared_v2_single_file_runs_its_own_main_and_allows_seen_helpers() {
+    let fixture = Fixture::new();
+    let file = fixture.directory.join("entry.nct");
+    fs::write(&file, "see ./helper.nct\nfunc main(): i32! { answer() }\n").unwrap();
+    fs::write(
+        fixture.directory.join("helper.nct"),
+        "func answer(): i32 { 38 }\n",
+    )
+    .unwrap();
+    let ParsedCommand::Build(command) =
+        parse_command_arguments(["build".into(), file.as_os_str().to_owned()]).unwrap()
+    else {
+        panic!("build command")
+    };
+    let BuildCommandResult::Selected(result) = execute_prepared_build(
+        command.prepare(&fixture.directory).unwrap(),
+        &fixture.toolchain,
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap() else {
+        panic!("single-file artifact")
+    };
+    assert_eq!(
+        result.artifact().path(),
+        file.canonicalize().unwrap().with_extension("")
+    );
+    let run = || {
+        let ParsedCommand::Run(parsed) =
+            parse_command_arguments(["run".into(), file.as_os_str().to_owned()]).unwrap()
+        else {
+            panic!("run command")
+        };
+        crate::execute_prepared_run(
+            parsed.prepare(&fixture.directory).unwrap(),
+            &fixture.toolchain,
+            &mut NoRemoteAcquisition,
+        )
+    };
+    assert_eq!(run().unwrap().status().code(), Some(38));
+
+    fs::write(
+        &file,
+        "see ./helper.nct\nfunc check_seen(): i32 { main() }\n",
+    )
+    .unwrap();
+    fs::write(
+        fixture.directory.join("helper.nct"),
+        "func main(): i32 { 38 }\n",
+    )
+    .unwrap();
+    let failure = run().unwrap_err();
+    assert_eq!(failure.diagnostic_code(), Some(DiagnosticCode::E0800));
+    assert!(
+        failure
+            .to_string()
+            .contains("requires main in the selected source file"),
+        "{failure}"
+    );
+}
