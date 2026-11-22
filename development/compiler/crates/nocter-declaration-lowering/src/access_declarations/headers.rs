@@ -37,6 +37,9 @@ pub(super) struct RecordHeader {
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
+    if let Some(modifier) = direct_node(tree, declaration, NodeKind::AsyncModifier) {
+        return Err(super::diagnostics::unqualified_future(syntax, modifier));
+    }
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
     let tail = direct_node(tree, declaration, NodeKind::CallableTail)
         .ok_or(Failure::InconsistentSyntax)?;

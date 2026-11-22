@@ -11,6 +11,11 @@ fn starts_callable(parser: &Parser<'_>) -> bool {
 
 pub(super) fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    if parser.at_keyword(Keyword::Future) {
+        super::super::types::future_type(parser, type_);
+        parser.complete(marker, NodeKind::Type);
+        return;
+    }
     if starts_callable(parser) {
         callable(parser);
         parser.complete(marker, NodeKind::Type);

@@ -332,7 +332,7 @@ fn callable_parameter(parser: &mut Parser<'_>) {
 
 fn type_atom(parser: &mut Parser<'_>) {
     match parser.current_kind() {
-        TokenKind::Keyword(Keyword::Future) => future_type(parser),
+        TokenKind::Keyword(Keyword::Future) => future_type(parser, type_),
         TokenKind::Identifier | TokenKind::Keyword(Keyword::Void | Keyword::Never) => {
             named_type(parser);
         }
@@ -342,7 +342,7 @@ fn type_atom(parser: &mut Parser<'_>) {
     }
 }
 
-fn future_type(parser: &mut Parser<'_>) {
+pub(super) fn future_type(parser: &mut Parser<'_>, operand: fn(&mut Parser<'_>)) {
     let marker = parser.start();
     parser.bump();
     if !parser.enter_nesting() {
@@ -350,7 +350,7 @@ fn future_type(parser: &mut Parser<'_>) {
         parser.complete(marker, NodeKind::FutureType);
         return;
     }
-    type_(parser);
+    operand(parser);
     parser.leave_nesting();
     parser.complete(marker, NodeKind::FutureType);
 }

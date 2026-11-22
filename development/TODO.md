@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Admit the adopted v2 async syntax and retain original execution intent in source headers and
-contract pairing. Keep async checking and executable admission closed until the future dependency,
-effect and cancellation evidence exists. Reuse the target's established deferred execution path
-as each v2 semantic boundary closes.
+Give v2 deferred declarations a typed execution contract that distinguishes body output from the
+invocation's future value. Preserve exact producer identity and keep executable admission closed
+until future dependency, effect and cancellation evidence exists. Reuse the target's established
+deferred execution path as each v2 semantic boundary closes.
 
 ## Remaining Contextual Representation Qualification
 
@@ -734,6 +734,9 @@ not a language restriction derived from the current realization boundary.
   evaluation.
 - [ ] Qualify argument/environment value access under the selected v2 standard profile. Preserve
   absence, native argument boundaries, and encoding validation before raw OS bytes become user text.
+- [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
+  Preserve async modifier agreement during source contract matching. Diagnose unsupported future
+  admission and synchronous await at their source positions.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

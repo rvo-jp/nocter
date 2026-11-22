@@ -122,8 +122,9 @@ maintaining another radix/underscore parser.
   declaration spelling.
 - The future core goal never falls back to released borrow/type/expression productions. Its call
   grammar has no access-qualified type or prefix update/transfer assertion, including under
-  grouping. `const func` retains a dedicated compile-time modifier node; repeated, retired or
-  async prefixes have no private grammar fallback. Required constant and immutable-static declarations retain their
+  grouping. `const func` and `async func` retain distinct modifier nodes. `future` consumes a
+  complete type, and an outcome suffix following `await` applies to the awaited result.
+  Required constant and immutable-static declarations retain their
   initializer as an expression body when present; omission remains a source-role decision.
   Callable constant/static annotations reach ordinary final-value validation; recognizing them
   does not serialize a callable environment. Postfix transfer is a distinct unary node, preserving

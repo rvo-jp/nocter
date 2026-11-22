@@ -76,6 +76,7 @@ pub enum Rule {
     InaccessibleRepresentation,
     UnknownType,
     UnsupportedData,
+    AwaitOutsideAsync,
     UnknownResultType,
     ShadowedName,
     TypeMismatch,
@@ -95,6 +96,10 @@ pub enum Rule {
     RequiredValueScope,
 }
 impl Rule {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "each source rule has one diagnostic code and message"
+    )]
     const fn diagnostic(self) -> (DiagnosticCode, &'static str) {
         match self {
             Self::UnknownNamespace => (
@@ -133,6 +138,10 @@ impl Rule {
             Self::UnsupportedData => (
                 DiagnosticCode::E0370,
                 "data operations are outside this private fragment",
+            ),
+            Self::AwaitOutsideAsync => (
+                DiagnosticCode::E0415,
+                "await requires an enclosing async body",
             ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

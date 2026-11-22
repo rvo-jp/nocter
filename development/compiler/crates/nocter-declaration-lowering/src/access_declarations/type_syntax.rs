@@ -98,6 +98,7 @@ pub fn project_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<TypeSy
             TypeSyntax::Named(path)
         }
         NodeKind::CallableType => TypeSyntax::Callable(callable(syntax, shape)?),
+        NodeKind::FutureType => return Err(super::diagnostics::unqualified_future(syntax, shape)),
         NodeKind::GroupedType => project_type_syntax(
             syntax,
             direct_node(syntax.tree(), shape, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?,

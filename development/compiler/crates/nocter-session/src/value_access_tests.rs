@@ -101,6 +101,39 @@ impl Drop for Fixture {
 }
 
 #[test]
+fn async_contracts_match_before_future_admission() {
+    let contract = "see ./body.nct\nasync func run(take result: i32): i32";
+    for (body, code, primary) in [
+        ("func run(take result: i32): i32 { result }", "E0251", None),
+        (
+            "async func run(take result: i32): i32 { result }",
+            "E0291",
+            Some("async"),
+        ),
+    ] {
+        let (_fixture, product) = Fixture::package(contract, body);
+        let analysis = analyze_unit_from_query(&product).unwrap();
+        assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+        let [diagnostic] = analysis.diagnostics() else {
+            panic!("{:?}", analysis.diagnostics())
+        };
+        assert_eq!(diagnostic.code(), code);
+        if let Some(expected) = primary {
+            let span = diagnostic.primary().span();
+            assert_eq!(
+                analysis
+                    .unit()
+                    .sources()
+                    .get(span.source())
+                    .unwrap()
+                    .text_at(span.range()),
+                Some(expected)
+            );
+        }
+    }
+}
+
+#[test]
 fn checked_v2_source_is_available_without_fabricating_an_executable_target() {
     let (_fixture, product) = Fixture::query("func run(): i32 { 42 }");
     let analysis = analyze_unit_from_query(&product).unwrap();

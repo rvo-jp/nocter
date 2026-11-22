@@ -149,9 +149,21 @@ impl Checker<'_, '_> {
         &self,
         node: NodeId,
     ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
-        use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
-        let ty =
-            project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
+        use nocter_declaration_lowering::access_declarations::{
+            Failure as DeclarationFailure, TypeSyntax, project_type_syntax,
+        };
+        let ty = match project_type_syntax(self.syntax(), node) {
+            Ok(ty) => ty,
+            Err(DeclarationFailure::UnqualifiedFuture(diagnostic)) => {
+                return self.reject_message(
+                    Rule::UnsupportedData,
+                    node,
+                    diagnostic.message().into(),
+                    Vec::new(),
+                );
+            }
+            Err(_) => return Err(Failure::InconsistentSyntax),
+        };
         let mut pending = vec![(&ty, false)];
         while let Some((ty, failure)) = pending.pop() {
             match ty {

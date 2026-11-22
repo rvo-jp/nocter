@@ -30,6 +30,38 @@ fn tree(text: &str, goal: ParseGoal) -> SyntaxTree {
         .unwrap();
     parse(sources.get(id).unwrap(), goal)
 }
+
+#[test]
+fn async_source_preserves_await_outcome_and_future_type_boundaries() {
+    use crate::{Punctuation, TokenKind, direct_node, direct_token_iter};
+    let source = tree(
+        concat!(
+            "async func drive(take next: future i32!): i32! { await next^? }\n",
+            "func grouped(): (future i32)!\n",
+        ),
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!source.has_errors(), "{:?}", source.diagnostics());
+    let finds = |kind| {
+        source
+            .nodes()
+            .filter_map(move |(id, node)| (node.kind() == kind).then_some(id))
+    };
+    assert_eq!(finds(NodeKind::AsyncModifier).count(), 1);
+    let outcome = finds(NodeKind::OutcomeExpression).next().unwrap();
+    let awaited = direct_node(&source, outcome, NodeKind::AwaitExpression).unwrap();
+    assert!(direct_node(&source, awaited, NodeKind::TransferExpression).is_some());
+    let payloads = finds(NodeKind::FutureType)
+        .map(|future| {
+            let payload = direct_node(&source, future, NodeKind::Type).unwrap();
+            direct_token_iter(&source, payload)
+                .any(|token| token.kind() == TokenKind::Punctuation(Punctuation::Bang))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(payloads, [true, false]);
+    assert!(tree("async primitive func p(): void", ParseGoal::V2CoreUnit).has_errors());
+    super::super::snapshots::assert_token_projection(&source, "v2 future and await");
+}
 #[test]
 fn corpus_uses_the_production_goal_with_lossless_tokens_and_structural_snapshots() {
     let root = root();

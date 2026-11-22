@@ -4,9 +4,9 @@
 
 This chapter owns the adopted v2.0.0 lazy future, producer, await, dependency and cancellation
 contracts. [Execution effects](execution-effects.md) own inferred waiting and other effect facts;
-[origins](memory-and-regions.md#edited-state-origins) own post-state bounds. These rules do not
-admit async syntax to the bounded private compiler or establish an executor, physical ABI,
-native lifecycle, package entry adapter or standard-library task protocol.
+[origins](memory-and-regions.md#edited-state-origins) own post-state bounds. The
+[compiler pipeline](../../architecture/pipeline/value-access-declarations.md#logical-resource-and-unit-acceptance-boundary)
+records implementation readiness.
 
 ## Future Values and Producers
 

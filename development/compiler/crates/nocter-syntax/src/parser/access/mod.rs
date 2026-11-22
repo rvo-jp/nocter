@@ -46,6 +46,8 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
         }
         declarations_started = true;
         if parser.at_keyword(Keyword::Func)
+            || (parser.at_keyword(Keyword::Async)
+                && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
             || (parser.at_keyword(Keyword::Primitive)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
             || (parser.at_keyword(Keyword::Const)
@@ -94,10 +96,15 @@ fn record(parser: &mut Parser<'_>) {
 
 fn function(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    if parser.at_keyword(Keyword::Const) {
+    let modifier_kind = match parser.current_kind() {
+        TokenKind::Keyword(Keyword::Const) => Some(NodeKind::CompileTimeModifier),
+        TokenKind::Keyword(Keyword::Async) => Some(NodeKind::AsyncModifier),
+        _ => None,
+    };
+    if let Some(kind) = modifier_kind {
         let modifier = parser.start();
         parser.bump();
-        parser.complete(modifier, NodeKind::CompileTimeModifier);
+        parser.complete(modifier, kind);
     }
     let primitive = parser.eat_keyword(Keyword::Primitive);
     parser.expect_keyword(Keyword::Func);

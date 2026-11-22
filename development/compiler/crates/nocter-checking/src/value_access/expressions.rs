@@ -103,6 +103,9 @@ impl Checker<'_, '_> {
                 self.constant_value(node, self.data(BuiltinType::Str), &value)?
             }
             NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
+            NodeKind::AwaitExpression => {
+                return self.reject(Rule::AwaitOutsideAsync, self.token(node)?);
+            }
             NodeKind::RecoveryExpression => self.recover_outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,

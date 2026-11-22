@@ -128,7 +128,19 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary, allow_braces: bo
         newline::after_incomplete(parser, boundary);
         wrappers.push(marker);
     }
+    let mut awaits = Vec::new();
+    while parser.at_keyword(Keyword::Await) {
+        let marker = parser.start();
+        parser.bump();
+        newline::after_incomplete(parser, boundary);
+        awaits.push(marker);
+    }
     let mut inner = postfix_in(parser, allow_braces);
+    for marker in awaits.into_iter().rev() {
+        inner = Expression {
+            completed: parser.complete(marker, NodeKind::AwaitExpression),
+        };
+    }
     if matches!(
         parser.current_kind(),
         TokenKind::Punctuation(Punctuation::Bang | Punctuation::Question)

@@ -52,6 +52,15 @@ fn reject(text: &str, rule: Rule) {
     assert_eq!(diagnostic.rule(), rule, "{:?}", diagnostic.source());
     assert!(!diagnostic.source().primary().span().range().is_empty());
 }
+
+#[test]
+fn immediate_body_cannot_await_or_construct_an_unqualified_future_value() {
+    reject("func run(): i32 { await 42 }", Rule::AwaitOutsideAsync);
+    reject(
+        "func run(): i32 { let pending: future i32 = 42\n42 }",
+        Rule::UnsupportedData,
+    );
+}
 #[test]
 fn local_kinds_are_independent_of_data_and_value_supply() {
     let all=queries("func f(edit input: i32): i32 {\nlet fixed = input\nvar mutable = fixed\nread observed = mutable\nedit changing = input\nchanging += observed\nreturn fixed\n}").unwrap();
