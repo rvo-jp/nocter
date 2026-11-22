@@ -214,7 +214,13 @@ impl BodyTypes {
     /// # Errors
     /// Rejects a payload outside this authority's structural descriptor domain.
     pub fn optional(&mut self, payload: TypeId) -> Result<TypeId, BodyTypeError> {
-        self.outcome(payload, TypeKind::Optional)
+        self.unary_type(payload, TypeKind::Optional)
+    }
+    /// Intern a future descriptor without supplying an activation or lifecycle proof.
+    /// # Errors
+    /// Rejects an output outside this authority's structural descriptor domain.
+    pub fn future(&mut self, output: TypeId) -> Result<TypeId, BodyTypeError> {
+        self.unary_type(output, TypeKind::Future)
     }
     /// Intern a fallible descriptor; failure always stores the one built-in error payload.
     /// # Errors
@@ -223,9 +229,9 @@ impl BodyTypes {
         if self.program.has_failure_layer(payload) != Some(false) {
             return Err(BodyTypeError::RepeatedFailure);
         }
-        self.outcome(payload, TypeKind::Fallible)
+        self.unary_type(payload, TypeKind::Fallible)
     }
-    fn outcome(
+    fn unary_type(
         &mut self,
         payload: TypeId,
         kind: fn(TypeId) -> TypeKind,
@@ -620,7 +626,9 @@ fn replay_types(
                         .application_template(*application)
                         .is_some_and(|template| template.invocation.can_supply(*invocation))
             }
-            TypeKind::Optional(payload) => structural_component(body, *payload),
+            TypeKind::Optional(payload) | TypeKind::Future(payload) => {
+                structural_component(body, *payload)
+            }
             TypeKind::Fallible(payload) => {
                 structural_component(body, *payload)
                     && body.has_failure_layer(*payload) == Some(false)
@@ -639,6 +647,7 @@ fn replay_types(
         };
         let kind = match kind {
             TypeKind::Optional(payload) => TypeKind::Optional(project(*payload)?),
+            TypeKind::Future(payload) => TypeKind::Future(project(*payload)?),
             TypeKind::Fallible(payload) => TypeKind::Fallible(project(*payload)?),
             TypeKind::Tuple(fields) => {
                 let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;

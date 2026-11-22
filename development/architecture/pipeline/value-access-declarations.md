@@ -349,7 +349,8 @@ The v2 grammar preserves async modifiers, future type operands and await before 
 Contract pairing distinguishes an async declaration from an immediate implementation. The
 [typed declaration contract](../../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
 retains the deferred mode and its invocation result. Producing a future value requires its
-own lifecycle evidence. Body typing checks that `await` occurs in the nearest deferred body and
+own lifecycle evidence. A `future T` annotation on an owning local uses the same type identity
+as a producer with output `T`. Body typing checks that `await` occurs in the nearest deferred body and
 consumes an owned operand. The typed expression exposes one future layer's output before an outer
 outcome operation. The control and resource analyses retain each empty activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives

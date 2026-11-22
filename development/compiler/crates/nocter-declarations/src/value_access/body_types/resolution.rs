@@ -38,29 +38,7 @@ impl Program {
         if self.type_scope != TypeScope::Canonical {
             return Err(BodyTypeError::InvalidExtension);
         }
-        for (&source, &target) in witnesses {
-            if !matches!(
-                source.origin,
-                ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
-            ) || !matches!(
-                target.origin,
-                ValueFunctionOrigin::Declaration(_)
-                    | ValueFunctionOrigin::Closure(_)
-                    | ValueFunctionOrigin::Parameter(_)
-            ) || source.invocation != target.invocation
-                || self.function_data(source).is_none()
-            {
-                return Err(BodyTypeError::InvalidExtension);
-            }
-            let expected = self
-                .function_contract(source)
-                .ok_or(BodyTypeError::InvalidExtension)?;
-            let supplied = self
-                .function_data(target)
-                .ok_or(BodyTypeError::InvalidExtension)?;
-            self.constrain_declared_function(supplied, &expected)
-                .map_err(|_| BodyTypeError::InvalidExtension)?;
-        }
+        self.validate_body_witnesses(witnesses)?;
         let mut types = self.types.transaction();
         let mut projection = BTreeMap::new();
         for (data, kind) in self.types.store().iter_from(0) {
@@ -70,42 +48,44 @@ impl Program {
                     .copied()
                     .ok_or(BodyTypeError::InvalidExtension)
             };
-            let target = match kind {
-                TypeKind::ValueFunction { origin, invocation } => witnesses
-                    .get(&FunctionWitness {
+            let rebuilt = match kind {
+                TypeKind::ValueFunction { origin, invocation } => {
+                    let witness = FunctionWitness {
                         origin: *origin,
                         invocation: *invocation,
-                    })
-                    .map(|&witness| {
-                        self.function_data(witness)
-                            .ok_or(BodyTypeError::InvalidExtension)
-                    })
-                    .transpose()?
-                    .unwrap_or(data),
-                TypeKind::Optional(payload) => types
-                    .intern(TypeKind::Optional(project(*payload)?))
-                    .map_err(|_| BodyTypeError::InvalidExtension)?,
-                TypeKind::Fallible(payload) => types
-                    .intern(TypeKind::Fallible(project(*payload)?))
-                    .map_err(|_| BodyTypeError::InvalidExtension)?,
+                    };
+                    let target = match witnesses.get(&witness) {
+                        Some(&selected) => self
+                            .function_data(selected)
+                            .ok_or(BodyTypeError::InvalidExtension)?,
+                        None => data,
+                    };
+                    projection.insert(data, target);
+                    continue;
+                }
+                TypeKind::Optional(payload) => TypeKind::Optional(project(*payload)?),
+                TypeKind::Future(output) => TypeKind::Future(project(*output)?),
+                TypeKind::Fallible(payload) => TypeKind::Fallible(project(*payload)?),
                 TypeKind::Tuple(fields) => {
                     let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;
-                    types
-                        .intern(TypeKind::Tuple(nocter_model::TupleElements::new(
-                            fields[0],
-                            fields[1],
-                            fields[2..].iter().copied(),
-                        )))
-                        .map_err(|_| BodyTypeError::InvalidExtension)?
+                    TypeKind::Tuple(nocter_model::TupleElements::new(
+                        fields[0],
+                        fields[1],
+                        fields[2..].iter().copied(),
+                    ))
                 }
-                TypeKind::FixedArray { element, length } => types
-                    .intern(TypeKind::FixedArray {
-                        element: project(*element)?,
-                        length: *length,
-                    })
-                    .map_err(|_| BodyTypeError::InvalidExtension)?,
-                _ => data,
+                TypeKind::FixedArray { element, length } => TypeKind::FixedArray {
+                    element: project(*element)?,
+                    length: *length,
+                },
+                _ => {
+                    projection.insert(data, data);
+                    continue;
+                }
             };
+            let target = types
+                .intern(rebuilt)
+                .map_err(|_| BodyTypeError::InvalidExtension)?;
             projection.insert(data, target);
         }
         let project = |data| {
@@ -136,5 +116,35 @@ impl Program {
             program,
             projection,
         })
+    }
+
+    fn validate_body_witnesses(
+        &self,
+        witnesses: &BTreeMap<FunctionWitness, FunctionWitness>,
+    ) -> Result<(), BodyTypeError> {
+        for (&source, &target) in witnesses {
+            if !matches!(
+                source.origin,
+                ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
+            ) || !matches!(
+                target.origin,
+                ValueFunctionOrigin::Declaration(_)
+                    | ValueFunctionOrigin::Closure(_)
+                    | ValueFunctionOrigin::Parameter(_)
+            ) || source.invocation != target.invocation
+                || self.function_data(source).is_none()
+            {
+                return Err(BodyTypeError::InvalidExtension);
+            }
+            let expected = self
+                .function_contract(source)
+                .ok_or(BodyTypeError::InvalidExtension)?;
+            let supplied = self
+                .function_data(target)
+                .ok_or(BodyTypeError::InvalidExtension)?;
+            self.constrain_declared_function(supplied, &expected)
+                .map_err(|_| BodyTypeError::InvalidExtension)?;
+        }
+        Ok(())
     }
 }

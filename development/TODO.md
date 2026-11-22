@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Admit a local `future T` annotation over an existing checked activation through the same
-canonical type authority as headers. Verify that explicit and inferred bindings preserve the
-same ownership, drive and cancellation behavior before adding more activation representations.
+Qualify a local join of empty, non-suspending activations whose reached drive can select different
+producers. Retain the selected producer through ownership transfers and use a physical selector
+only where the static drive proof needs it. Keep source initialization and cancellation independent
+of the selector's storage.
 
 ## Remaining Contextual Representation Qualification
 
@@ -771,11 +772,14 @@ not a language restriction derived from the current realization boundary.
   non-suspending producer. Carry the exact edge through target instantiation and verify fresh and
   moved activations in a native process, with unstarted cancellation in the same execution.
   Diagnose an await that still requires a runtime selector at its original source.
+- [x] Accept `future T` on an owning local through the shared header/body type authority. Verify
+  the annotated move and await in the native package, and reject different output types or a
+  non-future initializer at the binding.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
-  Admit explicit local `future` annotations once their supplied lifecycles can be matched;
-  the header type spelling alone does not establish a local activation.
+  Qualify scoped future aliases, nested annotations and represented carriers through their actual
+  activation and storage evidence.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

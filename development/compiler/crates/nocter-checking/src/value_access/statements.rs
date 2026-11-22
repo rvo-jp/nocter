@@ -235,7 +235,9 @@ impl Checker<'_, '_> {
         let annotation = self
             .direct(node, NodeKind::TypeAnnotation)
             .ok()
-            .map(|annotation| self.annotation(self.direct(annotation, NodeKind::Type)?))
+            .map(|annotation| {
+                self.binding_annotation(self.direct(annotation, NodeKind::Type)?, kind)
+            })
             .transpose()?;
         let expression = self.direct(node, NodeKind::Expression)?;
         if self.text(name)? == "_" {

@@ -149,11 +149,15 @@ impl Checker<'_, '_> {
     fn annotation_syntax(
         &self,
         node: NodeId,
+        local_future: bool,
     ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
         use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
         let ty =
             project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
-        let mut pending = vec![(&ty, false)];
+        let mut pending = match &ty {
+            TypeSyntax::Future { output, .. } if local_future => vec![(output.as_ref(), false)],
+            _ => vec![(&ty, false)],
+        };
         while let Some((ty, failure)) = pending.pop() {
             match ty {
                 TypeSyntax::Future { origin, .. } => {
@@ -180,11 +184,31 @@ impl Checker<'_, '_> {
         Ok(ty)
     }
     pub fn annotation(&mut self, node: NodeId) -> Result<Annotation, Failure> {
+        self.annotation_in(node, false)
+    }
+    pub(super) fn binding_annotation(
+        &mut self,
+        node: NodeId,
+        kind: nocter_model::ValueBindingKind,
+    ) -> Result<Annotation, Failure> {
+        self.annotation_in(
+            node,
+            kind.access_mode() == nocter_model::ValueAccessMode::Own,
+        )
+    }
+    fn annotation_in(&mut self, node: NodeId, local_future: bool) -> Result<Annotation, Failure> {
         use nocter_declaration_lowering::access_declarations::TypeSyntax;
-        match self.annotation_syntax(node)? {
+        match self.annotation_syntax(node, local_future)? {
             TypeSyntax::Callable(contract) => self
                 .callable_annotation(&contract)
                 .map(Annotation::Function),
+            TypeSyntax::Future { output, .. } if local_future => {
+                let output = self.annotation_data(&output, false)?;
+                self.types
+                    .future(output)
+                    .map(Annotation::Data)
+                    .map_err(|_| Failure::InconsistentSyntax)
+            }
             data => self.annotation_data(&data, false).map(Annotation::Data),
         }
     }
@@ -194,7 +218,7 @@ impl Checker<'_, '_> {
         position: usize,
     ) -> Result<Annotation, Failure> {
         use nocter_declaration_lowering::access_declarations::TypeSyntax;
-        match self.annotation_syntax(node)? {
+        match self.annotation_syntax(node, false)? {
             TypeSyntax::Callable(contract) => self
                 .callable_annotation_in(&contract, true)
                 .map(Annotation::Function),

@@ -54,11 +54,11 @@ fn reject(text: &str, rule: Rule) {
 }
 
 #[test]
-fn immediate_body_cannot_await_or_construct_an_unqualified_future_value() {
+fn immediate_body_cannot_await_or_manufacture_a_future_from_an_annotation() {
     reject("func run(): i32 { await 42 }", Rule::AwaitOutsideAsync);
     reject(
         "func run(): i32 { let pending: future i32 = 42\n42 }",
-        Rule::UnqualifiedFuture,
+        Rule::TypeMismatch,
     );
 }
 
@@ -112,7 +112,7 @@ fn await_consumes_one_owned_future_layer_before_outcome_propagation() {
     let typed = queries(
         "async func child(): i32! { 42 }\n\
          async func fresh(): i32! { await child()? }\n\
-         async func moved(): i32! { let pending = child()\nawait pending^? }",
+         async func moved(): i32! { let pending: future i32! = child()\nawait pending^? }",
     )
     .unwrap();
     for name in ["fresh", "moved"] {
@@ -149,6 +149,10 @@ fn await_consumes_one_owned_future_layer_before_outcome_propagation() {
             Some(PayloadSchema::Future(output))
         );
     }
+    reject(
+        "async func child(): i32 { 42 }\nfunc run(): i32 { let pending: future i64 = child()\n42 }",
+        Rule::TypeMismatch,
+    );
 }
 
 #[test]

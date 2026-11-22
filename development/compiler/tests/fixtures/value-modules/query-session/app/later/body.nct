@@ -41,7 +41,7 @@ async func child(): i32 {
 }
 
 async func relay(): i32 {
-    let pending = child()
+    let pending: future i32 = child()
     await pending^
 }
 
