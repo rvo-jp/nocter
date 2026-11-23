@@ -4,7 +4,6 @@ use super::{
     source::{AliasSource, EnumSource, FieldSource, ParameterSource, RecordSource, VariantSource},
     text,
 };
-use crate::generics::ExplicitParameterSyntax;
 use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{CodeKind, ParameterBinding};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
@@ -36,7 +35,12 @@ pub(super) struct Header {
 #[derive(Clone, Debug)]
 pub(super) struct GenericParameters {
     pub origin: NodeId,
-    slots: Box<[ExplicitParameterSyntax]>,
+    slots: Box<[GenericParameterHeader]>,
+}
+#[derive(Clone, Debug)]
+struct GenericParameterHeader {
+    name: SyntaxToken,
+    annotation: Option<(NodeId, TypeSyntax)>,
 }
 impl GenericParameters {
     pub fn bindings<E>(
@@ -54,6 +58,24 @@ impl GenericParameters {
                 Ok((resolve(slot.name)?, domain))
             })
             .collect()
+    }
+
+    pub fn constant_annotations(&self) -> impl Iterator<Item = (NodeId, &TypeSyntax)> {
+        self.slots.iter().filter_map(|slot| {
+            let (node, annotation) = slot.annotation.as_ref()?;
+            Some((*node, annotation))
+        })
+    }
+
+    fn tokens(&self) -> impl Iterator<Item = SyntaxToken> + '_ {
+        self.slots.iter().flat_map(|slot| {
+            std::iter::once(slot.name).chain(
+                slot.annotation
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|(_, annotation)| annotation.tokens()),
+            )
+        })
     }
 }
 #[derive(Clone, Debug)]
@@ -232,7 +254,18 @@ fn generic_parameters(
     }
     Ok(GenericParameters {
         origin: parameters,
-        slots: slots.into(),
+        slots: slots
+            .into_iter()
+            .map(|slot| {
+                Ok(GenericParameterHeader {
+                    name: slot.name,
+                    annotation: slot
+                        .annotation
+                        .map(|node| project_type_syntax(syntax, node).map(|ty| (node, ty)))
+                        .transpose()?,
+                })
+            })
+            .collect::<Result<_, Failure>>()?,
     })
 }
 
@@ -391,11 +424,7 @@ pub(super) fn symbols(
             .iter()
             .flat_map(|h| {
                 std::iter::once(h.name)
-                    .chain(
-                        h.generics
-                            .iter()
-                            .flat_map(|list| list.slots.iter().map(|slot| slot.name)),
-                    )
+                    .chain(h.generics.iter().flat_map(GenericParameters::tokens))
                     .chain(h.result_data.tokens())
                     .chain(
                         h.parameters

@@ -76,6 +76,49 @@ fn paired_generic_headers_reserve_one_ordered_slot_list() {
 }
 
 #[test]
+fn constant_parameter_annotation_uses_the_published_alias_identity() {
+    for (target, diagnostic) in [("usize", "E0291"), ("i32", "E0283")] {
+        let index =
+            format!("see ./body.nct\ntype Count = {target}\nfunc fill<const N: Count>(): void");
+        let body = "see ./index.nct\nfunc fill<const N: Count>(): void {}";
+        let mut scoped = inventory(
+            &[
+                ("/app/index.nct", Root, &index),
+                ("/app/body.nct", Implementation, body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+            false,
+        )
+        .pair()
+        .unwrap()
+        .reserve_names()
+        .unwrap();
+        let fill = scoped
+            .declaration(declaration(
+                &scoped,
+                "/app/index.nct",
+                Kind::Function,
+                "fill",
+            ))
+            .unwrap();
+        let alias = scoped
+            .declaration_ids()
+            .find(|id| matches!(id, DeclarationId::Alias(_)))
+            .unwrap();
+        let HeaderProgress::RequireHeaders(required) = advance(&mut scoped, fill).unwrap() else {
+            panic!("constant parameter requests its annotation's alias");
+        };
+        assert_eq!(required.as_ref(), [alias]);
+        assert_eq!(advance(&mut scoped, alias).unwrap(), HeaderProgress::Ready);
+        assert!(matches!(
+            advance(&mut scoped, fill),
+            Err(ModuleSourcesFailure::Access(Failure::Syntax(diagnostics)))
+                if diagnostics[0].code() == diagnostic
+        ));
+    }
+}
+
+#[test]
 fn scalar_enum_pairs_keep_copy_policy_and_original_variant_audience() {
     let mut scoped = inventory(
         &[

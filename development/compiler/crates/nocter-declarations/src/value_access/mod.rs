@@ -318,6 +318,19 @@ impl Program {
         self.generic_parameters.get(id)
     }
 
+    /// Resolve a binder in exactly this callable's own generic scope.
+    #[must_use]
+    pub fn generic_parameter_named(
+        &self,
+        code: AccessCodeId,
+        name: Symbol,
+    ) -> Option<(GenericParameterId, GenericParameter<AccessCodeId>)> {
+        self.generic_parameter_ids(code)?.iter().find_map(|&id| {
+            let parameter = self.generic_parameter(id)?;
+            (parameter.name() == name).then_some((id, parameter))
+        })
+    }
+
     /// The original execution mode and, for a deferred callable, its body output.
     #[must_use]
     pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {

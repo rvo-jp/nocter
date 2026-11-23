@@ -24,6 +24,9 @@ preserves original names and constant type annotations. A repeated name is diagn
 second occurrence with the first declaration attached. A paired module contract and implementation
 share the representative's ordered parameter identities. Reserved slots expose their owner, name,
 ordinal and kind before signature publication. They cannot admit an ordinary callable definition.
+Constant parameter annotations use ordinary header type lookup, including transparent aliases
+that resolve to `usize`. A different type is diagnosed on the annotation before any generic
+body checking. A non-name type constructor cannot request value evaluation to establish this domain.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

@@ -5,6 +5,7 @@ use super::{
     source::{FieldSource, Sources},
     text,
 };
+use crate::GenericRule;
 use nocter_declarations::value_access::{
     DataReference, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
     FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
@@ -12,8 +13,8 @@ use nocter_declarations::value_access::{
 };
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
-    AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, TypeAliasId,
-    ValueInputOperation,
+    AccessCodeId, BuiltinType, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol,
+    TypeAliasId, ValueInputOperation,
 };
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, SyntaxOrigin, SyntaxToken};
@@ -148,7 +149,21 @@ pub(super) fn project_code<'v>(
     sources: &Sources,
     values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
 ) -> Result<Projection<CodeDefinition>, Failure> {
+    let mut definitions = Definitions {
+        program,
+        scope,
+        sources,
+        values,
+        progress: Progress::default(),
+    };
     if let Some(generics) = &header.generics {
+        definitions.generic_annotations(id, generics)?;
+        if !definitions.progress.missing_aliases.is_empty() {
+            return Ok(Projection {
+                definition: None,
+                progress: definitions.progress,
+            });
+        }
         let origin = SourceOrigin::from_node(scope.syntax.tree(), generics.origin)
             .map_err(|_| Failure::InconsistentSyntax)?;
         return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
@@ -159,13 +174,6 @@ pub(super) fn project_code<'v>(
             None::<&str>,
         )])));
     }
-    let mut definitions = Definitions {
-        program,
-        scope,
-        sources,
-        values,
-        progress: Progress::default(),
-    };
     let definition = definitions.function(id, header, source)?;
     Ok(Projection {
         definition,
@@ -245,17 +253,43 @@ impl Definitions<'_, '_, '_> {
             .get(text(self.scope.syntax, token))
             .ok_or(Failure::InconsistentSyntax)
     }
-    fn data(
+    fn generic_annotations(
         &mut self,
-        token: SyntaxToken,
-        declaration: DeclarationId,
-        position: HeaderPosition,
-    ) -> Result<Option<DataReference>, Failure> {
-        let resolved = self
-            .program
-            .resolve_data_in(self.scope.lookup, self.symbol(token)?)
-            .map(Some);
-        self.selected_data(declaration, position, resolved)
+        code: AccessCodeId,
+        generics: &GenericParameters,
+    ) -> Result<(), Failure> {
+        for (origin, annotation) in generics.constant_annotations() {
+            if let TypeSyntax::Named(path) = annotation {
+                let shadows_type = if let [name] = path.as_ref() {
+                    self.program
+                        .generic_parameter_named(code, self.symbol(*name)?)
+                        .is_some()
+                } else {
+                    false
+                };
+                if !shadows_type {
+                    match self.lookup_data_path(path)? {
+                        Ok(Some(DataReference::Builtin(BuiltinType::Usize))) => continue,
+                        Err(DeclarationRule::UnreadyAlias { alias }) => {
+                            self.progress.missing_aliases.push(alias);
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            let origin = SourceOrigin::from_node(self.scope.syntax.tree(), origin)
+                .map_err(|_| Failure::InconsistentSyntax)?;
+            let rule = GenericRule::UnsupportedConstantParameterType;
+            return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
+                rule.code(),
+                rule.message(),
+                origin,
+                [],
+                Some(rule.help()),
+            )])));
+        }
+        Ok(())
     }
     fn selected_data(
         &mut self,
@@ -280,29 +314,29 @@ impl Definitions<'_, '_, '_> {
             }
         }
     }
-    fn data_path(
-        &mut self,
+    fn lookup_data_path(
+        &self,
         path: &[SyntaxToken],
-        owner: DeclarationId,
-        position: HeaderPosition,
-    ) -> Result<Option<DataReference>, Failure> {
-        let [token] = path else {
-            let names = path
-                .iter()
-                .map(|&token| self.symbol(token).map(Some))
-                .collect::<Result<Vec<_>, _>>()?;
-            let resolved = self
+    ) -> Result<Result<Option<DataReference>, DeclarationRule>, Failure> {
+        if let [token] = path {
+            return Ok(self
                 .program
-                .declaration_path_in(
-                    self.scope.lookup,
-                    nocter_declarations::value_access::Namespace::Type,
-                    &names,
-                )
-                .map_err(|error| DeclarationRule::QualifiedDataName { error })
-                .and_then(|target| self.program.data_reference_for(target));
-            return self.selected_data(owner, position, resolved);
-        };
-        self.data(*token, owner, position)
+                .resolve_data_in(self.scope.lookup, self.symbol(*token)?)
+                .map(Some));
+        }
+        let names = path
+            .iter()
+            .map(|&token| self.symbol(token).map(Some))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(self
+            .program
+            .declaration_path_in(
+                self.scope.lookup,
+                nocter_declarations::value_access::Namespace::Type,
+                &names,
+            )
+            .map_err(|error| DeclarationRule::QualifiedDataName { error })
+            .and_then(|target| self.program.data_reference_for(target)))
     }
     fn data_type(
         &mut self,
@@ -312,7 +346,10 @@ impl Definitions<'_, '_, '_> {
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
             TypeSyntax::Callable(contract) => self.callable_data(contract, owner, position),
-            TypeSyntax::Named(path) => self.data_path(path, owner, position),
+            TypeSyntax::Named(path) => {
+                let resolved = self.lookup_data_path(path)?;
+                self.selected_data(owner, position, resolved)
+            }
             TypeSyntax::Future { output, .. } => Ok(self
                 .data_type(output, owner, position)?
                 .map(|output| DataReference::Future(std::sync::Arc::new(output)))),

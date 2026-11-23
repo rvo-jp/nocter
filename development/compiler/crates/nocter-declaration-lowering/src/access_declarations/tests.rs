@@ -63,6 +63,38 @@ fn generic_slots_are_reserved_before_any_typed_callable_contract() {
     assert_eq!(later.program().generic_parameter_ids(id), Some(slots));
     assert!(!later.program().header_ready(id));
 }
+
+#[test]
+fn constant_parameters_require_usize_at_the_annotation() {
+    for (annotation, expected) in [
+        ("i32", "E0283"),
+        ("[u8; absent]", "E0283"),
+        ("(usize)", "E0291"),
+    ] {
+        let (sources, tree) = input(
+            &format!("func run<const N: {annotation}>(): void {{}}"),
+            ParseGoal::V2CoreUnit,
+        );
+        let mut preparation = Preparation::prepare(bound(&sources, &tree)).unwrap();
+        let id = preparation.code_ids().next().unwrap();
+        let Err(Failure::Syntax(diagnostics)) = preparation.advance(id) else {
+            panic!("constant parameter needs a qualified header");
+        };
+        let [diagnostic] = diagnostics.as_ref() else {
+            panic!("one annotation diagnostic")
+        };
+        assert_eq!(diagnostic.code(), expected);
+        if expected == "E0283" {
+            assert_eq!(
+                sources
+                    .get(tree.source())
+                    .unwrap()
+                    .text_at(diagnostic.primary().span().range()),
+                Some(annotation),
+            );
+        }
+    }
+}
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources
