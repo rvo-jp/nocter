@@ -261,6 +261,62 @@ fn installed_v2_error_members_require_the_exact_builtin_authority() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_identity_conversions_construct_exact_values() {
+    let tree = TempTree::new("identity-conversions");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("app.nct");
+    fs::write(
+        &source,
+        include_str!("../../../tests/fixtures/value-modules/identity-conversions.nct"),
+    )
+    .unwrap();
+    let execute = |args| execute_invocation(invocation(args, &tree.0, &home, "arm64-darwin"));
+    let outcome = execute(vec!["run", "--file", "app.nct", "--offline"]).unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    let InvocationOutcome::Run(executed) = outcome else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    for (rejected, code) in [
+        (
+            "func main(): i32 { let available = error.new(\"code\", \"message\")\nlet _ = available as error\n0 }",
+            "E0371",
+        ),
+        (
+            "func main(): i32 { let original = 42\nlet _ = original^ as i32\noriginal }",
+            "E0378",
+        ),
+        (
+            "func main(): i32 { var original = 42\nedit place = original as i32\nplace }",
+            "E0387",
+        ),
+        ("func main(): i32 { let _ = 42 as i32?\n0 }", "E0370"),
+        (
+            "func main(): i32 { let same_size: i64 = 42\nlet _ = same_size as isize\n0 }",
+            "E0370",
+        ),
+        (
+            "func echo(value: i32): i32 { value }\nfunc main(): i32 { let _ = echo as once(i32): i32\n0 }",
+            "E0370",
+        ),
+    ] {
+        fs::write(&source, rejected).unwrap();
+        let failure = execute(vec!["check", "--file", "app.nct", "--offline"]).unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        assert!(diagnostic.contains(code), "{rejected}\n{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_print_delivers_exact_text_and_reports_output_failure() {
     use std::process::{Command, Stdio};
 

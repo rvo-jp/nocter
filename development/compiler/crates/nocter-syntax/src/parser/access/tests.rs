@@ -32,6 +32,31 @@ fn tree(text: &str, goal: ParseGoal) -> SyntaxTree {
 }
 
 #[test]
+fn conversions_associate_left_between_postfix_transfer_and_multiplication() {
+    let parsed = tree(
+        "func convert(take value: Packet): i32 { 2 * value^ as Packet! as i32 }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let (multiply, _) = parsed
+        .nodes()
+        .find(|(_, node)| node.kind() == NodeKind::MultiplicativeExpression)
+        .unwrap();
+    let right = crate::child_node_iter(&parsed, multiply).last().unwrap();
+    assert_eq!(
+        parsed.node(right).unwrap().kind(),
+        NodeKind::ConversionExpression
+    );
+    let inner = crate::child_node_iter(&parsed, right).next().unwrap();
+    assert_eq!(
+        parsed.node(inner).unwrap().kind(),
+        NodeKind::ConversionExpression
+    );
+    assert!(crate::direct_node(&parsed, inner, NodeKind::TransferExpression).is_some());
+    assert!(crate::direct_node(&parsed, inner, NodeKind::Type).is_some());
+}
+
+#[test]
 fn test_declaration_uses_the_value_access_block_and_fixed_head() {
     use crate::{declaration_body, declaration_name_token};
 

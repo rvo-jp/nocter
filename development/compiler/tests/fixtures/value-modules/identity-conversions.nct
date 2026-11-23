@@ -1,0 +1,34 @@
+copy struct Pair { value: i32 }
+
+const func answer(): i32 {
+    2 * 21 as i32 as i32
+}
+
+const ANSWER: i32 = answer()
+
+func next(edit evaluations: i32): i32 {
+    evaluations = evaluations + 1
+    7
+}
+
+func echo(value: i32): i32 { value }
+
+func main(): i32 {
+    var evaluations = 0
+    let total = 2 * next(evaluations) as i32 as i32
+    if total != 14 || evaluations != 1 { return 1 }
+
+    let original = Pair { value: ANSWER }
+    let snapshot = original as Pair
+    if original.value != snapshot.value { return 2 }
+
+    let cause = error.new("test.identity", "owned")
+    let moved = cause^ as error
+    if !moved.has_code("test.identity") { return 3 }
+
+    let absent: i32? = none
+    let preserved = absent as i32?
+    let recovered = preserved otherwise { ANSWER }
+    let action = echo as func(i32): i32
+    action(recovered)
+}

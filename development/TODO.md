@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify exact-data `as` construction through the ordinary value-supply boundary. Preserve
-evaluation order, existing access and retirement rules, callable identity and outcome layers.
-Continue into source-owned `coerce` selection after exact identity has ordinary source evidence.
+Qualify source-owned `coerce` entry selection by exact target data. Pair complete source
+contracts, select receiver access before outcome projection, and use the existing call
+preparation, required evaluation and native path.
 
 ## Remaining Contextual Representation Qualification
 
@@ -672,6 +672,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Admit structural literal grants for non-generic structs over the complete root field schema.
   Verify field and grant audiences, reject a second representation, and qualify external
   construction, compile-time evaluation, empty schemas and native initializer order.
+- [x] Qualify exact-data `as` construction through ordinary value supply. Verify precedence,
+  single evaluation, access and retirement, outcome layers and selected callable identity.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

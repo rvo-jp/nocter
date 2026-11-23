@@ -59,6 +59,11 @@ schema identify the member before materializing the projection. The selected inp
 then guides the ordinary outcome and recovery preparation. The original carrier, index
 expressions, and recovery branches retain their evaluation and access order.
 
+An explicit identity conversion resolves its exact target in the ordinary body type authority.
+It evaluates the operand once and constructs the result through the existing value-supply
+operation. A callable target constrains the selected witness and requires the same invocation
+view. Outcome injection and callable adaptation remain separate from identity construction.
+
 ### Structural Record Literals
 
 A [structural grant](../../spec/language/type-behavior.md#structural-literal-grants) closes the

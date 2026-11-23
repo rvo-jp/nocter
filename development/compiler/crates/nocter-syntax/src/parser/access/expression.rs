@@ -86,7 +86,7 @@ fn binary(
     allow_braces: bool,
 ) -> Expression {
     let Some((operators, kind)) = OPERATORS.get(level) else {
-        return prefix(parser, boundary, allow_braces);
+        return conversion(parser, boundary, allow_braces);
     };
     let mut left = binary(parser, boundary, level + 1, allow_braces);
     loop {
@@ -114,6 +114,29 @@ fn binary(
         ) {
             return left;
         }
+    }
+}
+
+fn conversion(
+    parser: &mut Parser<'_>,
+    boundary: newline::Boundary,
+    allow_braces: bool,
+) -> Expression {
+    let mut source = prefix(parser, boundary, allow_braces);
+    loop {
+        newline::before(parser, boundary, |token| {
+            token == TokenKind::Keyword(Keyword::As)
+        });
+        if !parser.at_keyword(Keyword::As) {
+            return source;
+        }
+        let conversion = parser.precede(source.completed);
+        parser.bump();
+        newline::after_incomplete(parser, boundary);
+        super::type_(parser);
+        source = Expression {
+            completed: parser.complete(conversion, NodeKind::ConversionExpression),
+        };
     }
 }
 

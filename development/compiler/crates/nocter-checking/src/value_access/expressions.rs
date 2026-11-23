@@ -122,6 +122,7 @@ impl Checker<'_, '_> {
             NodeKind::ArrayRepeatLiteral => self.array_repetition(node, hint, reachable)?,
             NodeKind::ArrayLiteral => self.array_value(node, hint, reachable)?,
             NodeKind::UnaryExpression => self.unary(node, hint, reachable)?,
+            NodeKind::ConversionExpression => self.conversion(node, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression
             | NodeKind::EqualityExpression
@@ -145,6 +146,27 @@ impl Checker<'_, '_> {
         } else {
             Ok(expr)
         }
+    }
+
+    fn conversion(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
+        let children = self.children(node);
+        let &[source, target] = children.as_slice() else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        let target_type = self.annotation(target)?;
+        let value = self.expression(source, None, reachable)?;
+        let data = match target_type {
+            Annotation::Data(data) => data,
+            Annotation::Function(pattern) => {
+                if self.ty(value).access().is_none() {
+                    return Ok(value);
+                }
+                self.function_pattern_data(target, value, &pattern, false)?
+            }
+        };
+        // Identity construction requires exact data before the ordinary supply boundary.
+        self.require_data(value, data, target)?;
+        self.boundary(node, value, Boundary::Value(data))
     }
 
     pub fn unit(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
