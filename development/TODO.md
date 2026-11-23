@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify runtime storage for payload-bearing enum schemas. Retain declaration-order tags and
-field identities, share aligned payload storage across the cases, and derive tag width from
-the complete schema. Verify the geometry and exact runtime representation before value lowering.
+Connect payload-bearing enum declarations to the common data-instance and runtime shape projection.
+Preserve exact variant and field identities through target storage. Keep executable admission tied
+to construction and lifecycle support.
 
 ## Remaining Contextual Representation Qualification
 
@@ -730,8 +730,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind payload-bearing enum schemas to physical declarations. Register required field-type
   expressions and validate original visibility, source reconciliation, effective Copy, and
   precise field diagnostics through ordinary header and body preparation.
-- [ ] Qualify tagged runtime layout for payload-bearing enums. Preserve distinct field
+- [x] Qualify tagged runtime layout for payload-bearing enums. Preserve distinct field
   identities, union alignment, widened tags, and the published layout when sharing geometry.
+- [ ] Connect closed payload-bearing enum data instances to the common target representation.
+  Qualify exact storage and logical field identity from physical declarations before value operations.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

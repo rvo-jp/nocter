@@ -1,7 +1,7 @@
 use crate::RuntimeDataId;
 use std::collections::BTreeMap;
 
-use nocter_model::{CaptureId, FieldId, ParameterId, ValueField, VariantId};
+use nocter_model::{AccessFieldId, CaptureId, FieldId, ParameterId, ValueField, VariantId};
 
 /// A value-model aggregate component, preserving its logical selector independently of layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -137,6 +137,33 @@ impl RuntimeVariantRepresentation {
     }
 }
 
+/// A v2 enum variant and its stored fields in declaration order.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeValueVariantRepresentation {
+    variant: VariantId,
+    fields: Box<[(AccessFieldId, RuntimeDataId)]>,
+}
+impl RuntimeValueVariantRepresentation {
+    #[must_use]
+    pub fn new(
+        variant: VariantId,
+        fields: impl Into<Box<[(AccessFieldId, RuntimeDataId)]>>,
+    ) -> Self {
+        Self {
+            variant,
+            fields: fields.into(),
+        }
+    }
+    #[must_use]
+    pub const fn variant(&self) -> VariantId {
+        self.variant
+    }
+    #[must_use]
+    pub const fn fields(&self) -> &[(AccessFieldId, RuntimeDataId)] {
+        &self.fields
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeTypeRepresentation {
     /// A storable v2 immutable UTF-8 descriptor. Backing extent belongs to its producer.
@@ -147,6 +174,9 @@ pub enum RuntimeTypeRepresentation {
     /// A v2 payloadless enum in declaration order, retaining nominal variant identities.
     ScalarEnum {
         variants: Box<[VariantId]>,
+    },
+    ValueEnum {
+        variants: Box<[RuntimeValueVariantRepresentation]>,
     },
     Struct {
         fields: Box<[RuntimeFieldRepresentation]>,

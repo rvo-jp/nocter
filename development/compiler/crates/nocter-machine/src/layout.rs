@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 mod callable_alternatives;
 mod geometry;
+mod value_enums;
+pub use value_enums::MachineValueEnumVariantLayout;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
 use nocter_model::{CaptureId, FieldId, ParameterId, ValueField, VariantId};
@@ -161,6 +163,12 @@ pub enum MachineLayoutKind {
         tag_offset: u64,
         payload_offset: u64,
         variants: Box<[MachineEnumVariantLayout]>,
+    },
+    ValueEnum {
+        tag: MachineScalar,
+        tag_offset: u64,
+        payload_offset: u64,
+        variants: Box<[MachineValueEnumVariantLayout]>,
     },
     FixedArray {
         element: RuntimeDataId,
@@ -470,6 +478,13 @@ impl std::ops::Deref for MachineLayoutPlan {
 enum Member {
     Published(FieldId),
     Value(ValueField),
+}
+
+struct TaggedGeometry {
+    size: u64,
+    alignment: u64,
+    payload_offset: u64,
+    relative: Vec<Vec<u64>>,
 }
 
 struct LayoutBuilder<'program> {
@@ -794,6 +809,9 @@ impl LayoutBuilder<'_> {
                     .ok_or(MachineLayoutError::InvalidRepresentation(ty))?;
                 self.primitive(ty, scalar)
             }
+            RuntimeTypeRepresentation::ValueEnum { variants } => {
+                self.value_enumeration(ty, &variants)
+            }
             RuntimeTypeRepresentation::ValueText
             | RuntimeTypeRepresentation::Opaque { .. }
             | RuntimeTypeRepresentation::Closure { .. } => {
@@ -869,23 +887,17 @@ impl LayoutBuilder<'_> {
                 .iter()
                 .flat_map(|variant| variant.payload().iter().map(|payload| payload.ty())),
         )?;
-        let mut payload_alignment = 1;
-        let mut payload_size = 0;
-        let mut relative = Vec::with_capacity(variants.len());
-        for variant in variants {
-            let (size, alignment, offsets) =
-                self.member_offsets(ty, variant.payload().iter().map(|payload| payload.ty()))?;
-            payload_alignment = payload_alignment.max(alignment);
-            payload_size = payload_size.max(size);
-            relative.push(offsets);
-        }
-        let payload_offset = align_up(1, payload_alignment, ty)?;
-        let size = align_up(
-            payload_offset
-                .checked_add(payload_size)
-                .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
-            payload_alignment,
+        let TaggedGeometry {
+            size,
+            alignment,
+            payload_offset,
+            relative,
+        } = self.tagged_geometry(
             ty,
+            (1, 1),
+            variants
+                .iter()
+                .map(|variant| variant.payload().iter().map(|payload| payload.ty())),
         )?;
         let variants = variants
             .iter()
@@ -932,12 +944,44 @@ impl LayoutBuilder<'_> {
             .into_boxed_slice();
         Ok(MachineLayout {
             size,
-            alignment: payload_alignment,
+            alignment,
             kind: MachineLayoutKind::Enum {
                 tag_offset: 0,
                 payload_offset,
                 variants,
             },
+        })
+    }
+
+    fn tagged_geometry<I: IntoIterator<Item = RuntimeDataId>>(
+        &mut self,
+        ty: RuntimeDataId,
+        (tag_size, tag_alignment): (u64, u64),
+        rows: impl Iterator<Item = I>,
+    ) -> Result<TaggedGeometry, MachineLayoutError> {
+        let mut payload_alignment = 1;
+        let mut payload_size = 0;
+        let mut relative = Vec::with_capacity(rows.size_hint().0);
+        for row in rows {
+            let (size, alignment, offsets) = self.member_offsets(ty, row)?;
+            payload_alignment = payload_alignment.max(alignment);
+            payload_size = payload_size.max(size);
+            relative.push(offsets);
+        }
+        let payload_offset = align_up(tag_size, payload_alignment, ty)?;
+        let alignment = tag_alignment.max(payload_alignment);
+        let size = align_up(
+            payload_offset
+                .checked_add(payload_size)
+                .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
+            alignment,
+            ty,
+        )?;
+        Ok(TaggedGeometry {
+            size,
+            alignment,
+            payload_offset,
+            relative,
         })
     }
 
@@ -1020,7 +1064,7 @@ impl LayoutBuilder<'_> {
         let mut alignment = 1_u64;
         let mut offsets = Vec::new();
         for member in members {
-            let layout = self.layout(member)?.clone();
+            let layout = self.layout(member)?;
             size = align_up(size, layout.alignment, owner)?;
             offsets.push(size);
             size = size

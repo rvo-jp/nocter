@@ -123,8 +123,9 @@ participate in finite-schema checking, and the selected Copy contract checks eve
 payload position. Physical header binding resolves each payload type and required expression
 in its authored scope. A braced contract checks each type against the enum's audience. An
 opaque completion retains its own visibility. Header reconciliation checks the original
-variant and field identities against the finalized types. Executable layout qualification
-currently covers the scalar enum schema.
+variant and field identities against the finalized types. The layout planner can place each
+variant's fields in one shared aligned payload area and derive tag width from the complete
+schema. The source execution path currently materializes scalar enum values.
 
 A payloadless constructor selects its declared variant and produces the owning nominal value.
 Required evaluation validates and retains its tag under the exact enum schema. Native lowering

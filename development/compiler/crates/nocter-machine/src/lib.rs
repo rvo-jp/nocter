@@ -71,6 +71,7 @@ pub use layout::{
     MachineCaptureLayout, MachineEnumVariantLayout, MachineFieldLayout, MachineLayout,
     MachineLayoutError, MachineLayoutKind, MachineLayoutPlan, MachineLayoutStore,
     MachineOutcomeKind, MachinePayloadLayout, MachineScalar, MachineTupleElementLayout,
+    MachineValueEnumVariantLayout,
 };
 pub use linkage::{MachineLinkageError, MachineLinkageKey};
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};

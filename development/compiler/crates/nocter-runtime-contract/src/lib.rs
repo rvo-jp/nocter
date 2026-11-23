@@ -94,7 +94,7 @@ pub use primitive::{
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeValueFieldRepresentation,
-    RuntimeVariantRepresentation,
+    RuntimeValueVariantRepresentation, RuntimeVariantRepresentation,
 };
 pub use runtime_storage::{
     RuntimeStorageBinding, RuntimeStorageBindingError, RuntimeStorageLayout,

@@ -185,6 +185,7 @@ fn validate_representations(
                     | RuntimeTypeRepresentation::ValueAggregate { .. }
                     | RuntimeTypeRepresentation::Enum { .. }
                     | RuntimeTypeRepresentation::ScalarEnum { .. }
+                    | RuntimeTypeRepresentation::ValueEnum { .. }
             ) | (
                 RuntimeType::Closure,
                 RuntimeTypeRepresentation::Closure { .. }
@@ -217,6 +218,28 @@ fn validate_representation(
                 return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
                     owner,
                 ));
+            }
+        }
+        RuntimeTypeRepresentation::ValueEnum { variants } => {
+            if variants.iter().all(|variant| variant.fields().is_empty()) {
+                return Err(RuntimeEnvironmentError::MissingEnumPayload(owner));
+            }
+            let mut variant_ids = BTreeSet::new();
+            let mut fields = BTreeSet::new();
+            for variant in variants {
+                if !variant_ids.insert(variant.variant()) {
+                    return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
+                        owner,
+                    ));
+                }
+                for &(field, data) in variant.fields() {
+                    if !fields.insert(field) {
+                        return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
+                            owner,
+                        ));
+                    }
+                    require_member_type(types, owner, data)?;
+                }
             }
         }
         RuntimeTypeRepresentation::ValueAggregate { fields } => {
@@ -301,6 +324,7 @@ pub enum RuntimeEnvironmentError {
     },
     DuplicateRepresentationMember(RuntimeDataId),
     EmptyScalarEnum(RuntimeDataId),
+    MissingEnumPayload(RuntimeDataId),
     UnsupportedStorage {
         ty: RuntimeDataId,
         role: crate::RuntimeStorageRole,
@@ -325,6 +349,66 @@ mod tests {
         RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
         RuntimeValueFieldRepresentation,
     };
+
+    #[test]
+    fn value_enum_members_have_unique_identities_across_variants() {
+        use crate::{RuntimeDataId, RuntimeValueVariantRepresentation};
+        use nocter_model::VariantId;
+        use std::collections::BTreeMap;
+
+        let owner = RuntimeDataId::Instance(0);
+        let data = RuntimeDataId::Instance(1);
+        let mut types = RuntimeTypeTableBuilder::new();
+        types.insert(owner, RuntimeType::Aggregate).unwrap();
+        types.insert(data, RuntimeType::Unit).unwrap();
+        let types = types.finish().unwrap();
+        let mut variants = ArenaBuilder::<VariantId, ()>::new();
+        let first = variants.insert(());
+        let second = variants.insert(());
+        let mut fields = ArenaBuilder::<AccessFieldId, ()>::new();
+        let field = fields.insert(());
+        let first_case = RuntimeValueVariantRepresentation::new(first, [(field, data)]);
+        for (cases, expected) in [
+            (
+                [
+                    first_case.clone(),
+                    RuntimeValueVariantRepresentation::new(second, [(field, data)]),
+                ],
+                RuntimeEnvironmentError::DuplicateRepresentationMember(owner),
+            ),
+            (
+                [
+                    first_case.clone(),
+                    RuntimeValueVariantRepresentation::new(first, []),
+                ],
+                RuntimeEnvironmentError::DuplicateRepresentationMember(owner),
+            ),
+            (
+                [
+                    first_case,
+                    RuntimeValueVariantRepresentation::new(
+                        second,
+                        [(fields.insert(()), RuntimeDataId::Instance(2))],
+                    ),
+                ],
+                RuntimeEnvironmentError::UnknownRepresentationType {
+                    owner,
+                    member: RuntimeDataId::Instance(2),
+                },
+            ),
+        ] {
+            let representation = RuntimeTypeRepresentation::ValueEnum {
+                variants: cases.into(),
+            };
+            let error = RuntimeEnvironment::new(
+                types.clone(),
+                RuntimeTypeRepresentationTable::new(BTreeMap::from([(owner, representation)])),
+                RuntimeAbiIdentity::Arm64DarwinV1,
+            )
+            .unwrap_err();
+            assert_eq!(error, expected);
+        }
+    }
 
     #[test]
     fn value_transport_ignores_empty_element_metadata_but_preserves_static_callable_identity() {
