@@ -50,6 +50,7 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
             || receiver.data != data
             || receiver.operation != ValueInputOperation::Edit
             || signature.environment().is_some()
+            || !program.cleanup.contains(&data)
             || !matches!(
                 program.runtime.type_representations().get(data),
                 Some(
@@ -69,20 +70,9 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         }
         let body = program.bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
         for operation in body.actions.values().flat_map(|action| &action.operations) {
-            match operation {
-                Operation::Call(call) => {
-                    if let CallTarget::Body(target) = call.target {
-                        pending.insert(target);
-                    }
-                }
-                Operation::SelectedCall(call) => {
-                    pending.extend(call.cases.iter().map(|case| case.target));
-                }
-                Operation::SelectedDrive(drive) => {
-                    pending.extend(drive.cases.iter().map(|case| case.target));
-                }
-                _ => {}
-            }
+            operation.visit_called_bodies(|target| {
+                pending.insert(target);
+            });
         }
     }
     if reached.len() != program.bodies.len() {

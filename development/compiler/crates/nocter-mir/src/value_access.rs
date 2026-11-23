@@ -1,4 +1,5 @@
 //! Closed private control, computation and lifecycle bodies; released admission stays separate.
+mod cleanup;
 mod computation;
 mod lower;
 mod repack;
@@ -6,7 +7,10 @@ mod repack;
 mod tests;
 mod validate;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use nocter_model::{
     AccessExpressionId, AccessFlowPointId, AccessInstanceId, AccessLocalId, Arena, MirLocalId,
@@ -331,6 +335,21 @@ pub enum Operation {
     SelectedDrive(SelectedDrive),
 }
 
+impl Operation {
+    fn visit_called_bodies(&self, mut visit: impl FnMut(AccessInstanceId)) {
+        match self {
+            Self::Call(call) => {
+                if let CallTarget::Body(target) = call.target {
+                    visit(target);
+                }
+            }
+            Self::SelectedCall(call) => call.cases.iter().for_each(|case| visit(case.target)),
+            Self::SelectedDrive(drive) => drive.cases.iter().for_each(|case| visit(case.target)),
+            _ => {}
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Jump(AccessFlowPointId),
@@ -376,6 +395,23 @@ pub struct Action {
     pub call_bindings: Box<[Effect]>,
     pub operations: Box<[Operation]>,
     pub alternatives: Box<[Alternative]>,
+}
+
+impl Action {
+    /// All possible storage effects across this action's selected resource alternatives.
+    pub fn effects(&self) -> impl Iterator<Item = &Effect> {
+        self.alternatives
+            .iter()
+            .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+            .chain(&self.call_bindings)
+            .chain(self.operations.iter().filter_map(|operation| {
+                if let Operation::Storage(effect) = operation {
+                    Some(effect)
+                } else {
+                    None
+                }
+            }))
+    }
 }
 
 /// Independent physical obligations; neither supplies ownership or source correspondence.
@@ -465,6 +501,7 @@ pub struct Program {
     runtime: RuntimeEnvironment,
     bodies: BTreeMap<AccessInstanceId, Body>,
     destructors: BTreeMap<RuntimeDataId, AccessInstanceId>,
+    cleanup: BTreeSet<RuntimeDataId>,
     root: AccessInstanceId,
 }
 impl Program {
@@ -475,7 +512,7 @@ impl Program {
         let storage =
             storage::prepare(program.instance_program(), abi, program.payload_instances())
                 .map_err(Failure::Storage)?;
-        let bodies: BTreeMap<AccessInstanceId, Body> = program
+        let mut bodies: BTreeMap<AccessInstanceId, Body> = program
             .bodies()
             .iter()
             .map(|(&id, body)| {
@@ -495,6 +532,10 @@ impl Program {
                 return Err(Failure::InvalidBody(id));
             }
         }
+        let root = program.instance_program().root();
+        let closed = cleanup::close(root, &bodies, storage.environment(), &destructors)?;
+        bodies.retain(|id, _| closed.bodies.contains(id));
+        destructors.retain(|data, _| closed.cleanup.contains(data));
         let mut statics = BTreeMap::new();
         for body in bodies.values() {
             for &(slot, id) in &body.statics {
@@ -522,7 +563,8 @@ impl Program {
             runtime: storage.into_environment(),
             bodies,
             destructors,
-            root: program.instance_program().root(),
+            cleanup: closed.cleanup,
+            root,
         };
         validate::program(&result)?;
         Ok(result)
@@ -542,6 +584,11 @@ impl Program {
     #[must_use]
     pub const fn destructors(&self) -> &BTreeMap<RuntimeDataId, AccessInstanceId> {
         &self.destructors
+    }
+    /// Reached stored schemas whose retirement requires an executable helper.
+    #[must_use]
+    pub const fn cleanup(&self) -> &BTreeSet<RuntimeDataId> {
+        &self.cleanup
     }
     #[must_use]
     pub const fn root(&self) -> AccessInstanceId {

@@ -8,8 +8,8 @@ fn required(
     runtime: &RuntimeEnvironment,
     data: RuntimeDataId,
     cache: &mut BTreeMap<RuntimeDataId, bool>,
-) -> Result<bool, Failure> {
-    super::required(runtime, &BTreeMap::new(), data, cache)
+) -> Result<bool, InvalidSchema> {
+    super::required(runtime, &BTreeMap::new(), data, cache, |_| {})
 }
 
 fn runtime(entries: impl IntoIterator<Item = (RuntimeDataId, RuntimeType)>) -> RuntimeEnvironment {
@@ -108,7 +108,7 @@ fn empty_arrays_cut_recursive_choice_metadata_but_positive_cycles_reject() {
         } else {
             assert!(matches!(
                 required(&runtime, choice, &mut cache),
-                Err(Failure::InvalidRoot)
+                Err(InvalidSchema)
             ));
             assert!(!cache.contains_key(&choice));
         }

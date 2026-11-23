@@ -77,7 +77,7 @@ pub(super) fn prepare(
         .bodies()
         .values()
         .flat_map(|body| body.actions().values())
-        .flat_map(super::effects)
+        .flat_map(mir::Action::effects)
         .filter_map(|effect| {
             if let mir::Effect::Transport {
                 source,

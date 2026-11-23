@@ -1143,6 +1143,11 @@ fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
             "let array = [Ticket { state: 42 }; 1]",
             "let array = [Ticket { state: 41 }; 1]",
         ),
+        (
+            "func clean_marker(): void {}",
+            "func clean_marker(): void { let _ = 1 / 0 }",
+        ),
+        ("PendingTicket { state: 42 }", "PendingTicket { state: 41 }"),
     ] {
         assert!(source.contains(original));
         fs::write(&main, source.replace(original, replacement)).unwrap();

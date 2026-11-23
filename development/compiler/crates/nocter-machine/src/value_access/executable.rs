@@ -1,7 +1,6 @@
 //! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
 use nocter_runtime_contract::{RuntimeDataId, RuntimeEnvironment};
 mod body;
-mod cleanup;
 mod data;
 mod primitives;
 mod transport;
@@ -107,7 +106,12 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         .collect::<Result<_, Failure>>()?;
     let data = data::Data::build(program, &layouts)?;
     let (primitives, runtime_call_abis) = primitives::prepare(program, &layouts)?;
-    let cleanup = cleanup_plan(program)?;
+    let cleanup: BTreeMap<_, _> = program
+        .cleanup()
+        .iter()
+        .enumerate()
+        .map(|(index, &data)| (data, MachineFunctionId::new(program.bodies().len() + index)))
+        .collect();
     let transports = transport::prepare(program, &layouts, program.bodies().len() + cleanup.len())?;
     let context = Context {
         data: &data,
@@ -150,82 +154,4 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
             entry,
         },
     }))
-}
-
-fn effects(action: &mir::Action) -> impl Iterator<Item = &mir::Effect> {
-    action
-        .alternatives
-        .iter()
-        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
-        .chain(&action.call_bindings)
-        .chain(action.operations.iter().filter_map(|operation| {
-            if let mir::Operation::Storage(effect) = operation {
-                Some(effect)
-            } else {
-                None
-            }
-        }))
-}
-
-fn cleanup_plan(
-    program: &mir::Program,
-) -> Result<BTreeMap<RuntimeDataId, MachineFunctionId>, Failure> {
-    let mut work = BTreeMap::new();
-    let destructors = program.destructors();
-    for action in program
-        .bodies()
-        .values()
-        .flat_map(|body| body.actions().values())
-    {
-        for effect in effects(action) {
-            match effect {
-                mir::Effect::Dispose { source, disposal }
-                    if *disposal != mir::Disposal::Trivial =>
-                {
-                    cleanup::required(program.runtime(), destructors, source.data, &mut work)?;
-                }
-                mir::Effect::SelectedFutureCleanup { cases, .. } => {
-                    for input in cases.iter().flat_map(|case| &case.fields) {
-                        cleanup::required(
-                            program.runtime(),
-                            destructors,
-                            input.source.data,
-                            &mut work,
-                        )?;
-                    }
-                }
-                mir::Effect::DisposeArrayRemainder { source, .. } => {
-                    cleanup::required(program.runtime(), destructors, source.data, &mut work)?;
-                }
-                mir::Effect::DisposeArrayElements { source, .. } => {
-                    let (element, _) = program
-                        .runtime()
-                        .types()
-                        .get(source.data)
-                        .and_then(RuntimeType::array)
-                        .ok_or(Failure::InvalidRoot)?;
-                    cleanup::required(program.runtime(), destructors, element, &mut work)?;
-                }
-                mir::Effect::Dispose { .. }
-                | mir::Effect::VariantTag { .. }
-                | mir::Effect::ConstructEnum { .. }
-                | mir::Effect::Initialize(_)
-                | mir::Effect::Transfer { .. }
-                | mir::Effect::SetFutureSelector { .. }
-                | mir::Effect::SelectedFutureMove { .. }
-                | mir::Effect::Repack { .. }
-                | mir::Effect::Transport { .. }
-                | mir::Effect::Reinterpret { .. }
-                | mir::Effect::ConsolidateArrayPrefix { .. }
-                | mir::Effect::End(_)
-                | mir::Effect::BindAddress { .. } => {}
-            }
-        }
-    }
-    Ok(work
-        .into_iter()
-        .filter(|(_, needed)| *needed)
-        .enumerate()
-        .map(|(index, (data, _))| (data, MachineFunctionId::new(program.bodies().len() + index)))
-        .collect())
 }

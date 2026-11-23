@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Restrict executable destructor closure to reached retirement. Follow the exact receiver
-representation and existing cleanup edges through bodies, component helpers, adapters and local
-future cancellation without putting unused destructor bodies in the emitted program.
+Share the structural component projection used by destructor effect analysis. Preserve each
+received component's context and the distinct effects of owned callable environments while
+preparing to qualify context-dependent receivers.
 
 ## Remaining Contextual Representation Qualification
 
@@ -792,9 +792,9 @@ not a language restriction derived from the current realization boundary.
   return. Run a restored owner through its ordinary native cleanup.
 - [ ] Extend destructor effect and cleanup qualification to context-dependent receivers and
   remaining target backing and release contracts.
-- [ ] Discover executable destructor instances from reached retirement schemas and completed
-  invocation contexts, including adapter-owned environments and cancellation. Keep unneeded
-  cleanup bodies out of the executable instance closure.
+- [x] Close executable destructor bodies from reached retirement schemas, including completed
+  adapter environments and local-future cancellation. Remove unused destructor bodies and their
+  dependencies from executable MIR. Qualify zero-size receivers and cancellation without drive.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

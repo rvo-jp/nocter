@@ -122,15 +122,6 @@ fn cleanup_uses_the_full_tag_width_and_visits_fields_in_reverse_order() {
     let [data, tag, error, callback] = [0, 1, 2, 3].map(RuntimeDataId::Instance);
     let runtime = environment([data, tag, error, callback]);
     let layouts = MachineLayoutPlan::from_runtime(&runtime, [data, tag]).unwrap();
-    let mut needed = BTreeMap::new();
-    assert!(
-        super::super::super::cleanup::required(&runtime, &BTreeMap::new(), data, &mut needed)
-            .unwrap()
-    );
-    assert_eq!(
-        needed,
-        [(data, true), (error, true), (callback, true)].into()
-    );
     let error_helper = MachineFunctionId::new(1);
     let closure_helper = MachineFunctionId::new(2);
     let constants = Data::default();

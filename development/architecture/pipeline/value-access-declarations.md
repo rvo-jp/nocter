@@ -219,6 +219,9 @@ MIR associates the qualified body with its exact represented receiver. The nativ
 passes the complete receiver through the ordinary edit ABI, then retires its initialized fields
 in reverse declaration order after normal completion. Enum cleanup reads the active tag after
 the body and projects only that case.
+MIR closes ordinary invocation and destructor edges from the executable entry. Reached retirement
+schemas contribute the cleanup helpers and any anonymous bodies they call. Machine consumes that
+set alongside the already selected bodies and static objects.
 
 ### Tuple Bindings
 

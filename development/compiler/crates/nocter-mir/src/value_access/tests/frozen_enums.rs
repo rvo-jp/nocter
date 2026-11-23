@@ -1,6 +1,4 @@
 use super::*;
-use nocter_checking::value_access::accepted::ModuleSourceUnit;
-use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
 use nocter_model::{AccessFieldId, ArenaBuilder, ConstantValue, FrozenData, FrozenNode};
 use nocter_runtime_contract::{
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeValueVariantRepresentation,
@@ -13,22 +11,6 @@ fn selects_enum_field(place: &Place) -> bool {
             Projection::Field(nocter_model::ValueField::EnumField { .. })
         )
     })
-}
-
-fn lower_module(index: &str, body: &str) -> Program {
-    let index = format!("see ./body.nct\n{index}");
-    let body = format!("see ./index.nct\n{body}");
-    let fixture = nocter_test_support::ValueModuleFixture::new(
-        &[
-            ("/app/index.nct", Root, &index),
-            ("/app/body.nct", Implementation, &body),
-        ],
-        &[(0, 0, 1), (1, 0, 0)],
-    );
-    let source = ModuleSourceUnit::prepare(&fixture.input())
-        .unwrap()
-        .into_unit();
-    lower_unit(source)
 }
 
 fn tagged_program() -> (Program, nocter_model::ValueStatic) {

@@ -1,12 +1,14 @@
 //! Actual private source lowering and integrity mutations; no substitute source interpreter.
 use super::*;
 use crate::{MirArithmeticCheck, MirBinaryOperation};
-use nocter_checking::value_access::accepted::{SourceUnit, Unit};
+use nocter_checking::value_access::accepted::{ModuleSourceUnit, SourceUnit, Unit};
+use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
 use nocter_model::{MirLocalId, ValueInputOperation};
 use nocter_runtime_contract::RuntimeType;
 use nocter_target_program::value_access::InstanceProgram;
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
+mod destruction;
 mod frozen_enums;
 
 fn lower(source: &str) -> Program {
@@ -21,6 +23,22 @@ fn lower_unit(unit: Unit) -> Program {
     let instances = Arc::new(InstanceProgram::prepare(Arc::new(unit), root).unwrap());
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
     Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap()
+}
+fn lower_module(index: &str, body: &str) -> Program {
+    let index = format!("see ./body.nct\n{index}");
+    let body = format!("see ./index.nct\n{body}");
+    let fixture = nocter_test_support::ValueModuleFixture::new(
+        &[
+            ("/app/index.nct", Root, &index),
+            ("/app/body.nct", Implementation, &body),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    lower_unit(
+        ModuleSourceUnit::prepare(&fixture.input())
+            .unwrap()
+            .into_unit(),
+    )
 }
 fn key(body: &Body, slot: MirLocalId) -> SlotKey {
     body.slots.get(slot).unwrap().key
