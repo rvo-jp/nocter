@@ -123,9 +123,12 @@ participate in finite-schema checking, and the selected Copy contract checks eve
 payload position. Physical header binding resolves each payload type and required expression
 in its authored scope. A braced contract checks each type against the enum's audience. An
 opaque completion retains its own visibility. Header reconciliation checks the original
-variant and field identities against the finalized types. The layout planner can place each
-variant's fields in one shared aligned payload area and derive tag width from the complete
-schema. The source execution path currently materializes scalar enum values.
+variant and field identities against the finalized types. Closed payload schemas enter the same
+data-instance and target shape projection as records. The layout planner places each variant's
+fields in one shared aligned payload area and derives tag width from the complete schema. Logical
+paths retain both variant and field identity. Fields within the same case are disjoint, while fields
+from different cases may share the backing area. Projecting a field's type supplies no active-tag
+proof. The source execution path currently materializes scalar enum values.
 
 A payloadless constructor selects its declared variant and produces the owning nominal value.
 Required evaluation validates and retains its tag under the exact enum schema. Native lowering

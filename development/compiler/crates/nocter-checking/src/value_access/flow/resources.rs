@@ -455,8 +455,10 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
             return Err(INVALID);
         }
         let selected = match schema {
-            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str)
-            | PayloadSchema::Enumeration(_) => Disposal::Trivial,
+            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
+                Disposal::Trivial
+            }
+            PayloadSchema::Enumeration(schema) if !schema.has_payload() => Disposal::Trivial,
             PayloadSchema::Builtin(builtin)
                 if nocter_model::BuiltinNumericType::for_builtin(builtin)
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)
@@ -505,7 +507,11 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
                 nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
             },
-            PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => return Err(INVALID),
+            PayloadSchema::Builtin(_)
+            | PayloadSchema::Future(_)
+            | PayloadSchema::Enumeration(_) => {
+                return Err(INVALID);
+            }
         };
 
         if current == data {

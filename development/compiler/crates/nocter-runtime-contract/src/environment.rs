@@ -94,6 +94,19 @@ impl RuntimeEnvironment {
                 let (element, length) = self.types.get(data)?.array()?;
                 (index < length).then_some(element)
             }
+            nocter_model::ValueField::EnumField { variant, field } => {
+                let RuntimeTypeRepresentation::ValueEnum { variants } =
+                    self.type_representations.get(data)?
+                else {
+                    return None;
+                };
+                variants
+                    .iter()
+                    .find(|entry| entry.variant() == variant)?
+                    .fields()
+                    .iter()
+                    .find_map(|&(id, ty)| (id == field).then_some(ty))
+            }
             _ => {
                 let RuntimeTypeRepresentation::ValueAggregate { fields } =
                     self.type_representations.get(data)?
@@ -108,7 +121,7 @@ impl RuntimeEnvironment {
         }
     }
     /// Project frozen value-model selectors through runtime identities, without semantic lookup.
-    /// The caller retains the source proof for each saved index and its bound disposition.
+    /// The caller retains the source proof for saved indices, bounds and the active enum variant.
     #[must_use]
     pub fn value_path<I>(
         &self,
@@ -116,18 +129,9 @@ impl RuntimeEnvironment {
         path: &[nocter_model::ValueProjection<I>],
         array_bound: impl Fn(&I, u64) -> bool,
     ) -> Option<RuntimeDataId> {
-        use nocter_model::{ValueField, ValueProjection};
+        use nocter_model::ValueProjection;
         for projection in path {
             data = match projection {
-                ValueProjection::Record(field) => {
-                    self.value_field(data, ValueField::Record(*field))?
-                }
-                ValueProjection::Tuple(index) => {
-                    self.value_field(data, ValueField::Tuple(*index))?
-                }
-                ValueProjection::Variant(primary) => {
-                    self.value_field(data, ValueField::Variant(*primary))?
-                }
                 ValueProjection::Array(index) => {
                     let (element, length) = self.types.get(data)?.array()?;
                     if !array_bound(index, length) {
@@ -135,6 +139,8 @@ impl RuntimeEnvironment {
                     }
                     element
                 }
+                // All remaining selectors are independent of the array-index domain.
+                _ => self.value_field(data, projection.try_map_index(|_| Err(())).ok()?)?,
             };
         }
         Some(data)
@@ -221,30 +227,20 @@ fn validate_representation(
             }
         }
         RuntimeTypeRepresentation::ValueEnum { variants } => {
-            if variants.iter().all(|variant| variant.fields().is_empty()) {
-                return Err(RuntimeEnvironmentError::MissingEnumPayload(owner));
-            }
-            let mut variant_ids = BTreeSet::new();
-            let mut fields = BTreeSet::new();
-            for variant in variants {
-                if !variant_ids.insert(variant.variant()) {
-                    return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
-                        owner,
-                    ));
-                }
-                for &(field, data) in variant.fields() {
-                    if !fields.insert(field) {
-                        return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
-                            owner,
-                        ));
-                    }
-                    require_member_type(types, owner, data)?;
-                }
-            }
+            validate_value_enum(types, owner, variants)?;
         }
         RuntimeTypeRepresentation::ValueAggregate { fields } => {
             let mut identities = BTreeSet::new();
             for field in fields {
+                if !matches!(
+                    field.field(),
+                    nocter_model::ValueField::Record(_) | nocter_model::ValueField::Tuple(_)
+                ) {
+                    return Err(RuntimeEnvironmentError::InvalidAggregateSelector {
+                        owner,
+                        field: field.field(),
+                    });
+                }
                 if !identities.insert(field.field()) {
                     return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
                         owner,
@@ -301,6 +297,31 @@ fn validate_representation(
     Ok(())
 }
 
+fn validate_value_enum(
+    types: &RuntimeTypeTable,
+    owner: RuntimeDataId,
+    variants: &[crate::RuntimeValueVariantRepresentation],
+) -> Result<(), RuntimeEnvironmentError> {
+    if variants.iter().all(|variant| variant.fields().is_empty()) {
+        return Err(RuntimeEnvironmentError::MissingEnumPayload(owner));
+    }
+    let mut variant_ids = BTreeSet::new();
+    let mut field_ids = BTreeSet::new();
+    let duplicate = RuntimeEnvironmentError::DuplicateRepresentationMember(owner);
+    for variant in variants {
+        if !variant_ids.insert(variant.variant()) {
+            return Err(duplicate);
+        }
+        for &(field, data) in variant.fields() {
+            if !field_ids.insert(field) {
+                return Err(duplicate);
+            }
+            require_member_type(types, owner, data)?;
+        }
+    }
+    Ok(())
+}
+
 fn require_member_type(
     types: &RuntimeTypeTable,
     owner: RuntimeDataId,
@@ -323,6 +344,10 @@ pub enum RuntimeEnvironmentError {
         member: RuntimeDataId,
     },
     DuplicateRepresentationMember(RuntimeDataId),
+    InvalidAggregateSelector {
+        owner: RuntimeDataId,
+        field: nocter_model::ValueField,
+    },
     EmptyScalarEnum(RuntimeDataId),
     MissingEnumPayload(RuntimeDataId),
     UnsupportedStorage {
@@ -548,6 +573,8 @@ mod tests {
         let member: crate::RuntimeDataId = semantic.builtin(BuiltinType::I8).into();
         let mut ids = ArenaBuilder::<AccessFieldId, ()>::new();
         let field = ids.insert(());
+        let variant = ArenaBuilder::<nocter_model::VariantId, ()>::new().insert(());
+        let selector = nocter_model::ValueField::EnumField { variant, field };
         for (fields, expected) in [
             (
                 vec![RuntimeValueFieldRepresentation::new(field.into(), member)],
@@ -556,6 +583,13 @@ mod tests {
             (
                 vec![RuntimeValueFieldRepresentation::new(field.into(), owner); 2],
                 RuntimeEnvironmentError::DuplicateRepresentationMember(owner),
+            ),
+            (
+                vec![RuntimeValueFieldRepresentation::new(selector, owner)],
+                RuntimeEnvironmentError::InvalidAggregateSelector {
+                    owner,
+                    field: selector,
+                },
             ),
         ] {
             let mut types = RuntimeTypeTableBuilder::new();

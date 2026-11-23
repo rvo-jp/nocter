@@ -14,7 +14,7 @@ fn expand(path: &AccessPath) -> Vec<FieldPath> {
             }
             ValueProjection::Tuple(index) => vec![ValueField::Tuple(index)],
             ValueProjection::Variant(primary) => vec![ValueField::Variant(primary)],
-            ValueProjection::Record(_) => unreachable!(),
+            ValueProjection::Record(_) | ValueProjection::EnumField { .. } => unreachable!(),
         };
         paths = paths
             .into_iter()

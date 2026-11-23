@@ -370,6 +370,7 @@ impl Builder<'_, '_> {
                 ValueProjection::Record(id) => ValueField::Record(id),
                 ValueProjection::Tuple(index) => ValueField::Tuple(index),
                 ValueProjection::Variant(primary) => ValueField::Variant(primary),
+                ValueProjection::EnumField { .. } => return Err(INVALID),
                 ValueProjection::Array(()) => {
                     let InstanceSchema::Array(array) =
                         instance.schema(self.program).map_err(|_| INVALID)?

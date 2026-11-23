@@ -27,27 +27,25 @@ pub(super) fn known(fields: &FieldPath) -> AccessPath {
     known_by(fields, IndexFact::Known)
 }
 pub(super) fn known_by<I>(fields: &FieldPath, index: impl Fn(u64) -> I) -> ValuePath<I> {
-    ValuePath::new(fields.fields().iter().map(|field| match *field {
-        ValueProjection::Record(id) => ValueProjection::Record(id),
-        ValueProjection::Tuple(position) => ValueProjection::Tuple(position),
-        ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-        ValueProjection::Array(value) => ValueProjection::Array(index(value)),
-    }))
+    ValuePath::new(
+        fields
+            .fields()
+            .iter()
+            .map(|field| field.map_index(|&value| index(value))),
+    )
 }
 pub(super) fn concrete(fields: &AccessPath) -> Option<FieldPath> {
     fields
         .fields()
         .iter()
         .map(|field| {
-            Some(match *field {
-                ValueProjection::Record(id) => ValueProjection::Record(id),
-                ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-                ValueProjection::Array(IndexFact::Known(index)) => ValueProjection::Array(index),
-                ValueProjection::Array(IndexFact::Unknown) => return None,
+            field.try_map_index(|index| match *index {
+                IndexFact::Known(index) => Ok(index),
+                IndexFact::Unknown => Err(()),
             })
         })
-        .collect::<Option<Vec<_>>>()
+        .collect::<Result<Vec<_>, _>>()
+        .ok()
         .map(FieldPath::new)
 }
 pub(super) fn relation(left: &AccessPath, right: &AccessPath) -> PathRelation {

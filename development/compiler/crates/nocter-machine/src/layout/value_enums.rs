@@ -1,15 +1,15 @@
 //! Select a tag and shared payload storage for a value-model enum.
 use super::{
-    LayoutBuilder, MachineLayout, MachineLayoutError, MachineLayoutKind, MachinePayloadLayout,
+    LayoutBuilder, MachineFieldLayout, MachineLayout, MachineLayoutError, MachineLayoutKind,
     TaggedGeometry,
 };
-use nocter_model::{AccessFieldId, VariantId};
+use nocter_model::{AccessFieldId, ValueField, VariantId};
 use nocter_runtime_contract::{RuntimeDataId, RuntimePrimitive, RuntimeValueVariantRepresentation};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineValueEnumVariantLayout {
     variant: VariantId,
-    fields: Box<[(AccessFieldId, MachinePayloadLayout)]>,
+    fields: Box<[(AccessFieldId, MachineFieldLayout)]>,
 }
 
 impl MachineValueEnumVariantLayout {
@@ -19,7 +19,7 @@ impl MachineValueEnumVariantLayout {
     }
 
     #[must_use]
-    pub const fn fields(&self) -> &[(AccessFieldId, MachinePayloadLayout)] {
+    pub const fn fields(&self) -> &[(AccessFieldId, MachineFieldLayout)] {
         &self.fields
     }
 }
@@ -65,7 +65,15 @@ impl LayoutBuilder<'_> {
                         let offset = payload_offset
                             .checked_add(offset)
                             .ok_or(MachineLayoutError::LayoutOverflow(ty))?;
-                        Ok((field, MachinePayloadLayout { ty: data, offset }))
+                        let layout = MachineFieldLayout { ty: data, offset };
+                        let selector = ValueField::EnumField {
+                            variant: variant.variant(),
+                            field,
+                        };
+                        if self.value_fields.insert((ty, selector), layout).is_some() {
+                            return Err(MachineLayoutError::InvalidRepresentation(ty));
+                        }
+                        Ok((field, layout))
                     })
                     .collect::<Result<_, _>>()?;
                 Ok(MachineValueEnumVariantLayout {
@@ -108,26 +116,13 @@ mod tests {
         let small_member = fields.insert(());
         let wide_member = fields.insert(());
         let first_payload = [(first_member, small)];
+        let last_payload = [(small_member, small), (wide_member, wide)];
         let mut variants = ArenaBuilder::<VariantId, ()>::new();
 
         for (count, bits, members, payload_base, size, alignment) in [
-            (
-                256,
-                8,
-                &[(small_member, small), (wide_member, wide)][..],
-                8,
-                24,
-                8,
-            ),
-            (
-                257,
-                16,
-                &[(small_member, small), (wide_member, wide)][..],
-                8,
-                24,
-                8,
-            ),
-            (257, 16, &[(small_member, small)][..], 2, 4, 2),
+            (256, 8, last_payload.as_slice(), 8, 24, 8),
+            (257, 16, last_payload.as_slice(), 8, 24, 8),
+            (257, 16, &last_payload[..1], 2, 4, 2),
         ] {
             let variants: Vec<_> = (0..count)
                 .map(|index| {
@@ -186,8 +181,19 @@ mod tests {
             assert!(variants[1].fields().is_empty());
             let last_case = variants.last().unwrap();
             assert_eq!(last_case.variant(), last);
-            assert_eq!(last_case.fields()[0].0, small_member);
-            assert_eq!(last_case.fields()[0].1.offset(), payload_base);
+            assert_eq!(
+                layouts.value_field(
+                    enum_data,
+                    ValueField::EnumField {
+                        variant: last,
+                        field: small_member
+                    }
+                ),
+                Some(MachineFieldLayout {
+                    ty: small,
+                    offset: payload_base
+                }),
+            );
             if let Some(&(field, layout)) = last_case.fields().get(1) {
                 assert_eq!(
                     (field, layout.ty(), layout.offset()),

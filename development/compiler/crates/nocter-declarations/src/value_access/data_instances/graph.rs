@@ -99,6 +99,17 @@ impl Program {
                 PayloadSchema::Aggregate(schema) => {
                     schema.components().map(|c| (c.field, c.data)).collect()
                 }
+                PayloadSchema::Enumeration(schema) => {
+                    let mut fields = Vec::new();
+                    for &variant in schema.variants() {
+                        fields.extend(
+                            self.variant_components(data, variant)
+                                .ok_or(CodeBindingError::InvalidWitness)?
+                                .map(|component| (component.field, component.data)),
+                        );
+                    }
+                    fields
+                }
                 PayloadSchema::Array(array) if !array.is_empty() => {
                     vec![(ValueField::Array(0), array.element())]
                 }
@@ -125,16 +136,16 @@ impl Program {
         data: TypeId,
         children: impl IntoIterator<Item = (ValueField, DataInstanceKey)>,
     ) -> Result<DataInstanceKey, CodeBindingError> {
-        if !matches!(
-            self.data_schema(data),
-            Some(
-                PayloadSchema::Aggregate(_)
-                    | PayloadSchema::Array(_)
-                    | PayloadSchema::Optional(_)
-                    | PayloadSchema::Fallible(_)
-            )
-        ) {
-            return Err(CodeBindingError::InvalidWitness);
+        let schema = self
+            .data_schema(data)
+            .ok_or(CodeBindingError::InvalidWitness)?;
+        match schema {
+            PayloadSchema::Aggregate(_)
+            | PayloadSchema::Array(_)
+            | PayloadSchema::Optional(_)
+            | PayloadSchema::Fallible(_) => {}
+            PayloadSchema::Enumeration(case) if case.has_payload() => {}
+            _ => return Err(CodeBindingError::InvalidWitness),
         }
         let expected: BTreeMap<_, _> = self.instance_fields(data)?.into_iter().collect();
         let mut supplied = BTreeMap::new();
@@ -148,12 +159,17 @@ impl Program {
         if supplied.len() != expected.len() {
             return Err(CodeBindingError::InvalidWitness);
         }
-        let uninhabited = match self
-            .data_schema(data)
-            .ok_or(CodeBindingError::InvalidWitness)?
-        {
+        let uninhabited = match schema {
             PayloadSchema::Optional(_) => false,
             PayloadSchema::Fallible(_) => supplied.values().all(DataInstanceKey::is_uninhabited),
+            // This instance describes the common storage of all cases. Specialization that
+            // changes or excludes a field needs an independent per-case representation proof.
+            PayloadSchema::Enumeration(_) => {
+                if !supplied.values().all(DataInstanceKey::is_context_free) {
+                    return Err(CodeBindingError::InvalidWitness);
+                }
+                false
+            }
             _ => supplied.values().any(DataInstanceKey::is_uninhabited),
         };
         if uninhabited {
@@ -202,10 +218,9 @@ impl Program {
                 continue;
             }
             active.remove(&data);
-            let key = if matches!(
-                schema,
-                PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_)
-            ) {
+            let key = if matches!(schema, PayloadSchema::Builtin(_))
+                || matches!(schema, PayloadSchema::Enumeration(schema) if !schema.has_payload())
+            {
                 DataInstanceKey {
                     data,
                     context: Arc::new(Context::Closed),

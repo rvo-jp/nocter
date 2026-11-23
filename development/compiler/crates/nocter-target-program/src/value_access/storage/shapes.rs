@@ -1,11 +1,11 @@
 //! Native materialization of the declaration-owned contextual data graph.
 use super::{Failure, Prepared};
-use nocter_declarations::value_access::{DataInstanceKey, InstanceSchema, Program};
+use nocter_declarations::value_access::{DataInstanceKey, Enumeration, InstanceSchema, Program};
 use nocter_model::{BuiltinType, ValueField};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
-    RuntimeValueFieldRepresentation,
+    RuntimeValueFieldRepresentation, RuntimeValueVariantRepresentation,
 };
 use std::collections::BTreeMap;
 #[cfg(test)]
@@ -282,12 +282,8 @@ impl<'a> Builder<'a> {
             }
             InstanceSchema::Builtin(builtin) => self.primitive(id, key.data(), builtin)?,
             InstanceSchema::Enumeration(schema) => {
-                self.representations.insert(
-                    id,
-                    RuntimeTypeRepresentation::ScalarEnum {
-                        variants: schema.variants().into(),
-                    },
-                );
+                let representation = self.enumeration(key, schema)?;
+                self.representations.insert(id, representation);
                 RuntimeType::Aggregate
             }
             InstanceSchema::Aggregate(aggregate) => {
@@ -312,6 +308,38 @@ impl<'a> Builder<'a> {
                     .transpose()?;
                 RuntimeType::StaticCallable { environment }
             }
+        })
+    }
+    fn enumeration(
+        &mut self,
+        key: &DataInstanceKey,
+        schema: &Enumeration,
+    ) -> Result<RuntimeTypeRepresentation, Failure> {
+        if !schema.has_payload() {
+            return Ok(RuntimeTypeRepresentation::ScalarEnum {
+                variants: schema.variants().into(),
+            });
+        }
+        let mut variants = Vec::with_capacity(schema.variants().len());
+        for &variant in schema.variants() {
+            let fields = self
+                .program
+                .variants()
+                .get(variant)
+                .ok_or(Failure::InvalidPayload(key.data()))?
+                .fields()
+                .iter()
+                .map(|&field| {
+                    Ok((
+                        field,
+                        self.component(key, ValueField::EnumField { variant, field })?,
+                    ))
+                })
+                .collect::<Result<Box<[_]>, Failure>>()?;
+            variants.push(RuntimeValueVariantRepresentation::new(variant, fields));
+        }
+        Ok(RuntimeTypeRepresentation::ValueEnum {
+            variants: variants.into(),
         })
     }
     fn primitive(

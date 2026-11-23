@@ -319,6 +319,10 @@ impl Types {
                         continue;
                     }
                     PayloadSchema::Enumeration(schema) => {
+                        if schema.has_payload() {
+                            self.insert(data, Type::Unavailable, false);
+                            continue;
+                        }
                         let nominal = program.nominal_identity(schema.data()).ok_or(INVALID)?;
                         let variants =
                             u64::try_from(schema.variants().len()).map_err(|_| INVALID)?;

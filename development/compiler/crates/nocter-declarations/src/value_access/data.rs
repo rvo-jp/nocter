@@ -2,6 +2,7 @@
 use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
 use nocter_model::{
     BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeAliasId, TypeId, TypeKind,
+    ValueProjection, VariantId,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -535,17 +536,12 @@ impl Program {
                 definition,
                 arguments,
             } if arguments.as_slice().is_empty() => {
-                self.nominals()
-                    .get(*definition)
-                    .and_then(|schema| match schema {
-                        super::NominalSchema::Record(record) => Some(PayloadSchema::Aggregate(
-                            super::AggregateSchema::record(record, self.fields()),
-                        )),
-                        // Executable enum storage currently realizes payloadless variants.
-                        super::NominalSchema::Enumeration(schema) => {
-                            (!schema.has_payload()).then_some(PayloadSchema::Enumeration(schema))
-                        }
-                    })
+                self.nominals().get(*definition).map(|schema| match schema {
+                    super::NominalSchema::Record(record) => PayloadSchema::Aggregate(
+                        super::AggregateSchema::record(record, self.fields()),
+                    ),
+                    super::NominalSchema::Enumeration(schema) => PayloadSchema::Enumeration(schema),
+                })
             }
             TypeKind::FixedArray { element, length } => Some(PayloadSchema::Array(ArraySchema {
                 element: *element,
@@ -583,13 +579,38 @@ impl Program {
             data: self.project_component(data, &field, &|index, length| *index < length)?,
         })
     }
+    /// Visit one enum case's fields in declaration order. This does not establish an active tag.
+    /// # Panics
+    /// Panics on iteration if the nominal publication invariant is broken and a case refers to an
+    /// unpublished field.
+    #[must_use]
+    pub fn variant_components(
+        &self,
+        data: TypeId,
+        variant: VariantId,
+    ) -> Option<impl ExactSizeIterator<Item = Component> + '_> {
+        let case = self.variants().get(variant)?;
+        if self.enumeration(case.owner())?.data() != data {
+            return None;
+        }
+        Some(case.fields().iter().map(move |&field| {
+            Component {
+                field: ValueProjection::EnumField { variant, field },
+                data: self
+                    .fields()
+                    .get(field)
+                    .expect("published enum field")
+                    .data(),
+            }
+        }))
+    }
+
     fn project_component<I>(
         &self,
         data: TypeId,
         field: &nocter_model::ValueProjection<I>,
         in_bounds: &impl Fn(&I, u64) -> bool,
     ) -> Option<TypeId> {
-        use nocter_model::ValueProjection;
         match (self.data_schema(data)?, field) {
             (PayloadSchema::Aggregate(schema), ValueProjection::Record(id)) => schema
                 .component(nocter_model::ValueField::Record(*id))
@@ -597,6 +618,12 @@ impl Program {
             (PayloadSchema::Aggregate(schema), ValueProjection::Tuple(position)) => schema
                 .component(nocter_model::ValueField::Tuple(*position))
                 .map(|c| c.data),
+            (PayloadSchema::Enumeration(_), ValueProjection::EnumField { variant, field }) => {
+                let field = self.fields().get(*field)?;
+                (field.variant() == Some(*variant)
+                    && self.nominal_identity(data) == Some(field.owner()))
+                .then_some(field.data())
+            }
             (
                 PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload),
                 ValueProjection::Variant(true),
@@ -610,15 +637,18 @@ impl Program {
             _ => None,
         }
     }
-    /// Packed record/tuple ordinal of an established selection, without projection rights.
-    /// Homogeneous array positions are not aggregate ordinals and have no encoding here.
+    /// Flat ordinal of a record, tuple or outcome slot, without projection rights.
+    /// Array positions and nominal enum fields need a separate index or case selector.
     #[must_use]
     pub fn component_position(&self, field: nocter_model::ValueField) -> Option<usize> {
         match field {
-            nocter_model::ValueField::Record(id) => Some(self.fields().get(id)?.position()),
+            nocter_model::ValueField::Record(id) => {
+                let field = self.fields().get(id)?;
+                field.variant().is_none().then_some(field.position())
+            }
             nocter_model::ValueField::Tuple(position) => Some(position),
             nocter_model::ValueField::Variant(primary) => Some(usize::from(!primary)),
-            nocter_model::ValueField::Array(_) => None,
+            nocter_model::ValueField::EnumField { .. } | nocter_model::ValueField::Array(_) => None,
         }
     }
     /// Validates an already selected logical path against its exact containing data schemas.

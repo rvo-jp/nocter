@@ -28,14 +28,7 @@ impl Program {
                     pending.extend(schema.components().map(|component| {
                         (
                             component.data,
-                            path.project(match component.field {
-                                ValueProjection::Record(id) => ValueProjection::Record(id),
-                                ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                                ValueProjection::Variant(primary) => {
-                                    ValueProjection::Variant(primary)
-                                }
-                                ValueProjection::Array(_) => ValueProjection::Array(()),
-                            }),
+                            path.project(component.field.map_index(|_| ())),
                         )
                     }));
                 }

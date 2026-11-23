@@ -61,12 +61,7 @@ impl Default for Store {
     }
 }
 fn field<I: Copy>(field: ValueProjection<I>) -> ValueField {
-    match field {
-        ValueProjection::Array(_) => ValueField::Array(0),
-        ValueProjection::Record(id) => ValueField::Record(id),
-        ValueProjection::Tuple(index) => ValueField::Tuple(index),
-        ValueProjection::Variant(primary) => ValueField::Variant(primary),
-    }
+    field.map_index(|_| 0)
 }
 pub(super) fn select<I: Copy>(
     nodes: &[Node],

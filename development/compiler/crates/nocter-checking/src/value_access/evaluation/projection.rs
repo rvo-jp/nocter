@@ -344,6 +344,7 @@ impl Builder<'_, '_> {
                     nocter_model::ValueProjection::Variant(primary) => {
                         plan::Projection::Field(usize::from(!primary))
                     }
+                    nocter_model::ValueProjection::EnumField { .. } => return Err(INVALID),
                     nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
                         index,
                     )) => plan::Projection::Field(usize::try_from(index).map_err(|_| INVALID)?),

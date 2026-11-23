@@ -49,12 +49,8 @@ impl MachineLayoutPlan {
                 after = *new;
                 continue;
             }
-            let field = match *projection {
-                ValueProjection::Record(field) => ValueProjection::Record(field),
-                ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-                ValueProjection::Array(Some(index)) => ValueProjection::Array(index),
-                ValueProjection::Array(None) => return false,
+            let Ok(field) = projection.try_map_index(|index| index.ok_or(())) else {
+                return false;
             };
             let (Some(old), Some(new)) = (
                 self.value_field(before, field),

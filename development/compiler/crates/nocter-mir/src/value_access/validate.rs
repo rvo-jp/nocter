@@ -114,6 +114,11 @@ impl Context<'_> {
         let mut data = place.root;
         for projection in &place.projections {
             data = match projection {
+                // A layout entry supplies an offset, independently of the active-case receipt
+                // needed to read or update a payload. No enum field places are qualified yet.
+                Projection::Field(nocter_model::ValueField::EnumField { .. }) => {
+                    return Err(self.invalid());
+                }
                 Projection::Field(id) => self
                     .program
                     .runtime

@@ -11,7 +11,7 @@ use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{
     CodeInstanceKey, DataInstanceKey, InstanceSchema, PayloadSchema, Program,
 };
-use nocter_model::{TypeId, ValueField, ValuePath, ValueProjection};
+use nocter_model::{TypeId, ValueField, ValuePath};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 #[cfg(test)]
@@ -529,10 +529,11 @@ fn source_slot(holder: Holder) -> Result<ValueSourceSlot, Failure> {
     })
 }
 fn metadata_path<I: Copy>(place: &Place, array: I) -> ValuePath<I> {
-    ValuePath::new(place.fields().fields().iter().map(|&field| match field {
-        ValueProjection::Array(_) => ValueProjection::Array(array),
-        ValueProjection::Record(field) => ValueProjection::Record(field),
-        ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-        ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-    }))
+    ValuePath::new(
+        place
+            .fields()
+            .fields()
+            .iter()
+            .map(|field| field.map_index(|_| array)),
+    )
 }

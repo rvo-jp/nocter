@@ -204,7 +204,8 @@ impl Checker<'_, '_> {
                 if matches!(
                     self.program().data_schema(data),
                     Some(PayloadSchema::Enumeration(schema))
-                        if usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
+                        if !schema.has_payload()
+                            && usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
                 ) =>
             {
                 ExpressionKind::Constant(value.clone())

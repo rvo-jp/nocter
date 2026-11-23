@@ -188,14 +188,11 @@ impl Builder<'_> {
             .chain(regions.after())
             .filter(|region| region.root == Root::Owned(local))
             .map(|region| {
-                ValuePath::new(region.fields.fields().iter().map(|field| match *field {
-                    ValueProjection::Record(field) => ValueProjection::Record(field),
-                    ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                    ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-                    ValueProjection::Array(index) => ValueProjection::Array(match index {
+                ValuePath::new(region.fields.fields().iter().map(|field| {
+                    field.map_index(|index| match *index {
                         IndexFact::Known(index) => Some(index),
                         IndexFact::Unknown => None,
-                    }),
+                    })
                 }))
             })
             .collect::<BTreeSet<_>>();
@@ -217,6 +214,7 @@ impl Builder<'_> {
                 ValueProjection::Record(field) => ValueField::Record(field),
                 ValueProjection::Tuple(index) => ValueField::Tuple(index),
                 ValueProjection::Variant(primary) => ValueField::Variant(primary),
+                ValueProjection::EnumField { .. } => return None,
                 ValueProjection::Array(()) => {
                     if self.runtime.types().get(before)?.array()?.1 != 1
                         || self.runtime.types().get(after)?.array()?.1 != 1

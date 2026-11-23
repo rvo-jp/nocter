@@ -549,19 +549,8 @@ fn replacement_path(written: &ValuePath<()>, selected: &ValuePath<()>) -> Replac
         })
 }
 fn same_field(field: ValueField, selected: ValueProjection<()>) -> bool {
-    match (field, selected) {
-        (ValueProjection::Array(_), ValueProjection::Array(())) => true,
-        (ValueProjection::Tuple(a), ValueProjection::Tuple(b)) => a == b,
-        (ValueProjection::Record(a), ValueProjection::Record(b)) => a == b,
-        (ValueProjection::Variant(a), ValueProjection::Variant(b)) => a == b,
-        _ => false,
-    }
+    field.map_index(|_| ()) == selected
 }
 fn concrete_path(path: &ValuePath<()>) -> FieldPath {
-    FieldPath::new(path.fields().iter().map(|&field| match field {
-        ValueProjection::Array(()) => ValueField::Array(0),
-        ValueProjection::Tuple(index) => ValueField::Tuple(index),
-        ValueProjection::Record(field) => ValueField::Record(field),
-        ValueProjection::Variant(primary) => ValueField::Variant(primary),
-    }))
+    FieldPath::new(path.fields().iter().map(|field| field.map_index(|()| 0)))
 }

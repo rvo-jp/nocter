@@ -5,6 +5,41 @@ use std::collections::BTreeSet;
 struct Recipe(u32);
 
 #[test]
+fn enum_fields_use_their_declared_case_and_field_through_index_remapping() {
+    let mut cases = crate::ArenaBuilder::<VariantId, ()>::new();
+    let read = cases.insert(());
+    let end = cases.insert(());
+    let mut fields = crate::ArenaBuilder::<AccessFieldId, ()>::new();
+    let start = fields.insert(());
+    let count = fields.insert(());
+    let total = fields.insert(());
+    let root = FieldPath::default();
+    let left = ValueField::EnumField {
+        variant: read,
+        field: start,
+    };
+    let sibling = root.project(ValueField::EnumField {
+        variant: read,
+        field: count,
+    });
+    let alternate = root.project(ValueField::EnumField {
+        variant: end,
+        field: total,
+    });
+    let left_path = root.project(left);
+    assert!(root.is_prefix_of(&left_path));
+    assert!(!left_path.overlaps(&sibling));
+    assert!(left_path.overlaps(&alternate));
+    assert_eq!(
+        left.try_map_index(|_| Err::<Recipe, _>(())),
+        Ok(ValueProjection::EnumField {
+            variant: read,
+            field: start
+        }),
+    );
+}
+
+#[test]
 fn recipe_equality_never_substitutes_for_evaluated_index_evidence() {
     let root = ValuePath::<Recipe>::default();
     let first = root.project(ValueProjection::Array(Recipe(0)));

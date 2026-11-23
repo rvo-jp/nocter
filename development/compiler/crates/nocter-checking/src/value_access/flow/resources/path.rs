@@ -273,15 +273,13 @@ impl Path {
         self.fields()
             .iter()
             .map(|field| {
-                Some(match *field {
-                    ValueProjection::Record(id) => ValueField::Record(id),
-                    ValueProjection::Tuple(position) => ValueField::Tuple(position),
-                    ValueProjection::Variant(primary) => ValueField::Variant(primary),
-                    ValueProjection::Array(Index::Constant(index)) => ValueField::Array(index),
-                    ValueProjection::Array(Index::Retained(_)) => return None,
+                field.try_map_index(|index| match *index {
+                    Index::Constant(index) => Ok(index),
+                    Index::Retained(_) => Err(()),
                 })
             })
-            .collect::<Option<Vec<_>>>()
+            .collect::<Result<Vec<_>, _>>()
+            .ok()
             .map(FieldPath::new)
     }
     #[must_use]
@@ -316,12 +314,7 @@ impl Path {
     }
 }
 fn project(field: ValueField) -> ValueProjection<Index> {
-    match field {
-        ValueField::Record(id) => ValueProjection::Record(id),
-        ValueField::Tuple(position) => ValueProjection::Tuple(position),
-        ValueField::Variant(primary) => ValueProjection::Variant(primary),
-        ValueField::Array(index) => ValueProjection::Array(Index::Constant(index)),
-    }
+    field.map_index(|&index| Index::Constant(index))
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::AccessFieldId;
+use crate::{AccessFieldId, VariantId};
 
 /// A logical aggregate component, independent of source spelling and physical offsets.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -7,12 +7,46 @@ pub enum ValueProjection<I> {
     Tuple(usize),
     /// A typed active-variant payload; datatype projection alone grants no active-tag access.
     Variant(bool),
+    /// A nominal enum payload position. The case belongs to the projection, not to an offset.
+    EnumField {
+        variant: VariantId,
+        field: AccessFieldId,
+    },
     /// An index value or recipe key; its identity alone does not prove evaluated equality.
     Array(I),
 }
 impl<I> From<AccessFieldId> for ValueProjection<I> {
     fn from(field: AccessFieldId) -> Self {
         Self::Record(field)
+    }
+}
+impl<I> ValueProjection<I> {
+    /// Change the array-index domain while preserving every declaration-owned selector.
+    #[must_use]
+    pub fn map_index<J>(&self, map: impl FnOnce(&I) -> J) -> ValueProjection<J> {
+        match self.try_map_index(|index| Ok::<_, std::convert::Infallible>(map(index))) {
+            Ok(projection) => projection,
+            Err(never) => match never {},
+        }
+    }
+
+    /// Interpret an array selector only if the caller can resolve its index.
+    /// # Errors
+    /// Propagates the caller's error for an array index.
+    pub fn try_map_index<J, E>(
+        &self,
+        map: impl FnOnce(&I) -> Result<J, E>,
+    ) -> Result<ValueProjection<J>, E> {
+        Ok(match self {
+            Self::Record(field) => ValueProjection::Record(*field),
+            Self::Tuple(index) => ValueProjection::Tuple(*index),
+            Self::Variant(primary) => ValueProjection::Variant(*primary),
+            Self::EnumField { variant, field } => ValueProjection::EnumField {
+                variant: *variant,
+                field: *field,
+            },
+            Self::Array(index) => ValueProjection::Array(map(index)?),
+        })
     }
 }
 
@@ -123,6 +157,22 @@ impl<I> ValuePath<I> {
                 }
                 (ValueProjection::Variant(a), ValueProjection::Variant(b)) if a == b => {
                     IndexRelation::Equal
+                }
+                (
+                    ValueProjection::EnumField {
+                        variant: a,
+                        field: left,
+                    },
+                    ValueProjection::EnumField {
+                        variant: b,
+                        field: right,
+                    },
+                ) if a == b => {
+                    if left == right {
+                        IndexRelation::Equal
+                    } else {
+                        IndexRelation::Distinct
+                    }
                 }
                 (ValueProjection::Array(a), ValueProjection::Array(b)) => indices(a, b),
                 _ => return PathRelation::MayOverlap,

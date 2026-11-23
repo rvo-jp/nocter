@@ -501,6 +501,7 @@ impl Builder<'_> {
                     nocter_model::ValueProjection::Tuple(index) => {
                         Projection::Field(nocter_model::ValueField::Tuple(index))
                     }
+                    nocter_model::ValueProjection::EnumField { .. } => return Err(self.invalid()),
                     nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
                         index,
                     )) => Projection::Field(nocter_model::ValueField::Array(index)),

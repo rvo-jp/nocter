@@ -373,19 +373,17 @@ impl Program {
             if !seen.insert(data) {
                 continue;
             }
-            let Some(schema) = self.data_schema(data) else {
-                if self
-                    .nominal_identity(data)
-                    .and_then(|id| self.enumeration(id))
-                    .is_some_and(super::Enumeration::has_payload)
-                {
-                    dependencies.requires_enum_payload = true;
-                    continue;
+            match self.data_schema(data)? {
+                PayloadSchema::Builtin(_) => {}
+                PayloadSchema::Enumeration(schema) => {
+                    dependencies.requires_enum_payload |= schema.has_payload();
+                    for &variant in schema.variants() {
+                        pending.extend(
+                            self.variant_components(data, variant)?
+                                .map(|field| field.data),
+                        );
+                    }
                 }
-                return None;
-            };
-            match schema {
-                PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_) => {}
                 PayloadSchema::Future(_) => dependencies.requires_future = true,
                 PayloadSchema::Aggregate(schema) => {
                     pending.extend(schema.components().map(|component| component.data));

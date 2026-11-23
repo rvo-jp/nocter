@@ -16,6 +16,8 @@ struct Fixture {
     wrapper: FunctionWitness,
 }
 
+mod enumeration;
+
 #[test]
 fn uninhabited_metadata_is_not_a_materialized_callable_or_backing() {
     let fixture = fixture();
