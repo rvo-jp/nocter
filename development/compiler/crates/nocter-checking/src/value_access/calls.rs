@@ -357,17 +357,12 @@ impl Checker<'_, '_> {
         let [callee, suffix] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
+        let arguments = self.call_argument_nodes(*suffix)?;
         if let Some((member, variant)) = self.qualified_enum_variant(*callee)? {
-            return self.enum_value(
-                node,
-                member,
-                variant,
-                Some(&self.children(*suffix)),
-                reachable,
-            );
+            return self.enum_value(node, member, variant, Some(&arguments), reachable);
         }
         let selected = self.callee(*callee, reachable)?;
-        self.selected_call(node, &self.children(*suffix), &selected, reachable)
+        self.selected_call(node, &arguments, &selected, reachable)
     }
     pub(super) fn call_value(
         &mut self,
@@ -376,8 +371,9 @@ impl Checker<'_, '_> {
         value: AccessExpressionId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        let arguments = self.call_argument_nodes(suffix)?;
         let selected = self.value_callee(node, value)?;
-        self.selected_call(node, &self.children(suffix), &selected, reachable)
+        self.selected_call(node, &arguments, &selected, reachable)
     }
     pub(super) fn call_member_value(
         &mut self,
@@ -387,13 +383,25 @@ impl Checker<'_, '_> {
         receiver: AccessExpressionId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        let arguments = self.call_argument_nodes(arguments)?;
         let children = self.children(selection);
         let [base, member] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
         let token = self.member_token(*member)?;
         let selected = self.member_callee(selection, *base, receiver, token)?;
-        self.selected_call(call, &self.children(arguments), &selected, reachable)
+        self.selected_call(call, &arguments, &selected, reachable)
+    }
+    fn call_argument_nodes(&self, suffix: NodeId) -> Result<Vec<NodeId>, Failure> {
+        if let Ok(arguments) = self.direct(suffix, NodeKind::GenericArguments) {
+            return self.reject_message(
+                Rule::InvalidCall,
+                arguments,
+                "this callable cannot be specialized with explicit generic arguments".into(),
+                Vec::new(),
+            );
+        }
+        Ok(self.children(suffix))
     }
     fn local_future_argument(&self, input: FunctionInput, plan: &Argument) -> bool {
         use nocter_model::ValueInputOperation;

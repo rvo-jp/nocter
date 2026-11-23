@@ -132,6 +132,8 @@ struct Parser<'source> {
     split: Option<SyntaxToken>,
     value_names: bool,
     unmarked_branch_inputs: BTreeSet<(usize, u16)>,
+    explicit_call_angles: Option<Box<[bool]>>,
+    failed_explicit_calls: BTreeSet<(usize, u16)>,
 }
 
 impl<'source> Parser<'source> {
@@ -148,6 +150,8 @@ impl<'source> Parser<'source> {
             split: None,
             value_names: false,
             unmarked_branch_inputs: BTreeSet::new(),
+            explicit_call_angles: None,
+            failed_explicit_calls: BTreeSet::new(),
         }
     }
 
@@ -184,7 +188,13 @@ impl<'source> Parser<'source> {
     }
 
     fn precede(&mut self, completed: CompletedMarker) -> Marker {
-        let event_index = self.events.len();
+        let marker = self.start();
+        self.attach_parent(completed, marker);
+        marker
+    }
+
+    /// Attach a confirmed postfix parent whose marker was reserved inside a syntax transaction.
+    fn attach_parent(&mut self, completed: CompletedMarker, parent: Marker) {
         let Event::Start {
             offset,
             forward_parent,
@@ -197,14 +207,16 @@ impl<'source> Parser<'source> {
             forward_parent.is_none(),
             "a completed node can acquire only one direct forward parent"
         );
-        *forward_parent = Some(event_index - completed.event_index);
+        *forward_parent = Some(parent.event_index - completed.event_index);
         let offset = *offset;
-        self.events.push(Event::Start {
-            kind: NodeKind::Error,
-            offset,
-            forward_parent: None,
-        });
-        Marker { event_index }
+        let Event::Start {
+            offset: parent_offset,
+            ..
+        } = &mut self.events[parent.event_index]
+        else {
+            unreachable!("parent marker must point to a start event");
+        };
+        *parent_offset = offset;
     }
 
     fn at(&self, kind: TokenKind) -> bool {

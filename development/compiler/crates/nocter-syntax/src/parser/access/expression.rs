@@ -1,25 +1,46 @@
-use super::super::{CompletedMarker, Parser, newline};
+use super::super::{CompletedMarker, Marker, Parser, newline};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) struct Expression {
     pub(super) completed: CompletedMarker,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ClosingAngle {
+    Operator,
+    Delimiter,
+}
+
 pub(super) fn expression(parser: &mut Parser<'_>, boundary: newline::Boundary) -> Expression {
-    parse_expression(parser, boundary, true)
+    parse_expression(parser, boundary, true, ClosingAngle::Operator)
 }
 
 pub(super) fn header_expression(parser: &mut Parser<'_>) -> Expression {
-    parse_expression(parser, newline::Boundary::Statement, false)
+    parse_expression(
+        parser,
+        newline::Boundary::Statement,
+        false,
+        ClosingAngle::Operator,
+    )
+}
+
+pub(super) fn generic_argument(parser: &mut Parser<'_>) {
+    parse_expression(
+        parser,
+        newline::Boundary::Delimited,
+        true,
+        ClosingAngle::Delimiter,
+    );
 }
 
 fn parse_expression(
     parser: &mut Parser<'_>,
     boundary: newline::Boundary,
     allow_braces: bool,
+    closing_angle: ClosingAngle,
 ) -> Expression {
     let marker = parser.start();
-    let mut left = binary(parser, boundary, 0, allow_braces);
+    let mut left = binary(parser, boundary, 0, allow_braces, closing_angle);
     loop {
         newline::before(parser, boundary, |kind| {
             matches!(
@@ -70,6 +91,10 @@ const OPERATORS: &[(&[Punctuation], NodeKind)] = &[
         NodeKind::OrderingExpression,
     ),
     (
+        &[Punctuation::ShiftLeft, Punctuation::ShiftRight],
+        NodeKind::ShiftExpression,
+    ),
+    (
         &[Punctuation::Plus, Punctuation::Minus],
         NodeKind::AdditiveExpression,
     ),
@@ -84,17 +109,26 @@ fn binary(
     boundary: newline::Boundary,
     level: usize,
     allow_braces: bool,
+    closing_angle: ClosingAngle,
 ) -> Expression {
     let Some((operators, kind)) = OPERATORS.get(level) else {
         return conversion(parser, boundary, allow_braces);
     };
-    let mut left = binary(parser, boundary, level + 1, allow_braces);
+    let mut left = binary(parser, boundary, level + 1, allow_braces, closing_angle);
     loop {
         newline::before(parser, boundary, |token| {
             operators.iter().any(|operator| {
                 *operator != Punctuation::Minus && token == TokenKind::Punctuation(*operator)
             })
         });
+        if closing_angle == ClosingAngle::Delimiter
+            && matches!(
+                parser.current_kind(),
+                TokenKind::Punctuation(Punctuation::Greater | Punctuation::ShiftRight)
+            )
+        {
+            return left;
+        }
         if !operators
             .iter()
             .any(|operator| parser.at_punctuation(*operator))
@@ -104,7 +138,7 @@ fn binary(
         let marker = parser.precede(left.completed);
         parser.bump();
         newline::after_incomplete(parser, boundary);
-        binary(parser, boundary, level + 1, allow_braces);
+        binary(parser, boundary, level + 1, allow_braces, closing_angle);
         left = Expression {
             completed: parser.complete(marker, *kind),
         };
@@ -188,22 +222,37 @@ pub(super) fn postfix(parser: &mut Parser<'_>) -> Expression {
 
 fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     let mut name_path = parser.at(TokenKind::Identifier);
+    let mut named_callee = name_path;
     let mut left = primary(parser, allow_braces);
-    while (allow_braces && name_path && parser.at_punctuation(Punctuation::LeftBrace))
-        || parser.at_punctuation(Punctuation::LeftParen)
-        || parser.at_punctuation(Punctuation::Dot)
-        || ((parser.at_punctuation(Punctuation::Caret)
-            || parser.at_punctuation(Punctuation::LeftBracket))
-            && previous_is_joint(parser))
-    {
+    loop {
+        if named_callee
+            && parser.at_punctuation(Punctuation::Less)
+            && previous_is_joint(parser)
+            && let Some(call) = generic_call(parser, left.completed)
+        {
+            left = call;
+            name_path = false;
+            named_callee = false;
+            continue;
+        }
         if allow_braces && name_path && parser.at_punctuation(Punctuation::LeftBrace) {
             left = record_value(parser, left.completed);
             name_path = false;
+            named_callee = false;
             continue;
+        }
+        if !parser.at_punctuation(Punctuation::LeftParen)
+            && !parser.at_punctuation(Punctuation::Dot)
+            && !((parser.at_punctuation(Punctuation::Caret)
+                || parser.at_punctuation(Punctuation::LeftBracket))
+                && previous_is_joint(parser))
+        {
+            return left;
         }
         let marker = parser.precede(left.completed);
         if parser.eat_punctuation(Punctuation::Caret) {
             name_path = false;
+            named_callee = false;
             left = Expression {
                 completed: parser.complete(marker, NodeKind::TransferExpression),
             };
@@ -211,7 +260,8 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
         }
         let suffix = parser.start();
         if parser.eat_punctuation(Punctuation::Dot) {
-            name_path &= parser.at(TokenKind::Identifier);
+            named_callee = parser.at(TokenKind::Identifier);
+            name_path &= named_callee;
             if parser.at(TokenKind::IntegerLiteral) {
                 parser.bump();
             } else {
@@ -220,6 +270,7 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             parser.complete(suffix, NodeKind::MemberSuffix);
         } else if parser.eat_punctuation(Punctuation::LeftBracket) {
             name_path = false;
+            named_callee = false;
             if parser.enter_nesting() {
                 parser.eat_newlines();
                 expression(parser, newline::Boundary::Delimited);
@@ -232,26 +283,104 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             parser.complete(suffix, NodeKind::IndexSuffix);
         } else {
             name_path = false;
-            parser.bump();
-            if parser.enter_nesting() {
-                parser.comma_list(
-                    Punctuation::RightParen,
-                    true,
-                    ExpectedSyntax::Expression,
-                    argument,
-                );
-                parser.expect_punctuation(Punctuation::RightParen);
-                parser.leave_nesting();
-            } else {
-                parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
-            }
-            parser.complete(suffix, NodeKind::CallSuffix);
+            named_callee = false;
+            call_suffix(parser, suffix);
         }
         left = Expression {
             completed: parser.complete(marker, NodeKind::PostfixExpression),
         };
     }
-    left
+}
+
+fn generic_call(parser: &mut Parser<'_>, callee: CompletedMarker) -> Option<Expression> {
+    let position = (parser.cursor, parser.nesting);
+    let possible = parser
+        .explicit_call_angles
+        .get_or_insert_with(|| explicit_call_angles(parser.tokens));
+    if !possible[parser.cursor] || parser.failed_explicit_calls.contains(&position) {
+        return None;
+    }
+    let Some((parent, suffix)) = parser.attempt_with(
+        |parser| {
+            let parent = parser.start();
+            let suffix = parser.start();
+            super::types::generic_arguments(parser);
+            (parent, suffix)
+        },
+        |parser, _| parser.at_punctuation(Punctuation::LeftParen),
+    ) else {
+        parser.failed_explicit_calls.insert(position);
+        return None;
+    };
+    parser.attach_parent(callee, parent);
+    call_suffix(parser, suffix);
+    Some(Expression {
+        completed: parser.complete(parent, NodeKind::PostfixExpression),
+    })
+}
+
+/// A necessary token boundary for each candidate `<`. Ignoring angle nesting here preserves
+/// the possibility that a less-than token belongs to a constant argument. The parser still
+/// decides the entire argument tree before attaching a call.
+fn explicit_call_angles(tokens: &[crate::Token]) -> Box<[bool]> {
+    use Punctuation::{
+        Greater, LeftBrace, LeftBracket, LeftParen, Less, RightBrace, RightBracket, RightParen,
+        ShiftRight,
+    };
+    let mut candidates = vec![false; tokens.len()];
+    let mut groups = Vec::new();
+    let mut possible = false;
+    let mut next = TokenKind::Eof;
+    for (index, token) in tokens.iter().enumerate().rev() {
+        let kind = token.kind();
+        let opening = match kind {
+            TokenKind::Punctuation(RightParen) => Some(TokenKind::Punctuation(LeftParen)),
+            TokenKind::Punctuation(RightBracket) => Some(TokenKind::Punctuation(LeftBracket)),
+            TokenKind::Punctuation(RightBrace) => Some(TokenKind::Punctuation(LeftBrace)),
+            TokenKind::InterpolationEnd => Some(TokenKind::InterpolationStart),
+            TokenKind::StringEnd(delimiter) => Some(TokenKind::StringStart(delimiter)),
+            _ => None,
+        };
+        if let Some(opening) = opening {
+            groups.push((opening, possible));
+            possible = false;
+        } else if matches!(
+            kind,
+            TokenKind::Punctuation(LeftParen | LeftBracket | LeftBrace)
+                | TokenKind::InterpolationStart
+                | TokenKind::StringStart(_)
+        ) {
+            // A malformed group is left to the real parser's recovery.
+            possible = groups
+                .pop()
+                .is_none_or(|(expected, outside)| kind != expected || outside);
+        } else if matches!(kind, TokenKind::Punctuation(Greater | ShiftRight))
+            && next == TokenKind::Punctuation(LeftParen)
+        {
+            possible = true;
+        } else if kind == TokenKind::Punctuation(Less) {
+            candidates[index] = possible;
+        }
+        next = kind;
+    }
+    candidates.into_boxed_slice()
+}
+
+fn call_suffix(parser: &mut Parser<'_>, suffix: Marker) {
+    parser.bump();
+    if parser.enter_nesting() {
+        parser.comma_list(
+            Punctuation::RightParen,
+            true,
+            ExpectedSyntax::Expression,
+            argument,
+        );
+        parser.expect_punctuation(Punctuation::RightParen);
+        parser.leave_nesting();
+    } else {
+        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+    }
+    parser.complete(suffix, NodeKind::CallSuffix);
 }
 
 fn argument(parser: &mut Parser<'_>) {

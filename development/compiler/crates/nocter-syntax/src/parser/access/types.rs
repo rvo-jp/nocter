@@ -79,7 +79,13 @@ pub(super) fn type_(parser: &mut Parser<'_>) {
             let qualified = parser.at(TokenKind::Identifier);
             parser.bump();
             if qualified {
-                while parser.eat_punctuation(Punctuation::Dot) {
+                loop {
+                    if parser.at_punctuation(Punctuation::Less) {
+                        generic_arguments(parser);
+                    }
+                    if !parser.eat_punctuation(Punctuation::Dot) {
+                        break;
+                    }
                     parser.expect_name();
                 }
             }
@@ -91,6 +97,16 @@ pub(super) fn type_(parser: &mut Parser<'_>) {
     while parser.eat_punctuation(Punctuation::Question) {}
     parser.eat_punctuation(Punctuation::Bang);
     parser.complete(marker, NodeKind::Type);
+}
+
+pub(super) fn generic_arguments(parser: &mut Parser<'_>) {
+    super::super::types::generic_arguments(
+        parser,
+        super::super::types::ListRecovery::Stop,
+        |parser| {
+            super::super::types::generic_argument(parser, type_, expression::generic_argument);
+        },
+    );
 }
 
 fn callable(parser: &mut Parser<'_>) {

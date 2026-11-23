@@ -146,6 +146,14 @@ impl Checker<'_, '_> {
             | NodeKind::OrderingExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression => self.binary(node, hint, reachable)?,
+            NodeKind::ShiftExpression => {
+                return self.reject_message(
+                    Rule::UnsupportedData,
+                    node,
+                    "this compiler has not qualified v2 integer shifts".into(),
+                    Vec::new(),
+                );
+            }
             NodeKind::PostfixExpression => self.postfix_value(node, projection, reachable)?,
             NodeKind::IfExpression => {
                 return self.if_expression(

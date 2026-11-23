@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Recognize adopted explicit generic arguments in named and member calls. Retain one source tree
-for elaboration and verify the boundary with comparisons and nested closing angles.
+Bind the authored generic parameter list in v2 function headers. Preserve the original slot
+order, names and type/constant distinction for subsequent argument elaboration and body checking.
 
 ## Remaining Contextual Representation Qualification
 
@@ -664,6 +664,9 @@ not a language restriction derived from the current realization boundary.
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
+- [x] Retain explicit generic arguments in named and member call syntax and named type
+  applications. Verify jointness, nested closing angles, constant expression shape and recovery
+  from incomplete input. Reject unresolved applications at the original argument list.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

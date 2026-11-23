@@ -46,6 +46,32 @@ fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
 }
 
 #[test]
+fn explicit_generic_arguments_cannot_disappear_during_ordinary_call_or_type_resolution() {
+    let (sources, tree) =
+        input("func identity(value: i32): i32 { value }\nfunc run(): i32 { identity<i32>(42) }");
+    assert!(!tree.has_errors());
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }))
+            if error.rule() == crate::value_access::Rule::InvalidCall
+    ));
+
+    let (sources, tree) = input("func identity(value: i32<i32>): i32 { value }");
+    assert!(!tree.has_errors());
+    let Err(SourceFailure::Declarations(declarations::Failure::Syntax(diagnostics))) =
+        SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("ordinary type resolution must reject a parsed generic application");
+    };
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message()
+            .contains("explicit generic arguments")
+    );
+}
+
+#[test]
 fn closed_deferred_drive_handles_pure_recursive_code_without_executing_it() {
     let unit = accepted("func recurse(): i32 { recurse() }\nasync func root(): i32 { recurse() }");
     let root = named(&unit, "root").typed().source_owner();

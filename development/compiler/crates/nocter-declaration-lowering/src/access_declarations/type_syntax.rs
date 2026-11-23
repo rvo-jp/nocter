@@ -141,6 +141,19 @@ pub fn project_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<TypeSy
         .kind()
     {
         NodeKind::NamedType => {
+            if let Some(arguments) = direct_node(syntax.tree(), shape, NodeKind::GenericArguments) {
+                let origin = nocter_source_index::SourceOrigin::from_node(syntax.tree(), arguments)
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+                return Err(Failure::Syntax(Box::new([
+                    nocter_diagnostics::SourceDiagnostic::new(
+                        nocter_diagnostics::DiagnosticCode::E0291,
+                        "this type cannot be specialized with explicit generic arguments",
+                        origin,
+                        [],
+                        None::<&str>,
+                    ),
+                ])));
+            }
             let path = nocter_syntax::direct_token_iter(syntax.tree(), shape)
                 .filter(|token| {
                     matches!(

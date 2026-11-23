@@ -14,6 +14,12 @@ transferred values within its closed data/callable schemas. A direct marked sour
 through complete invocation preparation, including selected callable adapters.
 The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
+Named and member calls retain a joint, complete generic argument list within the normal call
+suffix. The parser shares angle delimiters and the argument tree with named type applications. A
+token-boundary probe limits speculative work on comparisons and incomplete source. The current
+declaration and call checkers diagnose explicit arguments until generic declaration binding
+supplies their parameter kinds.
+
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical
 discovery. Root parse products, directory ownership, direct `see`, module imports, target selections

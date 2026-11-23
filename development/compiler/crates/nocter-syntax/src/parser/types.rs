@@ -22,20 +22,25 @@ pub(super) fn callable_result(parser: &mut Parser<'_>) {
 pub(super) fn generic_parameters(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
-    type_delimited_list(parser, false, ExpectedSyntax::Name, |parser| {
-        let parameter = parser.start();
-        let kind = if parser.at_keyword(Keyword::Const) {
-            parser.bump();
-            expect_pattern_binder(parser);
-            parser.expect_punctuation(Punctuation::Colon);
-            type_(parser);
-            NodeKind::ConstantGenericParameter
-        } else {
-            expect_pattern_binder(parser);
-            NodeKind::TypeGenericParameter
-        };
-        parser.complete(parameter, kind);
-    });
+    type_delimited_list(
+        parser,
+        ExpectedSyntax::Name,
+        ListRecovery::Continue,
+        |parser| {
+            let parameter = parser.start();
+            let kind = if parser.at_keyword(Keyword::Const) {
+                parser.bump();
+                expect_pattern_binder(parser);
+                parser.expect_punctuation(Punctuation::Colon);
+                type_(parser);
+                NodeKind::ConstantGenericParameter
+            } else {
+                expect_pattern_binder(parser);
+                NodeKind::TypeGenericParameter
+            };
+            parser.complete(parameter, kind);
+        },
+    );
     parser.expect_type_greater();
     parser.complete(marker, NodeKind::GenericParameters);
 }
@@ -414,7 +419,12 @@ fn named_type_with_facts(parser: &mut Parser<'_>) -> (CompletedMarker, bool, usi
 fn pattern_arguments(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
-    type_delimited_list(parser, false, ExpectedSyntax::Name, expect_pattern_binder);
+    type_delimited_list(
+        parser,
+        ExpectedSyntax::Name,
+        ListRecovery::Continue,
+        expect_pattern_binder,
+    );
     parser.expect_type_greater();
     parser.complete(marker, NodeKind::PatternArguments);
 }
@@ -442,6 +452,18 @@ fn at_builtin_type(parser: &Parser<'_>) -> bool {
 }
 
 fn type_arguments(parser: &mut Parser<'_>) {
+    generic_arguments(parser, ListRecovery::Continue, |parser| {
+        generic_argument(parser, type_, |parser| {
+            expression::expression(parser, expression::ExpressionMode::GenericArgument);
+        });
+    });
+}
+
+pub(super) fn generic_arguments(
+    parser: &mut Parser<'_>,
+    recovery: ListRecovery,
+    argument: fn(&mut Parser<'_>),
+) {
     let marker = parser.start();
     parser.bump();
     if !parser.enter_nesting() {
@@ -453,19 +475,23 @@ fn type_arguments(parser: &mut Parser<'_>) {
         parser.complete(marker, NodeKind::GenericArguments);
         return;
     }
-    type_delimited_list(parser, false, ExpectedSyntax::Type, generic_argument);
+    type_delimited_list(parser, ExpectedSyntax::Type, recovery, argument);
     parser.expect_type_greater();
     parser.leave_nesting();
     parser.complete(marker, NodeKind::GenericArguments);
 }
 
-fn generic_argument(parser: &mut Parser<'_>) {
+pub(super) fn generic_argument(
+    parser: &mut Parser<'_>,
+    parse_type: fn(&mut Parser<'_>),
+    parse_value: fn(&mut Parser<'_>),
+) {
     let marker = parser.start();
-    let parsed_type = parser
-        .attempt_with(type_, |parser, ()| at_generic_argument_end(parser))
+    let type_tree = parser
+        .attempt_with(parse_type, |parser, ()| at_generic_argument_end(parser))
         .is_some();
-    if !parsed_type {
-        expression::expression(parser, expression::ExpressionMode::GenericArgument);
+    if !type_tree {
+        parse_value(parser);
     }
     parser.complete(marker, NodeKind::GenericArgument);
 }
@@ -559,25 +585,33 @@ fn opaque_result(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::OpaqueResult);
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum ListRecovery {
+    Continue,
+    Stop,
+}
+
 fn type_delimited_list(
     parser: &mut Parser<'_>,
-    allow_empty: bool,
     expected_element: ExpectedSyntax,
+    recovery: ListRecovery,
     parse_element: fn(&mut Parser<'_>),
 ) {
     parser.eat_newlines();
     if at_type_list_end(parser) {
-        if !allow_empty {
-            parser.missing(expected_element);
-        }
+        parser.missing(expected_element);
         return;
     }
 
     loop {
         let before = parser.cursor;
+        let diagnostics = parser.diagnostics.len();
         parse_element(parser);
         if parser.cursor == before && parser.split.is_none() {
             parser.error_token(expected_element);
+        }
+        if recovery == ListRecovery::Stop && parser.diagnostics.len() != diagnostics {
+            return;
         }
         if parser.eat_punctuation(Punctuation::Comma) {
             parser.eat_newlines();
@@ -591,6 +625,9 @@ fn type_delimited_list(
             return;
         }
         parser.missing(ExpectedSyntax::Punctuation(Punctuation::Comma));
+        if recovery == ListRecovery::Stop {
+            return;
+        }
     }
 }
 
