@@ -182,7 +182,13 @@ impl Checker<'_, '_> {
                 TypeSyntax::Array { element, .. } => pending.push((element, false)),
                 TypeSyntax::Callable(contract) => {
                     pending.push((&contract.result, false));
-                    pending.extend(contract.inputs.iter().rev().map(|(_, data)| (data, false)));
+                    pending.extend(
+                        contract
+                            .inputs
+                            .iter()
+                            .rev()
+                            .map(|input| (&input.data, false)),
+                    );
                 }
                 TypeSyntax::Named(_) => {}
             }

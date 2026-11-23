@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify name, tuple and discard patterns on structural callable type inputs. Validate each shape
-and the names in the complete authored type, then keep the canonical callable identity based on
-positions, operations and data. Use the same projection in headers and local annotations.
+Qualify nongeneric scalar enum schemas and payloadless variant construction. Keep the declared
+nominal and variant identities through source lookup, compile-time evaluation and native
+representation. Extend the same schema to payloads and branch patterns in subsequent units.
 
 ## Remaining Contextual Representation Qualification
 
@@ -703,6 +703,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify ordinary closure input patterns through the shared callable-entry formation.
   Verify contextual data and operation, capture-name collisions, exact tuple shapes,
   read/update authority, received cleanup and required/native execution.
+- [x] Qualify input patterns in structural callable types. Verify alias-normalized shape and
+  duplicate-name diagnostics in headers and local annotations, named and unnamed type
+  equivalence, and absence of annotation-driven binding or cleanup.
+- [ ] Qualify nongeneric scalar enum schemas and payloadless variant construction through
+  ordinary source. Preserve original variant order and audiences, reject incomplete or
+  conflicting schemas, and carry one selected tag through required and native execution.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

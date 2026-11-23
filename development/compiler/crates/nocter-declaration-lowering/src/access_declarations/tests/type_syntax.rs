@@ -32,10 +32,10 @@ fn recursive_type_projection_keeps_callable_grouping_outcomes_operations_and_cou
         panic!("outer callable");
     };
     assert_eq!(
-        contract.inputs[0].0,
+        contract.inputs[0].operation,
         nocter_model::ValueInputOperation::Take
     );
-    assert!(matches!(contract.inputs[0].1, TypeSyntax::Callable(_)));
+    assert!(matches!(contract.inputs[0].data, TypeSyntax::Callable(_)));
     let mut lengths = Vec::new();
     ty.length_expressions(&mut lengths);
     assert_eq!(

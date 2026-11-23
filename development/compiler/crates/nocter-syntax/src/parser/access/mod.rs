@@ -203,23 +203,29 @@ fn parameter(parser: &mut Parser<'_>) {
 }
 
 fn input_binding(parser: &mut Parser<'_>) {
-    if (parser.at_contextual(ContextualSpelling::Edit)
-        || parser.at_contextual(ContextualSpelling::Take))
-        && matches!(
-            parser.nth_kind(1),
+    input_operation(parser, |next| {
+        matches!(
+            next,
             TokenKind::Identifier | TokenKind::Punctuation(Punctuation::LeftParen)
         )
-    {
-        let operation = parser.start();
-        parser.bump();
-        parser.complete(operation, NodeKind::InputOperation);
-    }
+    });
     if parser.at_punctuation(Punctuation::LeftParen)
         || parser.at_contextual(ContextualSpelling::Discard)
     {
         super::statement::binding_pattern(parser);
     } else {
         parser.expect_name();
+    }
+}
+
+fn input_operation(parser: &mut Parser<'_>, starts_input: impl FnOnce(TokenKind) -> bool) {
+    if (parser.at_contextual(ContextualSpelling::Edit)
+        || parser.at_contextual(ContextualSpelling::Take))
+        && starts_input(parser.nth_kind(1))
+    {
+        let operation = parser.start();
+        parser.bump();
+        parser.complete(operation, NodeKind::InputOperation);
     }
 }
 

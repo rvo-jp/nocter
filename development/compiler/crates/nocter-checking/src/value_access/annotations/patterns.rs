@@ -1,5 +1,5 @@
 //! Resolve annotation leaves once while retaining recursive callable constraints as constraints.
-use super::{Checker, Failure, FunctionPattern};
+use super::{Checker, Failure, FunctionPattern, Rule};
 use nocter_declaration_lowering::access_declarations::{CallableTypeSyntax, TypeSyntax};
 use nocter_declarations::value_access::{FunctionDataPattern, FunctionInput};
 
@@ -15,15 +15,41 @@ impl Checker<'_, '_> {
         contract: &CallableTypeSyntax,
         metadata_only: bool,
     ) -> Result<FunctionPattern, Failure> {
+        if let Some((first, repeated)) = contract.repeated_input_name(self.syntax()) {
+            let related = nocter_diagnostics::DiagnosticNote::new(
+                "the first input binding with this name is here",
+                crate::value_access::source_origin(
+                    self.syntax(),
+                    nocter_syntax::SyntaxOrigin::Token(first),
+                )?,
+            );
+            return self.reject_message(
+                Rule::ShadowedName,
+                repeated,
+                "duplicate callable input name".into(),
+                vec![related],
+            );
+        }
         Ok(FunctionPattern {
             invocation: contract.invocation,
             inputs: contract
                 .inputs
                 .iter()
-                .map(|(operation, ty)| {
+                .map(|input| {
+                    let data = self.callable_data_pattern(&input.data, metadata_only)?;
+                    if let Some(binding) = &input.binding
+                        && !data.matches_input_binding(self.program(), &binding.shape)
+                    {
+                        return self.reject_message(
+                            Rule::TypeMismatch,
+                            binding.origin,
+                            "parameter pattern does not match the declared tuple data".into(),
+                            Vec::new(),
+                        );
+                    }
                     Ok(FunctionInput {
-                        operation: *operation,
-                        data: self.callable_data_pattern(ty, metadata_only)?,
+                        operation: input.operation,
+                        data,
                     })
                 })
                 .collect::<Result<_, Failure>>()?,

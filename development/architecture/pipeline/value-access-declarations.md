@@ -135,8 +135,13 @@ driven. Cancellation before entry cleans the intact received inputs.
 Ordinary closures use the same entry operations. An annotation or expected callable contract
 determines data before checking the pattern. The selected input operation applies to all leaves.
 The closure's formal input list contains the original positions, and the body source projection
-retains each bound leaf separately from the capture environment. Callable annotation patterns
-and explicit dependency origins remain separate qualification tasks.
+retains each bound leaf separately from the capture environment.
+
+Structural callable types can describe an input with a name, discard or tuple pattern.
+Header and body annotation checking validate these patterns against the resolved input data
+and detect collisions in that callable type's input scope. Only positions, data and operations
+enter the callable constraint. The annotation itself creates no locals and performs no cleanup.
+Resolution and substitution of explicit dependency origins remain separate work.
 
 ## Implemented Handoff
 

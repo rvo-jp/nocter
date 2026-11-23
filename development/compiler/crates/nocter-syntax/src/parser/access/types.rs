@@ -108,26 +108,7 @@ fn callable(parser: &mut Parser<'_>) {
             Punctuation::RightParen,
             true,
             ExpectedSyntax::Parameter,
-            |parser| {
-                let parameter = parser.start();
-                if (parser.at_contextual(ContextualSpelling::Edit)
-                    || parser.at_contextual(ContextualSpelling::Take))
-                    && matches!(
-                        parser.nth_kind(1),
-                        TokenKind::Identifier
-                            | TokenKind::Keyword(Keyword::Void | Keyword::Func)
-                            | TokenKind::Punctuation(
-                                Punctuation::LeftParen | Punctuation::LeftBracket
-                            )
-                    )
-                {
-                    let operation = parser.start();
-                    parser.bump();
-                    parser.complete(operation, NodeKind::InputOperation);
-                }
-                type_(parser);
-                parser.complete(parameter, NodeKind::CallableParameter);
-            },
+            callable_parameter,
         );
         parser.expect_punctuation(Punctuation::RightParen);
         parser.leave_nesting();
@@ -139,4 +120,30 @@ fn callable(parser: &mut Parser<'_>) {
     type_(parser);
     parser.complete(contract, NodeKind::CallableType);
     parser.leave_nesting();
+}
+
+fn callable_parameter(parser: &mut Parser<'_>) {
+    let parameter = parser.start();
+    super::input_operation(parser, |next| {
+        matches!(
+            next,
+            TokenKind::Identifier
+                | TokenKind::Keyword(Keyword::Void | Keyword::Func | Keyword::Future)
+                | TokenKind::Punctuation(Punctuation::LeftParen | Punctuation::LeftBracket)
+        )
+    });
+    if matches!(
+        parser.current_kind(),
+        TokenKind::Identifier | TokenKind::Punctuation(Punctuation::LeftParen)
+    ) {
+        let _ = parser.attempt_decided_with(
+            |parser| {
+                super::super::statement::binding_pattern(parser);
+                parser.eat_punctuation(Punctuation::Colon)
+            },
+            |_, decided| *decided,
+        );
+    }
+    type_(parser);
+    parser.complete(parameter, NodeKind::CallableParameter);
 }

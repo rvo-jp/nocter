@@ -909,6 +909,66 @@ fn installed_v2_closure_patterns_use_the_selected_input_contract() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_callable_annotations_validate_patterns_without_binding_values() {
+    let tree = TempTree::new("callable-input-patterns");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("main.nct");
+    let program =
+        include_str!("../../../tests/fixtures/native/value-access/callable-input-patterns.nct");
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--file", "main.nct", "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    fs::write(&source, program).unwrap();
+    let InvocationOutcome::Run(executed) =
+        execute("run").unwrap_or_else(|error| panic!("{}", render(&error)))
+    else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    for (original, replacement, expected) in [
+        (
+            "(first, second): Pair",
+            "(first, first): Pair",
+            "duplicate callable input name",
+        ),
+        (
+            "(left, right): (i32, i32)",
+            "(left, left): (i32, i32)",
+            "duplicate callable input name",
+        ),
+        (
+            "(first, second): Pair",
+            "(first, (second, third)): Pair",
+            "does not match the declared tuple data",
+        ),
+        (
+            "(left, right): (i32, i32)",
+            "(left, right): [i32; 2]",
+            "does not match the declared tuple data",
+        ),
+    ] {
+        let changed = program.replace(original, replacement);
+        assert_ne!(changed, program);
+        fs::write(&source, changed).unwrap();
+        let diagnostic = render(&execute("check").unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

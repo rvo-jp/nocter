@@ -1,6 +1,6 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    CodeSource, Failure, TypeSyntax,
+    CallableTypeSyntax, CodeSource, Failure, TypeSyntax,
     headers::{AliasHeader, Header, RecordHeader},
     source::Sources,
     text,
@@ -270,27 +270,7 @@ impl Definitions<'_, '_, '_> {
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
-            TypeSyntax::Callable(contract) => {
-                let inputs = contract
-                    .inputs
-                    .iter()
-                    .map(|(operation, data)| {
-                        Ok(self
-                            .data_type(data, owner, position)?
-                            .map(|data| (*operation, data)))
-                    })
-                    .collect::<Result<Vec<_>, Failure>>()?
-                    .into_iter()
-                    .collect::<Option<Box<[_]>>>();
-                let result = self.data_type(&contract.result, owner, position)?;
-                Ok(inputs.zip(result).map(|(inputs, result)| {
-                    DataReference::Function(Box::new(FunctionDefinition {
-                        invocation: contract.invocation,
-                        inputs,
-                        result,
-                    }))
-                }))
-            }
+            TypeSyntax::Callable(contract) => self.callable_data(contract, owner, position),
             TypeSyntax::Named(path) => self.data_path(path, owner, position),
             TypeSyntax::Future { output, .. } => Ok(self
                 .data_type(output, owner, position)?
@@ -342,6 +322,63 @@ impl Definitions<'_, '_, '_> {
                 }))
             }
         }
+    }
+
+    fn callable_data(
+        &mut self,
+        contract: &CallableTypeSyntax,
+        owner: DeclarationId,
+        position: HeaderPosition,
+    ) -> Result<Option<DataReference>, Failure> {
+        let syntax = self.scope.syntax;
+        let reject = |rule, primary, related| {
+            super::projection::authored_violation(
+                syntax,
+                DeclarationViolation {
+                    declaration: owner,
+                    position,
+                    rule,
+                },
+                primary,
+                related,
+            )
+        };
+        if let Some((first, repeated)) = contract.repeated_input_name(syntax) {
+            return Err(reject(
+                DeclarationRule::DuplicateCallableInputName,
+                SyntaxOrigin::Token(repeated),
+                Some(SyntaxOrigin::Token(first)),
+            ));
+        }
+        let inputs = contract
+            .inputs
+            .iter()
+            .map(|input| {
+                let Some(data) = self.data_type(&input.data, owner, position)? else {
+                    return Ok(None);
+                };
+                if let Some(binding) = &input.binding
+                    && !binding.shape.matches_data_reference(&data)
+                {
+                    return Err(reject(
+                        DeclarationRule::ParameterPatternMismatch,
+                        SyntaxOrigin::Node(binding.origin),
+                        None,
+                    ));
+                }
+                Ok(Some((input.operation, data)))
+            })
+            .collect::<Result<Vec<_>, Failure>>()?
+            .into_iter()
+            .collect::<Option<Box<[_]>>>();
+        let result = self.data_type(&contract.result, owner, position)?;
+        Ok(inputs.zip(result).map(|(inputs, result)| {
+            DataReference::Function(Box::new(FunctionDefinition {
+                invocation: contract.invocation,
+                inputs,
+                result,
+            }))
+        }))
     }
     fn record(
         &mut self,

@@ -104,6 +104,7 @@ pub enum DeclarationRule {
     ReservedBuiltinName,
     DuplicateValue { first: AccessCodeId },
     DuplicateParameter { first: HeaderPosition },
+    DuplicateCallableInputName,
     ParameterPatternMismatch,
     ParameterShadowsValue { declaration: AccessCodeId },
     ParameterShadowsNamespace { name: Symbol },

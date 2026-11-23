@@ -90,9 +90,32 @@ fn project(
         violation.position,
         typed,
     )?;
+    let related = related(sources, records, aliases, violation).ok()?;
+    at_origin(origin, violation, primary, related)
+}
+
+pub(super) fn authored_violation(
+    syntax: nocter_syntax::BoundSyntax<'_>,
+    violation: DeclarationViolation,
+    primary: SyntaxOrigin,
+    related: Option<SyntaxOrigin>,
+) -> Failure {
+    let origin = |source| crate::diagnostic::origin_from_syntax([syntax.tree()], source);
+    at_origin(&origin, violation, primary, related)
+        .map_or(Failure::InconsistentSyntax, |diagnostic| {
+            Failure::Headers(vec![diagnostic])
+        })
+}
+
+fn at_origin(
+    origin: &impl Fn(SyntaxOrigin) -> Option<SourceOrigin>,
+    violation: DeclarationViolation,
+    primary: SyntaxOrigin,
+    related: Option<SyntaxOrigin>,
+) -> Option<HeaderDiagnostic> {
     let (code, message) = details(violation)?;
     let primary = origin(primary)?;
-    let notes = if let Some(related) = related(sources, records, aliases, violation).ok()? {
+    let notes = if let Some(related) = related {
         Some(DiagnosticNote::new(
             "related declaration is here",
             origin(related)?,
@@ -178,6 +201,7 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
         R::DuplicateRecord { .. } => (DiagnosticCode::E0241, "duplicate record name"),
         R::DuplicateTypeName { .. } => (DiagnosticCode::E0241, "duplicate type declaration name"),
         R::DuplicateParameter { .. } => (DiagnosticCode::E0341, "duplicate parameter name"),
+        R::DuplicateCallableInputName => (DiagnosticCode::E0341, "duplicate callable input name"),
         R::ParameterPatternMismatch => (
             DiagnosticCode::E0341,
             "parameter pattern does not match the declared tuple data",

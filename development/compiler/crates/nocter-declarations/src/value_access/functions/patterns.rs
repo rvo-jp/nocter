@@ -1,6 +1,6 @@
 //! Structural annotation constraints retain selected witnesses at every callable node.
 use super::{FunctionConstraint, FunctionInput, FunctionMismatch, Program};
-use crate::value_access::PayloadSchema;
+use crate::value_access::{AggregateForm, ParameterBinding, PayloadSchema};
 use nocter_model::TypeId;
 #[cfg(test)]
 mod tests;
@@ -14,6 +14,51 @@ pub enum FunctionDataPattern {
     Fallible(Box<Self>),
     Tuple(Box<[Self]>),
     Array { element: Box<Self>, length: u64 },
+}
+
+impl FunctionDataPattern {
+    /// Check a callable input binding against an annotation whose callable leaves may be open.
+    #[must_use]
+    pub fn matches_input_binding<Name>(
+        &self,
+        program: &Program,
+        binding: &ParameterBinding<Name>,
+    ) -> bool {
+        enum Data<'a> {
+            Pattern(&'a FunctionDataPattern),
+            Exact(TypeId),
+        }
+        binding.matches_tuple_shape(Data::Pattern(self), &mut |data| {
+            let exact = match data {
+                Data::Pattern(Self::Tuple(fields)) => {
+                    return Some(
+                        fields
+                            .iter()
+                            .map(Data::Pattern)
+                            .collect::<Vec<_>>()
+                            .into_iter(),
+                    );
+                }
+                Data::Pattern(Self::Data(data)) => *data,
+                Data::Exact(data) => data,
+                Data::Pattern(_) => return None,
+            };
+            let PayloadSchema::Aggregate(tuple) = program.data_schema(exact)? else {
+                return None;
+            };
+            let AggregateForm::Tuple(fields) = tuple.form() else {
+                return None;
+            };
+            Some(
+                fields
+                    .iter()
+                    .copied()
+                    .map(Data::Exact)
+                    .collect::<Vec<_>>()
+                    .into_iter(),
+            )
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

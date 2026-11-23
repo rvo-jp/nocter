@@ -28,7 +28,9 @@ pub use source::{
 };
 pub use source_roles::{SourceRoleDiagnostic, SourceRoleRule, validate_source_role};
 mod type_syntax;
-pub use type_syntax::{CallableTypeSyntax, TypeSyntax, project_type_syntax};
+pub use type_syntax::{
+    CallableInputBinding, CallableInputSyntax, CallableTypeSyntax, TypeSyntax, project_type_syntax,
+};
 #[cfg(test)]
 mod tests;
 

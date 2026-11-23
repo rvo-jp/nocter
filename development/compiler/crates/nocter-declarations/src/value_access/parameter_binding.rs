@@ -66,22 +66,38 @@ impl<Name> ParameterBinding<Name> {
     }
 
     pub(super) fn matches_data(&self, value: &ValueDefinition) -> bool {
-        fn matches<Name>(binding: &ParameterBinding<Name>, data: &DataReference) -> bool {
-            let ParameterBinding::Tuple(items) = binding else {
-                return true;
-            };
-            let DataReference::Tuple(fields) = data else {
-                return false;
-            };
-            items.len() == fields.as_slice().len()
-                && items
-                    .iter()
-                    .zip(fields.as_slice())
-                    .all(|(item, field)| matches(item, field))
-        }
         match value {
-            ValueDefinition::Data(data) => matches(self, data),
+            ValueDefinition::Data(data) => self.matches_data_reference(data),
             ValueDefinition::Function(_) => !matches!(self, Self::Tuple(_)),
+        }
+    }
+
+    /// Check the given data reference after transparent names have been resolved.
+    #[must_use]
+    pub fn matches_data_reference(&self, data: &DataReference) -> bool {
+        self.matches_tuple_shape(data, &mut |data| match data {
+            DataReference::Tuple(items) => Some(items.as_slice().iter()),
+            _ => None,
+        })
+    }
+
+    pub(super) fn matches_tuple_shape<Data, Children>(
+        &self,
+        data: Data,
+        tuple_fields: &mut impl FnMut(Data) -> Option<Children>,
+    ) -> bool
+    where
+        Children: ExactSizeIterator<Item = Data>,
+    {
+        match self {
+            Self::Name(_) | Self::Discard => true,
+            Self::Tuple(items) => tuple_fields(data).is_some_and(|fields| {
+                items.len() == fields.len()
+                    && items
+                        .iter()
+                        .zip(fields)
+                        .all(|(item, field)| item.matches_tuple_shape(field, tuple_fields))
+            }),
         }
     }
 }

@@ -69,7 +69,7 @@ pub(super) fn parameter(syntax: BoundSyntax<'_>, node: NodeId) -> Result<Paramet
     })
 }
 
-fn parameter_binding(
+pub(super) fn parameter_binding(
     syntax: BoundSyntax<'_>,
     node: NodeId,
 ) -> Result<ParameterBinding<SyntaxOrigin>, Failure> {

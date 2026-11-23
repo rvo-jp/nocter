@@ -1,17 +1,53 @@
 //! One recursive source type projection, independent of its semantic position and witness evidence.
 use super::{Failure, input_operation, text};
+use nocter_declarations::value_access::ParameterBinding;
 use nocter_model::{ValueInputOperation, ValueInvocation};
 use nocter_syntax::{
-    BoundSyntax, ContextualSpelling, Keyword, NodeId, NodeKind, SyntaxToken, TokenKind,
-    child_node_iter, direct_node, first_direct_token,
+    BoundSyntax, ContextualSpelling, Keyword, NodeId, NodeKind, SyntaxOrigin, SyntaxToken,
+    TokenKind, child_node_iter, direct_node, first_direct_token,
 };
 
 #[derive(Clone, Debug)]
 pub struct CallableTypeSyntax {
     pub head: SyntaxToken,
     pub invocation: ValueInvocation,
-    pub inputs: Box<[(ValueInputOperation, TypeSyntax)]>,
+    pub inputs: Box<[CallableInputSyntax]>,
     pub result: Box<TypeSyntax>,
+}
+#[derive(Clone, Debug)]
+pub struct CallableInputSyntax {
+    pub operation: ValueInputOperation,
+    pub data: TypeSyntax,
+    pub binding: Option<CallableInputBinding>,
+}
+#[derive(Clone, Debug)]
+pub struct CallableInputBinding {
+    pub origin: NodeId,
+    pub shape: ParameterBinding<SyntaxOrigin>,
+}
+impl CallableTypeSyntax {
+    /// The original and repeated leaf names in this callable type's own input scope.
+    #[must_use]
+    pub fn repeated_input_name(
+        &self,
+        syntax: BoundSyntax<'_>,
+    ) -> Option<(SyntaxToken, SyntaxToken)> {
+        let mut names = std::collections::BTreeMap::new();
+        for name in self
+            .inputs
+            .iter()
+            .filter_map(|input| input.binding.as_ref())
+            .flat_map(|binding| binding.shape.names())
+        {
+            let SyntaxOrigin::Token(name) = *name else {
+                continue;
+            };
+            if let Some(first) = names.insert(text(syntax, name), name) {
+                return Some((first, name));
+            }
+        }
+        None
+    }
 }
 #[derive(Clone, Debug)]
 pub enum TypeSyntax {
@@ -40,8 +76,8 @@ impl TypeSyntax {
         match self {
             Self::Named(_) => {}
             Self::Callable(contract) => {
-                for (_, input) in &contract.inputs {
-                    input.length_expressions(lengths);
+                for input in &contract.inputs {
+                    input.data.length_expressions(lengths);
                 }
                 contract.result.length_expressions(lengths);
             }
@@ -75,7 +111,7 @@ impl TypeSyntax {
                 Self::Named(path) => names.push(path.as_ref()),
                 Self::Callable(contract) => {
                     pending.push(&contract.result);
-                    pending.extend(contract.inputs.iter().rev().map(|(_, ty)| ty));
+                    pending.extend(contract.inputs.iter().rev().map(|input| &input.data));
                 }
                 Self::Optional { payload, .. }
                 | Self::Fallible { payload, .. }
@@ -189,10 +225,19 @@ fn callable(syntax: BoundSyntax<'_>, contract: NodeId) -> Result<CallableTypeSyn
         .map(|parameter| {
             let ty = direct_node(syntax.tree(), parameter, NodeKind::Type)
                 .ok_or(Failure::InconsistentSyntax)?;
-            Ok((
-                input_operation(syntax, parameter)?,
-                project_type_syntax(syntax, ty)?,
-            ))
+            let binding = direct_node(syntax.tree(), parameter, NodeKind::BindingPattern)
+                .map(|origin| {
+                    Ok(CallableInputBinding {
+                        origin,
+                        shape: super::headers::parameter_binding(syntax, origin)?,
+                    })
+                })
+                .transpose()?;
+            Ok(CallableInputSyntax {
+                operation: input_operation(syntax, parameter)?,
+                data: project_type_syntax(syntax, ty)?,
+                binding,
+            })
         })
         .collect::<Result<_, Failure>>()?;
     let result =
