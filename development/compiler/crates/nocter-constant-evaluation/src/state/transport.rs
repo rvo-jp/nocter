@@ -40,6 +40,7 @@ pub(super) fn permits(
             | (Type::Text, Type::Text)
             | (Type::EmptyArray, Type::EmptyArray) => {}
             (Type::Integer(a), Type::Integer(b)) if a == b => {}
+            (Type::ScalarEnum { .. } | Type::Enum { .. }, _) if source == target => {}
             (Type::NamedFunction(_) | Type::CapturedFunction { .. }, _)
                 if from.same_function_payload(to) => {}
             (_, Type::CallableAlternatives(_)) => {

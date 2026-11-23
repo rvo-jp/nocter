@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Preserve closed enum components during evaluator transport of surrounding carriers. Validate
-the unchanged nominal identity and keep each active payload intact when another component changes
-representation.
+Check exact authored enum pattern arity with the common binding-pattern traversal. Qualify cases
+whose fields are discarded, keeping one tag read and the established complete-carrier cleanup
+before take branches.
 
 ## Remaining Contextual Representation Qualification
 
@@ -749,7 +749,7 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify authored nongeneric enum constructors through ordinary source, required evaluation
   and native execution. Check exact case visibility and arity, left-to-right staging, and cleanup
   on interrupted construction.
-- [ ] Permit exact enum leaves in guarded evaluator transport of enclosing carriers. Retain each
+- [x] Permit exact enum leaves in guarded evaluator transport of enclosing carriers. Retain each
   frozen active case and field value while rejecting substitution of a distinct nominal enum.
 - [ ] Qualify the written arity of enum payload patterns and cases whose positions are discarded.
   Continue with scoped read/edit bindings and take decomposition of active fields.

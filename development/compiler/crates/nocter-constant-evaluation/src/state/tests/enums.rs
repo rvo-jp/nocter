@@ -189,3 +189,51 @@ fn enum_dispatch_validates_the_active_payload_without_qualifying_other_cases() {
         assert_eq!(budget.storage_used(), 0);
     }
 }
+
+#[test]
+fn enum_leaf_stays_intact_when_a_neighboring_outcome_widens() {
+    use super::super::transport;
+    let mut table = types().to_vec();
+    let enumeration = table[3].clone();
+    let Type::Enum { cases, .. } = enumeration else {
+        unreachable!()
+    };
+    let mut identities = ArenaBuilder::<nocter_model::NominalTypeId, ()>::new();
+    identities.insert(());
+    let distinct = identities.insert(());
+
+    let mut append = |ty| {
+        let id = table.len();
+        table.push(ty);
+        id
+    };
+    let excluded = append(Type::Uninhabited);
+    let narrow = append(Type::Variant {
+        primary: excluded,
+        alternate: Some(1),
+    });
+    let wide = append(Type::Variant {
+        primary: 0,
+        alternate: Some(1),
+    });
+    let from = append(Type::Record(Box::new([3, narrow])));
+    let into = append(Type::Record(Box::new([3, wide])));
+    let other = append(Type::Enum {
+        nominal: distinct,
+        cases,
+    });
+    let incompatible = append(Type::Record(Box::new([other, wide])));
+    let program = Program::new(table, BTreeMap::new(), BTreeMap::new()).unwrap();
+    assert!(transport::permits(&program, from, into, || Ok(())).unwrap());
+    assert!(!transport::permits(&program, from, incompatible, || Ok(())).unwrap());
+    let budget = Budget::new(Limits::default());
+    let value = Value::aggregate(vec![
+        Value::enumeration(1, vec![Value::integer(42), Value::boolean(true)]),
+        Value::variant(false, Some(Value::boolean(false))),
+    ]);
+    let original = budget.storage.import(&value).unwrap();
+    let received =
+        transport::encode(&program, from, into, &original, &budget.storage, || Ok(())).unwrap();
+    assert_eq!(received.freeze(), value.freeze());
+    assert_eq!(received.identity(), original.identity());
+}
