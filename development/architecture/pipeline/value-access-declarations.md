@@ -463,6 +463,12 @@ The development standard-library [process module](../../stdlib/process/index.nct
 source wrappers. Prepared package commands and native conformance cases select the same
 development profile and source package.
 
+The development [I/O module](../../stdlib/io/index.nct) writes standard output through a
+profile-selected text primitive. The ARM64 Darwin path advances by the delivered byte count,
+retries interruption, and reports incomplete output to the source wrapper. The selected role's
+waiting fact is propagated through ordinary checked invocations to reject a waiting future drive.
+The executable starter uses the same public `print` contract.
+
 Error-node creation can trap at its backing request. An independent cleanup certificate covers
 releasing the owned mappings in the actual chain. That evidence permits reached error disposal
 during a drive.

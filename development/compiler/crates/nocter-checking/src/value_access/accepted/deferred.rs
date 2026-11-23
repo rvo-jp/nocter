@@ -87,14 +87,10 @@ fn body_failure(callable: AccessCodeId, failure: BodyFailure) -> Failure {
 
 fn modifier(context: &Context<'_>, callable: AccessCodeId) -> BodyFailure {
     let project = || {
-        let selected = context.for_code(callable)?;
-        let node = selected
-            .code_source(callable)
-            .and_then(CodeSource::deferred_modifier)
-            .ok_or(BodyFailure::InconsistentSyntax)?;
+        let (syntax, node) = async_site(context, callable)?;
         let rule = Rule::UnqualifiedFuture;
         Ok::<_, BodyFailure>(diagnostics::authored_rejection(
-            selected.syntax(),
+            syntax,
             nocter_syntax::SyntaxOrigin::Node(node),
             rule,
             rule.diagnostic().1,
@@ -102,6 +98,18 @@ fn modifier(context: &Context<'_>, callable: AccessCodeId) -> BodyFailure {
         ))
     };
     project().unwrap_or_else(|failure| failure)
+}
+
+fn async_site<'source>(
+    context: &Context<'source>,
+    callable: AccessCodeId,
+) -> Result<(nocter_syntax::BoundSyntax<'source>, nocter_syntax::NodeId), BodyFailure> {
+    let selected = context.for_code(callable)?;
+    let node = selected
+        .code_source(callable)
+        .and_then(CodeSource::deferred_modifier)
+        .ok_or(BodyFailure::InconsistentSyntax)?;
+    Ok((selected.syntax(), node))
 }
 
 fn drive(
@@ -114,6 +122,9 @@ fn drive(
     checked: &mut BTreeSet<AccessCodeId>,
 ) -> Result<(), Failure> {
     let callable = body.typed().source_owner();
+    let reject_operation = |body, location, message| {
+        reject(verified, body, location, message, Some((source, callable)))
+    };
     let mut examined = BTreeSet::new();
     let mut pending = vec![(callable, body)];
     let mut known_backing = BTreeSet::new();
@@ -140,8 +151,7 @@ fn drive(
                             && !futures.contains(query.code(), data)
                             && !local_data(program, data, use_, &mut known_backing)
                         {
-                            return Err(reject(
-                                verified,
+                            return Err(reject_operation(
                                 body,
                                 location,
                                 "this activation or cleanup requires non-waiting backing evidence",
@@ -158,7 +168,7 @@ fn drive(
                     &step.operation,
                 )
                 .transpose()
-                .map_err(|message| reject(verified, body, location, message))?
+                .map_err(|message| reject_operation(body, location, message))?
                 {
                     let (single, alternatives) = match selection {
                         Selection::Immediate(id) => (Some(id), None),
@@ -169,8 +179,7 @@ fn drive(
                         .chain(alternatives.into_iter().flatten().copied())
                     {
                         let target = bodies.get(&id.into()).ok_or_else(|| {
-                            reject(
-                                verified,
+                            reject_operation(
                                 body,
                                 location,
                                 "the selected operation has no checked body for non-waiting drive",
@@ -205,11 +214,13 @@ fn selected<'a>(
     match *operation {
         Operation::CommitCall(call) => {
             let target = immediate_body(program, query, call);
-            if target
-                .and_then(|id| primitives.role(id))
-                .is_some_and(|role| abi.is_some_and(|abi| role.value_drive_backing(abi).is_some()))
-            {
-                return None;
+            if let Some(role) = target.and_then(|id| primitives.role(id)) {
+                if role.execution_facts().may_block() {
+                    return Some(Err("the selected primitive may wait for external progress"));
+                }
+                if abi.is_some_and(|abi| role.value_drive_backing(abi).is_some()) {
+                    return None;
+                }
             }
             Some(
                 target
@@ -344,16 +355,30 @@ fn reject(
     body: &flow::Query,
     location: Location,
     message: &str,
+    entry: Option<(&Context<'_>, AccessCodeId)>,
 ) -> Failure {
     let project = || {
         let binding = body.bind_verified(verified)?;
         let origin = binding.origin(location)?;
+        let notes = if let Some((source, entry)) = entry
+            && entry != body.typed().source_owner()
+        {
+            let (syntax, node) = async_site(source, entry)?;
+            let entry = nocter_source_index::SourceOrigin::from_node(syntax.tree(), node)
+                .map_err(|_| BodyFailure::InconsistentSyntax)?;
+            vec![nocter_diagnostics::DiagnosticNote::new(
+                "this async body requires non-waiting drive",
+                entry,
+            )]
+        } else {
+            Vec::new()
+        };
         Ok::<_, BodyFailure>(diagnostics::authored_rejection(
             binding.typed().syntax(),
             origin,
             Rule::UnqualifiedFuture,
             message,
-            Vec::new(),
+            notes,
         ))
     };
     body_failure(

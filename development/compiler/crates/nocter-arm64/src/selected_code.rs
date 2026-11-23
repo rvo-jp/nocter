@@ -690,6 +690,9 @@ pub(crate) fn emit_instruction(
             payload_shift,
             absent,
         } => crate::primitive_memory_code::emit_string_byte(code, payload_shift, absent),
+        Arm64SelectedInstruction::WriteStandardOutput => {
+            crate::system_primitive_code::emit_standard_output_write(code)
+        }
     }
 }
 

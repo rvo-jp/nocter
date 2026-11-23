@@ -402,6 +402,8 @@ closed_role_enum! {
         Unreachable,
         /// Reads one in-bounds byte of a v2 text value, or produces absence.
         StringByteAt,
+        /// Delivers a v2 text value to standard output and reports complete delivery.
+        StandardOutputWrite,
     }
 }
 
@@ -619,6 +621,7 @@ impl PrimitiveRole {
             Self::Trap => "trap",
             Self::Unreachable => "unreachable",
             Self::StringByteAt => "string_byte_at",
+            Self::StandardOutputWrite => "standard_output_write",
         }
     }
 
@@ -673,7 +676,7 @@ impl PrimitiveRole {
 
     #[must_use]
     pub const fn in_published_profile(self) -> bool {
-        !matches!(self, Self::StringByteAt)
+        !matches!(self, Self::StringByteAt | Self::StandardOutputWrite)
     }
 }
 
@@ -927,6 +930,7 @@ mod tests {
                 PrimitiveRole::Syscall3Signed,
                 PrimitiveRole::Syscall4,
                 PrimitiveRole::Syscall6,
+                PrimitiveRole::StandardOutputWrite,
             ]
         );
     }

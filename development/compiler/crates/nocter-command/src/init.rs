@@ -138,14 +138,19 @@ fn source_templates(
         StandardSourceKind::ValueAccessV2 => {
             let implementation = "implementation.nct";
             let cases = "cases.nct";
-            let (signature, body, call) = match kind {
-                InitializedPackageKind::Executable => ("func main(): i32", "0".into(), "main"),
-                InitializedPackageKind::Library => (
-                    "func greeting(): str",
-                    format!("\"Hello from {name}\""),
-                    "greeting",
+            let (entry, result, imports, body, propagate) = match kind {
+                InitializedPackageKind::Executable => (
+                    "main",
+                    "i32!",
+                    "\nuse std/io\n",
+                    format!("io.print(\"Hello from {name}\\n\")?\n    0"),
+                    "?",
                 ),
+                InitializedPackageKind::Library => {
+                    ("greeting", "str", "", format!("\"Hello from {name}\""), "")
+                }
             };
+            let signature = format!("func {entry}(): {result}");
             vec![
                 (
                     root.join(MODULE_ROOT_FILE_NAME),
@@ -156,13 +161,15 @@ fn source_templates(
                 ),
                 (
                     root.join(implementation),
-                    format!("see ./{MODULE_ROOT_FILE_NAME}\n\n{signature} {{\n    {body}\n}}\n"),
+                    format!(
+                        "see ./{MODULE_ROOT_FILE_NAME}\n{imports}\n{signature} {{\n    {body}\n}}\n"
+                    ),
                 ),
                 (test.join(MODULE_ROOT_FILE_NAME), format!("see ./{cases}\n")),
                 (
                     test.join(cases),
                     format!(
-                        "use / as root\n\ntest package_initializes {{\n    let _ = root.{call}()\n}}\n"
+                        "use / as root\n\ntest package_initializes {{\n    let _ = root.{entry}(){propagate}\n}}\n"
                     ),
                 ),
             ]

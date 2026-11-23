@@ -18,9 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bring `std/io.print` through the installed v2 profile and the native standard output path.
-Retain exact text bytes and fallible write completion. Infer the transitive waiting effect from
-the selected primitive and use the public API in the generated executable starter.
+Bind `error.new` and owned error context to the standard package's exact built-in authority.
+Use the ordinary type-owned call paths and retain the existing owned error graph and cleanup.
 
 ## Remaining Contextual Representation Qualification
 
@@ -753,6 +752,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Put the verified process API and its trusted implementation in the development standard
   package. Select one exact profile for that package. Verify the same source through package
   discovery and prepared check, build and run with a native Unicode argument.
+- [x] Deliver `std/io.print` through the installed v2 profile and the native stdout primitive.
+  Verify exact bytes, partial output and recoverable failure, transitive waiting and const
+  rejection, and the generated starter's captured test output and executable greeting.
 - [x] Share one standard source profile between prepared command and workspace orchestration.
   Keep v2 grammar selection through topology, root probes, overlays and compiler discovery.
   Verify exact diagnostic recovery after an editor overlay change and analysis of the selected

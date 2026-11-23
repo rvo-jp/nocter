@@ -432,6 +432,7 @@ pub enum Arm64SelectedInstruction {
         payload_shift: u8,
         absent: u64,
     },
+    WriteStandardOutput,
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

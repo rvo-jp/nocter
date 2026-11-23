@@ -1,7 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64DataSize, Arm64Instruction, Arm64MaterializationError, Arm64NocterAbi,
-    Arm64SelectedFunction, Arm64SelectedRegister,
+    Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction,
+    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedRegister,
 };
 
 /// Translates the ordinary Nocter primitive ABI into Darwin's syscall register convention.
@@ -143,6 +143,95 @@ pub(crate) fn emit_descriptor_write(
         crate::darwin_kernel_abi::DarwinSystemCall::Write,
     );
     emit_system_call_result(code)
+}
+
+/// Delivers the caller's text view and returns whether every byte was written.
+pub(crate) fn emit_standard_output_write(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    use crate::darwin_kernel_abi::{
+        DarwinErrorAbi, DarwinProcessAbi, DarwinSystemCall, emit_system_call,
+    };
+    // Scratch lane zero is the syscall-number register. Keep the cursor and count in the two
+    // other compiler-owned lanes across the kernel entry.
+    let cursor = Arm64NocterAbi::compiler_scratch_register(1).expect("text write cursor lane");
+    let remaining = Arm64NocterAbi::compiler_scratch_register(2).expect("text write length lane");
+    let result = argument(0);
+    let write = code.create_label();
+    let errno = code.create_label();
+    let failed = code.create_label();
+    let succeeded = code.create_label();
+    let complete = code.create_label();
+
+    move_register(argument(0), cursor, code);
+    move_register(argument(1), remaining, code);
+    compare_immediate(code, remaining, 0);
+    code.branch_conditional(succeeded, Arm64BranchCondition::Equal);
+    code.bind(write)?;
+    crate::frame_access::load_immediate(
+        code,
+        result,
+        DarwinProcessAbi::STANDARD_OUTPUT,
+        Arm64DataSize::Bits64,
+    );
+    move_register(cursor, argument(1), code);
+    move_register(remaining, argument(2), code);
+    emit_system_call(code, DarwinSystemCall::Write);
+    code.branch_conditional(errno, Arm64BranchCondition::CarrySet);
+    compare_immediate(code, result, 0);
+    code.branch_conditional(failed, Arm64BranchCondition::Equal);
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64DataRegister::Zero,
+        left: Arm64DataRegister::General(result),
+        right: Arm64DataRegister::General(remaining),
+    });
+    code.branch_conditional(failed, Arm64BranchCondition::UnsignedHigher);
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Add,
+        set_flags: false,
+        destination: Arm64DataRegister::General(cursor),
+        left: Arm64DataRegister::General(cursor),
+        right: Arm64DataRegister::General(result),
+    });
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64DataRegister::General(remaining),
+        left: Arm64DataRegister::General(remaining),
+        right: Arm64DataRegister::General(result),
+    });
+    code.branch_conditional(write, Arm64BranchCondition::NotEqual);
+    code.bind(succeeded)?;
+    crate::frame_access::load_immediate(code, result, 1, Arm64DataSize::Bits64);
+    code.branch(complete, false);
+    code.bind(errno)?;
+    compare_immediate(
+        code,
+        result,
+        u16::try_from(DarwinErrorAbi::INTERRUPTED).expect("Darwin errno fits a compare immediate"),
+    );
+    code.branch_conditional(write, Arm64BranchCondition::Equal);
+    code.bind(failed)?;
+    crate::frame_access::load_immediate(code, result, 0, Arm64DataSize::Bits64);
+    code.bind(complete)?;
+    Ok(())
+}
+
+fn compare_immediate(code: &mut Arm64CodeBuilder, register: crate::Arm64Register, immediate: u16) {
+    code.append(Arm64Instruction::AddSubtractImmediate {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64AddSubtractDestination::Zero,
+        source: Arm64BaseRegister::General(register),
+        immediate,
+        shift_12: false,
+    });
 }
 
 /// Calls `wait4(pid, status, WNOHANG, NULL)` and returns `(value, errno)`.

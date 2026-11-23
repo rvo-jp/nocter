@@ -102,6 +102,12 @@ pub(crate) fn select(
             select_view_length(operation, target, selected)
         }
         PrimitiveRole::StringByteAt => select_string_byte(program, operation, target, selected),
+        PrimitiveRole::StandardOutputWrite => {
+            validate_type_arguments(operation, target, 0)?;
+            validate_register_abi(operation, target, &[2], 1)?;
+            selected.push(Arm64SelectedInstruction::WriteStandardOutput);
+            Ok(())
+        }
         PrimitiveRole::SlicePointerAddress | PrimitiveRole::StringPointerAddress => {
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)

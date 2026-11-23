@@ -214,10 +214,11 @@ impl DarwinTimevalAbi {
     pub(crate) const MICROSECONDS_OFFSET: u64 = 8;
 }
 
-/// Stable Darwin process descriptors used by compiler-owned diagnostics.
+/// Stable Darwin process descriptors used by compiler-owned process operations.
 pub(crate) struct DarwinProcessAbi;
 
 impl DarwinProcessAbi {
+    pub(crate) const STANDARD_OUTPUT: u64 = 1;
     pub(crate) const STANDARD_ERROR: u64 = 2;
     pub(crate) const TERMINATE_SIGNAL: u64 = 15;
     pub(crate) const KILL_SIGNAL: u64 = 9;

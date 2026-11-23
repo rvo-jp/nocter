@@ -277,6 +277,7 @@ fn inspect(
                             body,
                             location,
                             "this future use requires a runtime representation",
+                            None,
                         ));
                     }
                 }

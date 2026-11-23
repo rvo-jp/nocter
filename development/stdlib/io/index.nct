@@ -1,0 +1,6 @@
+see ./output.nct
+
+/// Writes the UTF-8 bytes of `text` to standard output.
+/// The call may wait for output capacity. A write failure reports `std.io.write` and can leave an
+/// observable prefix.
+func print(text: str): void!

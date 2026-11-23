@@ -133,6 +133,13 @@ const STRING_BYTE_AT: PrimitiveValueSignature = PrimitiveValueSignature {
     ],
     result: PrimitiveValueResult::Optional(&PrimitiveValueResult::Builtin(BuiltinType::U8)),
 };
+const STANDARD_OUTPUT_WRITE: PrimitiveValueSignature = PrimitiveValueSignature {
+    inputs: &[PrimitiveValueInput::new(
+        BuiltinType::Str,
+        ValueInputOperation::Read,
+    )],
+    result: PrimitiveValueResult::Builtin(BuiltinType::Bool),
+};
 impl PrimitiveRole {
     /// The qualified value-model signatures shared with source signature validation.
     /// A shape grants neither primitive authority nor executable/constant-domain admission.
@@ -147,6 +154,7 @@ impl PrimitiveRole {
             | Self::ProcessEnvironmentName
             | Self::ProcessEnvironmentValue => Some(&PROCESS_TEXT),
             Self::StringByteAt => Some(&STRING_BYTE_AT),
+            Self::StandardOutputWrite => Some(&STANDARD_OUTPUT_WRITE),
             _ => None,
         }
     }

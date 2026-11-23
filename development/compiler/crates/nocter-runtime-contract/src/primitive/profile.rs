@@ -148,7 +148,8 @@ impl PrimitiveRole {
         match self {
             Self::NewError | Self::ErrorContext | Self::StringByteAt => PRESERVES_CALLER_STORAGE,
             Self::DropValueAtPointer => ALLOCATING_TRAPPING,
-            Self::TimeoutWait
+            Self::StandardOutputWrite
+            | Self::TimeoutWait
             | Self::NetworkConnectionReceiveEvent
             | Self::NetworkConnectionReleaseBarrier
             | Self::NetworkListenerReceiveEvent

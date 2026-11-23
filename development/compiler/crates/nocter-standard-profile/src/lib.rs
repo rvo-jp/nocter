@@ -130,6 +130,11 @@ pub fn development_value_access_toolchain(package: &PackageIdentity) -> Toolchai
             module(package, &["internal", "text"]),
             "byte_at",
         ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::StandardOutputWrite,
+            module(package, &["internal", "io"]),
+            "write_standard_output",
+        ),
     ]);
     ToolchainInput::new(
         package.clone(),
@@ -581,7 +586,9 @@ fn bundled_primitive_source_location(
         Role::Syscall6 => (&["internal", "os", "darwin"], "syscall6"),
         Role::Trap => (&["internal", "os", "darwin"], "trap"),
         Role::Unreachable => (&["internal", "os", "darwin"], "unreachable"),
-        Role::StringByteAt => unreachable!("unpublished primitive has no bundled source"),
+        Role::StringByteAt | Role::StandardOutputWrite => {
+            unreachable!("unpublished primitive has no bundled source")
+        }
     }
 }
 

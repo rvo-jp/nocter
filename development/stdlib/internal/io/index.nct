@@ -1,0 +1,2 @@
+#visibility: "/"
+primitive func write_standard_output(text: str): bool

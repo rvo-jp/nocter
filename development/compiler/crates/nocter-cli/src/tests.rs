@@ -190,6 +190,101 @@ fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_print_delivers_exact_text_and_reports_output_failure() {
+    use std::process::{Command, Stdio};
+
+    let tree = TempTree::new("standard-output");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("app.nct");
+    let executable = tree.0.join("printed");
+    let text = "夜 and spaces ✓ ".repeat(2048);
+    fs::write(
+        &source,
+        format!("use std/io\nuse std/process\nfunc main(): i32! {{\n    io.print(\"\")?\n    io.print(\"{text}\\n\")?\n    let tail = process.arg(1)? otherwise {{ return 2 }}\n    io.print(tail)?\n    42\n}}\n"),
+    ).unwrap();
+    let execute =
+        |arguments| execute_invocation(invocation(arguments, &tree.0, &home, "arm64-darwin"));
+    let built = execute(vec![
+        "build",
+        "--file",
+        "app.nct",
+        "--offline",
+        "-o",
+        "printed",
+    ])
+    .unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    assert!(matches!(built, InvocationOutcome::Build(_)));
+    let tail = "end 🐈";
+    let output = Command::new(&executable).arg(tail).output().unwrap();
+    assert_eq!(output.status.code(), Some(42));
+    assert_eq!(output.stdout, format!("{text}\n{tail}").as_bytes());
+    assert!(output.stderr.is_empty());
+
+    let failed = Command::new(&executable)
+        .stdout(Stdio::from(fs::File::open(&source).unwrap()))
+        .output()
+        .unwrap();
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(
+        String::from_utf8(failed.stderr)
+            .unwrap()
+            .contains("std.io.write")
+    );
+
+    // The file size limit forces a partial transfer before the next write reports EFBIG.
+    let limited = tree.0.join("prefix.txt");
+    let failed = Command::new("/bin/sh")
+        .args([
+            "-c",
+            "trap '' XFSZ; ulimit -f 1 && exec \"$1\" > \"$2\"",
+            "limited-output",
+        ])
+        .arg(&executable)
+        .arg(&limited)
+        .output()
+        .unwrap();
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(
+        String::from_utf8(failed.stderr)
+            .unwrap()
+            .contains("std.io.write")
+    );
+    let prefix = fs::read(limited).unwrap();
+    assert!(
+        !prefix.is_empty() && prefix.len() < text.len() && text.as_bytes().starts_with(&prefix)
+    );
+
+    for (modifier, cause) in [
+        ("async", "may wait for external progress"),
+        ("const", "runtime-only function `print`"),
+    ] {
+        fs::write(
+            &source,
+            format!("use std/io\n{modifier} func main(): void! {{ io.print(\"unavailable\") }}\n"),
+        )
+        .unwrap();
+        let failure = execute(vec!["check", "--file", "app.nct", "--offline"]).unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        assert!(diagnostic.contains(cause), "{diagnostic}");
+        if modifier == "async" {
+            assert!(
+                diagnostic.contains("this async body requires non-waiting drive"),
+                "{diagnostic}"
+            );
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs() {
     let tree = TempTree::new("type-members");
     let home = tree.value_access_installation();
@@ -747,11 +842,21 @@ fn installed_v2_init_generates_usable_executable_and_library_packages() {
         };
         assert!(results.succeeded(), "{results:#?}");
         assert_eq!(results.runs().len(), 1);
+        let captured = results.runs()[0].stdout();
         if directory == "app" {
-            let InvocationOutcome::Run(executed) = execute(vec!["run", "--offline"], root) else {
-                panic!("expected starter executable");
-            };
-            assert_eq!(executed.status().code(), Some(0));
+            assert_eq!(captured, b"Hello from app\n");
+            assert!(matches!(
+                execute(vec!["build", "--offline", "-o", "starter"], root),
+                InvocationOutcome::Build(_)
+            ));
+            let executed = std::process::Command::new(root.join("starter"))
+                .output()
+                .unwrap();
+            assert_eq!(executed.status.code(), Some(0));
+            assert_eq!(executed.stdout, b"Hello from app\n");
+            assert!(executed.stderr.is_empty());
+        } else {
+            assert!(captured.is_empty());
         }
     }
 }
