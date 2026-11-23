@@ -342,6 +342,106 @@ fn installed_v2_methods_edit_contextual_outcomes_in_place() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_structural_literals_use_the_exact_root_field_contract() {
+    let tree = TempTree::new("structural-literal-grants");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/structural-literals"),
+        &package,
+    );
+    let shapes = package.join("shapes/index.nct");
+    let contract = fs::read_to_string(&shapes).unwrap();
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let outcome = execute("run").unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    let InvocationOutcome::Run(executed) = outcome else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let expect_rejection = |code, message| {
+        let failure = execute("check").unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        assert!(
+            diagnostic.contains(code) && diagnostic.contains(message),
+            "{diagnostic}"
+        );
+    };
+    for (old, new, code, message) in [
+        ("literal { x, y }", "", "E0255", "no private representation"),
+        (
+            "literal { x, y }",
+            "literal { y, x }",
+            "E0256",
+            "declaration order",
+        ),
+        (
+            "literal { x, y }",
+            "literal { x, x }",
+            "E0256",
+            "declaration order",
+        ),
+        (
+            "literal { x, y }",
+            "literal { x }",
+            "E0256",
+            "declaration order",
+        ),
+        (
+            "copy struct Marker {}",
+            "copy struct Marker",
+            "E0256",
+            "braced struct contract",
+        ),
+        (
+            "literal { x, y }",
+            "literal { x, y }\n    literal { x, y }",
+            "E0256",
+            "one structural literal grant",
+        ),
+        (
+            "x: i32",
+            "#visibility: \"./\"\n    x: i32",
+            "E0244",
+            "exposes a field",
+        ),
+        (
+            "literal { x, y }",
+            "#visibility: \"./\"\n    literal { x, y }",
+            "E0370",
+            "visible complete definition",
+        ),
+    ] {
+        fs::write(&shapes, contract.replace(old, new)).unwrap();
+        expect_rejection(code, message);
+    }
+    fs::write(&shapes, format!("see ./body.nct\n{contract}")).unwrap();
+    fs::write(
+        package.join("shapes/body.nct"),
+        "see ./index.nct\ncopy struct Point { x: i32\ny: i32\nz: i32 }\n",
+    )
+    .unwrap();
+    expect_rejection("E0256", "already closes this struct's representation");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_test_runs_only_authored_cases_in_source_order() {
     let tree = TempTree::new("installed-value-tests");
     let home = tree.value_access_installation();

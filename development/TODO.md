@@ -18,8 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Admit structural literal grants for non-generic structs. Close the named root field schema and
-use the grant's effective audience to select the ordinary record construction path.
+Bring `std/io.print` through the installed v2 profile and the native standard output path.
+Retain exact text bytes and fallible write completion. Infer the transitive waiting effect from
+the selected primitive and use the public API in the generated executable starter.
 
 ## Remaining Contextual Representation Qualification
 
@@ -668,6 +669,9 @@ not a language restriction derived from the current realization boundary.
   Reuse the ordinary input boundary so a method can read or edit the original payload once,
   including through field/index suffixes. Qualify fallback access, a conflicting access and
   retained source retirement separately from calls on already produced values.
+- [x] Admit structural literal grants for non-generic structs over the complete root field schema.
+  Verify field and grant audiences, reject a second representation, and qualify external
+  construction, compile-time evaluation, empty schemas and native initializer order.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

@@ -104,11 +104,8 @@ impl Catalog {
                 ParsedHeader::Record(header) => {
                     let authored = paired
                         .inventory
-                        .declaration_entries()
-                        .filter(|(_, field)| {
-                            field.owner() == Some(*raw)
-                                && field.kind() == crate::SurfaceDeclarationKind::Field
-                        })
+                        .surface
+                        .record_fields(*raw)
                         .map(|(id, _)| id)
                         .collect::<Vec<_>>();
                     if authored.len() != header.fields.len() {

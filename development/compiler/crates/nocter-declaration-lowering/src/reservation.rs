@@ -824,7 +824,8 @@ fn reserve_entity(
         )),
         SurfaceDeclarationKind::Field
         | SurfaceDeclarationKind::PrimitiveType
-        | SurfaceDeclarationKind::TypeBehavior => None,
+        | SurfaceDeclarationKind::TypeBehavior
+        | SurfaceDeclarationKind::StructuralLiteralGrant => None,
     }
 }
 
@@ -885,7 +886,8 @@ fn validate_owner(
         | SurfaceDeclarationKind::Drop
         | SurfaceDeclarationKind::Test
         | SurfaceDeclarationKind::PrimitiveType
-        | SurfaceDeclarationKind::TypeBehavior => actual.is_none(),
+        | SurfaceDeclarationKind::TypeBehavior
+        | SurfaceDeclarationKind::StructuralLiteralGrant => actual.is_none(),
     };
     if valid {
         Ok(())

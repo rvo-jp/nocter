@@ -80,7 +80,11 @@ impl ModuleAudiences {
                     checking.check(audience, syntax, ty, field.data())?;
                 }
                 Some(DeclarationId::Record(_)) => {}
-                None if declaration.kind() == SurfaceDeclarationKind::TypeBehavior => {}
+                None if matches!(
+                    declaration.kind(),
+                    SurfaceDeclarationKind::TypeBehavior
+                        | SurfaceDeclarationKind::StructuralLiteralGrant
+                ) => {}
                 _ => return Err(Failure::InconsistentSyntax),
             }
         }

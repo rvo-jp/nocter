@@ -519,13 +519,14 @@ impl<'source> Context<'source> {
             .module
             .map_or(&[], |binding| binding.block_import_names(self.syntax, node)))
     }
-    /// Whether this physical source may use the complete record representation.
+    /// Whether this physical source may construct the complete record by its visible definition
+    /// or structural literal grant.
     /// This grants source permission only, never payload or header readiness.
     #[must_use]
-    pub fn complete_record_visible(&self, record: nocter_model::NominalTypeId) -> bool {
+    pub fn record_construction_allowed(&self, record: nocter_model::NominalTypeId) -> bool {
         self.module.map_or_else(
             || self.sources.records.contains_key(&record),
-            |binding| binding.complete_record_visible(self.syntax, record),
+            |binding| binding.record_construction_allowed(self.syntax, record),
         )
     }
     /// Whether one existing record field is visible through a complete definition or root contract.

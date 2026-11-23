@@ -53,6 +53,7 @@ struct LooseCallableKey {
 pub struct DeclarationContracts {
     representatives: Box<[SurfaceDeclarationId]>,
     representations: Box<[Option<SurfaceDeclarationId>]>,
+    structural_grants: BTreeMap<SurfaceDeclarationId, SurfaceDeclarationId>,
 }
 
 impl DeclarationContracts {
@@ -73,6 +74,14 @@ impl DeclarationContracts {
         declaration: SurfaceDeclarationId,
     ) -> Option<SurfaceDeclarationId> {
         self.representations[declaration.index()]
+    }
+
+    pub(super) fn structural_grants(
+        &self,
+    ) -> impl Iterator<Item = (SurfaceDeclarationId, SurfaceDeclarationId)> + '_ {
+        self.structural_grants
+            .iter()
+            .map(|(&record, &grant)| (record, grant))
     }
 }
 
@@ -111,9 +120,39 @@ pub enum DeclarationContractError {
         contract: NodeId,
         definition: NodeId,
     },
+    InvalidStructuralGrant {
+        primary: NodeId,
+        related: Option<NodeId>,
+        issue: StructuralGrantIssue,
+    },
     InterfaceImplementationOutsideRoot(NodeId),
     UncontractedInterfaceDefault(NodeId),
     InconsistentSurface(NodeId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StructuralGrantIssue {
+    RootSchema,
+    FieldList,
+    DuplicateGrant,
+    DuplicateRepresentation,
+}
+
+impl StructuralGrantIssue {
+    pub(super) const fn message(self) -> &'static str {
+        match self {
+            Self::RootSchema => {
+                "a structural literal grant requires a braced struct contract in this index.nct"
+            }
+            Self::FieldList => {
+                "a structural literal grant must list every contract field once in declaration order"
+            }
+            Self::DuplicateGrant => "a struct permits one structural literal grant",
+            Self::DuplicateRepresentation => {
+                "the structural literal grant already closes this struct's representation"
+            }
+        }
+    }
 }
 
 impl fmt::Display for DeclarationContractError {
@@ -184,6 +223,7 @@ impl fmt::Display for DeclarationContractError {
                 formatter,
                 "represented nominal {contract:?} is completed again by {definition:?}"
             ),
+            Self::InvalidStructuralGrant { issue, .. } => formatter.write_str(issue.message()),
             Self::InterfaceImplementationOutsideRoot(node) => write!(
                 formatter,
                 "interface implementation {node:?} must be declared in the module root"
@@ -222,8 +262,10 @@ pub fn analyze_declaration_contracts(
     let count = surface.declarations().len();
     let mut representatives: Vec<_> = (0..count).map(SurfaceDeclarationId::from_index).collect();
     let mut representations = vec![None; count];
+    let structural_grants = crate::representation_contract::collect_structural_grants(surface)?;
     crate::representation_contract::join_nominal_contracts(
         surface,
+        &structural_grants,
         &mut representatives,
         &mut representations,
     )?;
@@ -241,6 +283,7 @@ pub fn analyze_declaration_contracts(
     Ok(DeclarationContracts {
         representatives: representatives.into_boxed_slice(),
         representations: representations.into_boxed_slice(),
+        structural_grants,
     })
 }
 
@@ -653,7 +696,7 @@ pub(super) fn fingerprint(
         ))
 }
 
-fn bound_syntax<'a>(
+pub(super) fn bound_syntax<'a>(
     surface: &'a DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
 ) -> Option<BoundSyntax<'a>> {

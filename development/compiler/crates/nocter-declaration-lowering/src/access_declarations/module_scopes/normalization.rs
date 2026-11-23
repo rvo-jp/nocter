@@ -180,11 +180,8 @@ impl ScopedModuleSources<'_> {
             .binding
             .paired
             .inventory
-            .declaration_entries()
-            .filter(|(_, field)| {
-                field.owner() == Some(occurrence)
-                    && field.kind() == crate::SurfaceDeclarationKind::Field
-            })
+            .surface
+            .record_fields(occurrence)
             .map(|(id, _)| id)
             .collect::<Vec<_>>();
         if physical_fields.len() != public.fields.len() {

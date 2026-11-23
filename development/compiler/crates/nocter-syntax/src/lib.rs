@@ -43,7 +43,7 @@ pub use parser::{ParseGoal, ParsedSyntax, parse, parse_reusable};
 pub use provider::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 pub use query::{
     array_repetition_parts, declaration_body, declaration_contextual_keyword_token,
-    declaration_name_token, item_declaration,
+    declaration_name_token, item_declaration, type_behavior_owner,
 };
 pub use surface::{
     DeclarationSyntaxLocator, DeclarationSyntaxProjection, DeclarationSyntaxSurface,

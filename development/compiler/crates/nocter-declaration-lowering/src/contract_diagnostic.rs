@@ -197,13 +197,13 @@ impl DeclarationContractDiagnostic {
             .transpose()?
             .into_iter()
             .collect::<Vec<_>>();
-        let source = SourceDiagnostic::new(
-            rule.code(),
-            rule.message(),
-            primary,
-            notes,
-            Some(rule.help()),
-        );
+        let (message, help) = match error {
+            DeclarationContractError::InvalidStructuralGrant { issue, .. } => {
+                (issue.message(), None)
+            }
+            _ => (rule.message(), Some(rule.help())),
+        };
+        let source = SourceDiagnostic::new(rule.code(), message, primary, notes, help);
         Ok(Self {
             rule,
             source: Box::new(source),
@@ -267,7 +267,8 @@ const fn rule(error: DeclarationContractError) -> Option<DeclarationContractRule
         DeclarationContractError::MissingRepresentation(_) => {
             Some(DeclarationContractRule::MissingRepresentation)
         }
-        DeclarationContractError::MismatchedRepresentation { .. } => {
+        DeclarationContractError::MismatchedRepresentation { .. }
+        | DeclarationContractError::InvalidStructuralGrant { .. } => {
             Some(DeclarationContractRule::MismatchedRepresentation)
         }
         DeclarationContractError::DuplicateRepresentation { .. } => {
@@ -290,6 +291,7 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
         | DeclarationContractError::UncontractedInterfaceDefault(node)
         | DeclarationContractError::MissingRepresentation(node)
         | DeclarationContractError::InconsistentSurface(node) => node,
+        DeclarationContractError::InvalidStructuralGrant { primary, .. } => primary,
         DeclarationContractError::MismatchedCompileTimeInitializer {
             definition: body, ..
         }
@@ -306,6 +308,7 @@ const fn primary_node(error: DeclarationContractError) -> NodeId {
 
 const fn related_node(error: DeclarationContractError) -> Option<NodeId> {
     match error {
+        DeclarationContractError::InvalidStructuralGrant { related, .. } => related,
         DeclarationContractError::MismatchedCompileTimeInitializer { contract, .. }
         | DeclarationContractError::DuplicateCompileTimeInitializer { contract, .. }
         | DeclarationContractError::MismatchedBody { contract, .. }

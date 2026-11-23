@@ -8,8 +8,11 @@ use crate::contract::{
 };
 use crate::{
     DeclarationContractError, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
-    SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
+    StructuralGrantIssue, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
 };
+
+mod structural;
+pub(super) use structural::collect_structural_grants;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct NominalKey {
@@ -28,6 +31,7 @@ struct LooseNominalKey {
 /// their fields or variants. Callable-body matching remains a separate responsibility.
 pub(super) fn join_nominal_contracts(
     surface: &DeclarationSurface<'_>,
+    structural_grants: &BTreeMap<SurfaceDeclarationId, SurfaceDeclarationId>,
     representatives: &mut [SurfaceDeclarationId],
     representations: &mut [Option<SurfaceDeclarationId>],
 ) -> Result<(), DeclarationContractError> {
@@ -56,34 +60,45 @@ pub(super) fn join_nominal_contracts(
             continue;
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
+        let loose_candidates = loose
+            .get(&loose_nominal_key(surface, contract)?)
+            .map_or(&[][..], Vec::as_slice);
+        let reciprocal_definition = || {
+            loose_candidates
+                .iter()
+                .map(|id| surface.declarations()[id.index()])
+                .find(|definition| {
+                    has_reciprocal_source_visibility(
+                        surface,
+                        contract.source(),
+                        definition.source(),
+                    )
+                })
+        };
+        if let Some(grant) = structural_grants.get(&contract_id) {
+            if let Some(definition) = reciprocal_definition() {
+                return Err(DeclarationContractError::InvalidStructuralGrant {
+                    primary: definition.node(),
+                    related: Some(surface.declarations()[grant.index()].node()),
+                    issue: StructuralGrantIssue::DuplicateRepresentation,
+                });
+            }
+            continue;
+        }
         let candidates = definition_candidates(
             surface,
             contract,
             exact
                 .get(&nominal_key(surface, contract)?)
                 .map_or(&[], Vec::as_slice),
-            loose
-                .get(&loose_nominal_key(surface, contract)?)
-                .map_or(&[], Vec::as_slice),
+            loose_candidates,
         )?;
         match candidates.as_slice() {
             [] => {
-                let mismatch = loose
-                    .get(&loose_nominal_key(surface, contract)?)
-                    .into_iter()
-                    .flatten()
-                    .copied()
-                    .find(|definition| {
-                        has_reciprocal_source_visibility(
-                            surface,
-                            contract.source(),
-                            surface.declarations()[definition.index()].source(),
-                        )
-                    });
-                if let Some(definition) = mismatch {
+                if let Some(definition) = reciprocal_definition() {
                     return Err(DeclarationContractError::MismatchedRepresentation {
                         contract: contract.node(),
-                        definition: surface.declarations()[definition.index()].node(),
+                        definition: definition.node(),
                     });
                 }
                 return Err(DeclarationContractError::MissingRepresentation(
@@ -139,23 +154,12 @@ fn join_visible_fields(
     definition: SurfaceDeclarationId,
     representatives: &mut [SurfaceDeclarationId],
 ) -> Result<(), DeclarationContractError> {
-    let fields = |owner| {
-        surface
-            .declarations()
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(move |(_, field)| {
-                field.owner() == Some(owner) && field.kind() == SurfaceDeclarationKind::Field
-            })
-            .map(|(index, field)| (SurfaceDeclarationId::from_index(index), field))
-    };
     let mismatch = || DeclarationContractError::MismatchedRepresentation {
         contract: surface.declarations()[contract.index()].node(),
         definition: surface.declarations()[definition.index()].node(),
     };
-    let mut remaining = fields(definition);
-    for (contract_id, field) in fields(contract) {
+    let mut remaining = surface.record_fields(definition);
+    for (contract_id, field) in surface.record_fields(contract) {
         let name = field_name(surface, field)?;
         let mut selected = None;
         for (id, candidate) in remaining.by_ref() {

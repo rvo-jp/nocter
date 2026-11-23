@@ -1,0 +1,14 @@
+copy struct Point {
+    x: i32
+    y: i32
+}
+
+impl Point {
+    literal { x, y }
+}
+
+copy struct Marker {}
+
+impl Marker {
+    literal {}
+}

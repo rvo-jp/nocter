@@ -1,0 +1,17 @@
+see ./index.nct
+use ./shapes
+
+const seed: shapes.Point = shapes.Point { x: 30, y: 9 }
+
+func next(edit counter: i32): i32 {
+    counter = counter + 1
+    counter
+}
+
+func main(): i32 {
+    var count = seed.x + seed.y
+    let point = shapes.Point { y: next(count), x: next(count) }
+    let _ = shapes.Marker {}
+    if point.y != 40 { return 10 }
+    point.x + 1
+}

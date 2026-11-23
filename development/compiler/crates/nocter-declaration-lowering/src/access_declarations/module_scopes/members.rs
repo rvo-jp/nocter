@@ -9,7 +9,9 @@ use nocter_declarations::value_access::{
     DataReference, DeclarationId, Reservations, ScopeId, ValueDefinition,
 };
 use nocter_model::{AccessCodeId, NominalTypeId, Symbol};
-use nocter_syntax::{BoundSyntax, NodeId, NodeKind, direct_identifier, direct_node};
+use nocter_syntax::{
+    BoundSyntax, NodeId, NodeKind, direct_identifier, direct_node, type_behavior_owner,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug)]
@@ -179,9 +181,7 @@ pub(super) fn method_header(
         direct_node(tree, declaration, NodeKind::Receiver).ok_or(Failure::InconsistentSyntax)?;
     let name = direct_identifier(tree, receiver).ok_or(Failure::InconsistentSyntax)?;
     let operation = crate::access_declarations::input_operation(syntax, receiver)?;
-    let ty = direct_node(tree, owner, NodeKind::DeclarationTypePattern)
-        .ok_or(Failure::InconsistentSyntax)?;
-    let owner_name = direct_identifier(tree, ty).ok_or(Failure::InconsistentSyntax)?;
+    let (ty, owner_name) = type_behavior_owner(tree, owner).ok_or(Failure::InconsistentSyntax)?;
     header.parameters.insert(
         0,
         ParameterHeader {
@@ -246,13 +246,8 @@ pub(super) fn occurrences(
         match declaration.kind() {
             SurfaceDeclarationKind::TypeBehavior => {
                 let bound = syntax(paired, source)?;
-                let pattern = direct_node(
-                    bound.tree(),
-                    declaration.node(),
-                    NodeKind::DeclarationTypePattern,
-                )
-                .ok_or_else(integrity)?;
-                let name = direct_identifier(bound.tree(), pattern).ok_or_else(integrity)?;
+                let (pattern, name) =
+                    type_behavior_owner(bound.tree(), declaration.node()).ok_or_else(integrity)?;
                 let name = symbol(paired, source, name)?;
                 let mut selected = BTreeSet::new();
                 for visible in super::super::module_sources::visible_sources(paired, source) {

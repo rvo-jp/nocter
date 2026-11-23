@@ -36,6 +36,19 @@ pub fn declaration_body(tree: &SyntaxTree, declaration: NodeId) -> Option<NodeId
     crate::direct_node(tree, declaration, body)
 }
 
+/// Returns the authored owner name and its pattern for a v2 nominal behavior fragment.
+#[must_use]
+pub fn type_behavior_owner(
+    tree: &SyntaxTree,
+    declaration: NodeId,
+) -> Option<(NodeId, SyntaxToken)> {
+    if tree.node(declaration)?.kind() != NodeKind::TypeBehaviorDeclaration {
+        return None;
+    }
+    let pattern = crate::direct_node(tree, declaration, NodeKind::DeclarationTypePattern)?;
+    Some((pattern, crate::direct_identifier(tree, pattern)?))
+}
+
 /// Returns the declaration-name token defined by the grammar for one declaration node.
 ///
 /// This is the shared syntactic authority for discovery locators, semantic lowering, and source
@@ -178,6 +191,7 @@ pub(crate) const fn is_declaration(kind: NodeKind) -> bool {
             | NodeKind::LiteralDeclaration
             | NodeKind::InstanceDeclaration
             | NodeKind::TypeBehaviorDeclaration
+            | NodeKind::StructuralLiteralGrant
             | NodeKind::InherentMethod
             | NodeKind::CoercionDeclaration
             | NodeKind::EqualityOperator

@@ -70,6 +70,7 @@ pub enum SurfaceDeclarationKind {
     Literal,
     Instance,
     TypeBehavior,
+    StructuralLiteralGrant,
     InherentMethod,
     Coercion,
     Equality,
@@ -341,6 +342,21 @@ impl<'syntax> DeclarationSurface<'syntax> {
     #[must_use]
     pub const fn declarations(&self) -> &[SurfaceDeclaration] {
         &self.declarations
+    }
+
+    pub(crate) fn record_fields(
+        &self,
+        owner: SurfaceDeclarationId,
+    ) -> impl Iterator<Item = (SurfaceDeclarationId, SurfaceDeclaration)> + '_ {
+        self.declarations
+            .iter()
+            .copied()
+            .enumerate()
+            .filter_map(move |(index, declaration)| {
+                (declaration.owner() == Some(owner)
+                    && declaration.kind() == SurfaceDeclarationKind::Field)
+                    .then_some((SurfaceDeclarationId::from_index(index), declaration))
+            })
     }
 
     pub(crate) fn into_parts(self) -> SurfaceParts<'syntax> {
@@ -976,6 +992,7 @@ fn declaration_kind(tree: &SyntaxTree, node: NodeId) -> Option<SurfaceDeclaratio
         NodeKind::InterfaceMethod => Some(SurfaceDeclarationKind::InterfaceMethod),
         NodeKind::ConstructionFunction => Some(SurfaceDeclarationKind::ConstructionFunction),
         NodeKind::LiteralDeclaration => Some(SurfaceDeclarationKind::Literal),
+        NodeKind::StructuralLiteralGrant => Some(SurfaceDeclarationKind::StructuralLiteralGrant),
         NodeKind::InherentMethod => Some(SurfaceDeclarationKind::InherentMethod),
         NodeKind::CoercionDeclaration => Some(SurfaceDeclarationKind::Coercion),
         NodeKind::EqualityOperator => Some(SurfaceDeclarationKind::Equality),

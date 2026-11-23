@@ -152,6 +152,10 @@ impl<'syntax> PairedModuleSources<'syntax> {
     /// # Errors
     /// Rejects invalid imports and authored source-local name conflicts.
     pub fn reserve_names(mut self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
+        self.inventory
+            .audiences
+            .constrain_structural_grants(&self.inventory.surface, &self.contracts)
+            .map_err(ModuleSourcesFailure::Access)?;
         let primitive_roles = std::mem::take(&mut self.inventory.primitive_roles);
         let inventory = &self.inventory;
         let parsed = collect_headers(&self)?;
@@ -591,14 +595,7 @@ fn field_positions(
             .contracts
             .representation(contract)
             .unwrap_or(contract);
-        let authored = inventory
-            .declaration_entries()
-            .filter(|(_, field)| {
-                field.owner() == Some(representation)
-                    && field.kind() == SurfaceDeclarationKind::Field
-            })
-            .collect::<Vec<_>>();
-        for (position, (field, _)) in authored.into_iter().enumerate() {
+        for (position, (field, _)) in inventory.surface.record_fields(representation).enumerate() {
             fields[paired.contracts.representative(field).index()] = Some(FieldPosition {
                 record,
                 index: position,
@@ -696,7 +693,9 @@ fn collect_headers(
                         })
                     })
                 }
-                SurfaceDeclarationKind::Field | SurfaceDeclarationKind::TypeBehavior => {
+                SurfaceDeclarationKind::Field
+                | SurfaceDeclarationKind::TypeBehavior
+                | SurfaceDeclarationKind::StructuralLiteralGrant => {
                     return None;
                 }
                 _ => return Some(Err(integrity())),

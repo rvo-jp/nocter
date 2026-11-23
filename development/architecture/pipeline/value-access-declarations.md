@@ -51,6 +51,14 @@ schema identify the member before materializing the projection. The selected inp
 then guides the ordinary outcome and recovery preparation. The original carrier, index
 expressions, and recovery branches retain their evaluation and access order.
 
+### Structural Record Literals
+
+A [structural grant](../../spec/language/type-behavior.md#structural-literal-grants) closes the
+braced root field contract before representation pairing. The declaration binding admits direct
+construction under the grant's effective audience and checks every listed field against that
+audience. The ordinary record initializer consumes the resulting schema. Compile-time evaluation
+and native lowering retain the written initializer order and the schema's field identities.
+
 ## Implemented Handoff
 
 ```text

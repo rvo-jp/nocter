@@ -171,7 +171,7 @@ impl Checker<'_, '_> {
             .program()
             .record_identity(data)
             .ok_or(Failure::InconsistentSyntax)?;
-        if !self.context.complete_record_visible(nominal) {
+        if !self.context.record_construction_allowed(nominal) {
             return self.reject(Rule::InaccessibleRepresentation, name);
         }
         super::checker::payload_requirements::data(

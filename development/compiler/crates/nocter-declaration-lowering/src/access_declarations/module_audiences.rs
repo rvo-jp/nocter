@@ -14,6 +14,7 @@ pub enum VisibilityRule {
     InvalidPath,
     AbovePackageRoot,
     SignatureExposure,
+    StructuralGrantExposure,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VisibilityDiagnostic {
@@ -119,6 +120,46 @@ impl ModuleAudiences {
         self.declarations[member.index()] = Some(Arc::new(audience));
         Ok(())
     }
+
+    pub fn constrain_structural_grants(
+        &mut self,
+        surface: &DeclarationSurface<'_>,
+        contracts: &crate::DeclarationContracts,
+    ) -> Result<(), Failure> {
+        for (record, grant) in contracts.structural_grants() {
+            self.constrain_member(grant, record)?;
+            let audience = self.declaration(grant).ok_or(Failure::InconsistentSyntax)?;
+            for (field_id, field) in surface.record_fields(record) {
+                let field_audience = self
+                    .declaration(field_id)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                if audience.is_within(field_audience) {
+                    continue;
+                }
+                let grant = surface.declarations()[grant.index()];
+                let tree = surface.sources()[grant.source().index()].syntax();
+                let primary = SourceOrigin::from_node(tree, grant.node())
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+                let name = field.name().ok_or(Failure::InconsistentSyntax)?;
+                let origin = SourceOrigin::from_token(tree, name)
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+                return Err(Failure::Visibility(Box::new(VisibilityDiagnostic {
+                    rule: VisibilityRule::StructuralGrantExposure,
+                    source: SourceDiagnostic::new(
+                        DiagnosticCode::E0244,
+                        "this structural literal grant exposes a field outside its visibility boundary",
+                        primary,
+                        [nocter_diagnostics::DiagnosticNote::new(
+                            "this field has a narrower audience",
+                            origin,
+                        )],
+                        None::<&str>,
+                    ),
+                })));
+            }
+        }
+        Ok(())
+    }
     pub fn import_handle(&self, node: NodeId) -> Option<Arc<ModuleAudience>> {
         self.imports.get(&node).cloned()
     }
@@ -180,8 +221,8 @@ fn reject(syntax: BoundSyntax<'_>, node: NodeId, rule: VisibilityRule) -> Failur
         VisibilityRule::AbovePackageRoot => {
             "visibility cannot select an ancestor above the package root"
         }
-        VisibilityRule::SignatureExposure => {
-            unreachable!("signature exposure requires declaration evidence")
+        VisibilityRule::SignatureExposure | VisibilityRule::StructuralGrantExposure => {
+            unreachable!("exposure requires declaration evidence")
         }
     };
     Failure::Visibility(Box::new(VisibilityDiagnostic {

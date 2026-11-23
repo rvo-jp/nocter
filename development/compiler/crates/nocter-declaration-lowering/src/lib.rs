@@ -58,7 +58,10 @@ mod test_support;
 
 pub use authority_projection::DeclarationAuthorityProjection;
 pub use callable_contract::project_callable_guarantees;
-pub use contract::{DeclarationContractError, DeclarationContracts, analyze_declaration_contracts};
+pub use contract::{
+    DeclarationContractError, DeclarationContracts, StructuralGrantIssue,
+    analyze_declaration_contracts,
+};
 pub use contract_diagnostic::{DeclarationContractDiagnostic, DeclarationContractRule};
 pub use current_projection::{CurrentDeclarationProjection, CurrentProjectionError};
 pub use current_symbols::{CurrentCheckingSymbols, CurrentSymbolError};

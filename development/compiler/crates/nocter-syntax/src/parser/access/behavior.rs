@@ -25,11 +25,30 @@ fn member(parser: &mut Parser<'_>) {
             function_with_prefix(parser, declaration, NodeKind::ConstructionFunction);
         }
         TokenKind::Keyword(Keyword::Method) => method(parser, declaration),
+        TokenKind::Keyword(Keyword::Literal) if parser.at_keyword(Keyword::Literal) => {
+            structural_grant(parser, declaration);
+        }
         _ => {
             parser.error_token(ExpectedSyntax::DeclarationMember);
             parser.complete(declaration, NodeKind::Error);
         }
     }
+}
+
+fn structural_grant(parser: &mut Parser<'_>, declaration: crate::parser::Marker) {
+    parser.expect_keyword(Keyword::Literal);
+    if parser.expect_punctuation(Punctuation::LeftBrace) {
+        parser.comma_list(
+            Punctuation::RightBrace,
+            true,
+            ExpectedSyntax::Name,
+            |parser| {
+                parser.expect_name();
+            },
+        );
+        parser.expect_punctuation(Punctuation::RightBrace);
+    }
+    parser.complete(declaration, NodeKind::StructuralLiteralGrant);
 }
 
 fn method(parser: &mut Parser<'_>, method: crate::parser::Marker) {
