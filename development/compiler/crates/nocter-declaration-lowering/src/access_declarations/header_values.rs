@@ -31,7 +31,7 @@ impl Context<'_> {
                         self.verify_record_header(id, header, scope, &mut values)?;
                     }
                     (DeclarationId::Nominal(id), ParsedHeader::Enumeration(header)) => {
-                        self.verify_enum_header(id, header, scope)?;
+                        self.verify_enum_header(id, header, scope, &mut values)?;
                     }
                     (DeclarationId::Alias(id), ParsedHeader::Alias(header)) => {
                         let actual = complete(
@@ -150,42 +150,64 @@ impl Context<'_> {
         Ok(())
     }
 
-    fn verify_enum_header(
+    fn verify_enum_header<'value>(
         &self,
         id: NominalTypeId,
         header: &EnumHeader,
         scope: HeaderScope<'_>,
+        values: &mut dyn FnMut(AccessCodeId) -> Option<&'value FrozenData>,
     ) -> Result<(), SourceMismatch> {
         let program = self.program();
         let enumeration = program
             .enumeration(id)
             .ok_or(SourceMismatch::InconsistentSyntax)?;
-        if header.opaque {
-            return if enumeration.copyable() == header.copy {
+        let checked = complete(
+            definitions::project_enum(program, scope, id, header, &self.sources, values)
+                .map_err(|_| SourceMismatch::InconsistentSyntax)?,
+        )?;
+        let Some(variants) = checked.variants else {
+            return if enumeration.copyable() == checked.copy {
                 Ok(())
             } else {
                 Err(SourceMismatch::InconsistentSyntax)
             };
-        }
-        if enumeration.variants().len() != header.source.variants.len() {
+        };
+        if (checked.copy || enumeration.has_payload()) && checked.copy != enumeration.copyable() {
             return Err(SourceMismatch::InconsistentSyntax);
         }
-        for (position, (&variant, &source)) in enumeration
-            .variants()
-            .iter()
-            .zip(&header.source.variants)
-            .enumerate()
+        if enumeration.variants().len() != variants.len() {
+            return Err(SourceMismatch::InconsistentSyntax);
+        }
+        for (position, (&variant_id, source)) in
+            enumeration.variants().iter().zip(variants).enumerate()
         {
             let variant = program
                 .variants()
-                .get(variant)
+                .get(variant_id)
                 .ok_or(SourceMismatch::InconsistentSyntax)?;
             if variant.owner() != id
                 || variant.position() != position
-                || program.symbols().spelling(variant.name())
-                    != Some(super::text(scope.syntax, source))
+                || variant.name() != source.name
+                || variant.fields().len() != source.fields.len()
             {
                 return Err(SourceMismatch::InconsistentSyntax);
+            }
+            for (position, (&id, supplied)) in
+                variant.fields().iter().zip(source.fields).enumerate()
+            {
+                let field = program
+                    .fields()
+                    .get(id)
+                    .ok_or(SourceMismatch::InconsistentSyntax)?;
+                if field.owner() != variant.owner()
+                    || field.variant() != Some(variant_id)
+                    || field.position() != position
+                    || field.name() != supplied.name
+                    || program.existing_field_data_reference(id, &supplied.data)
+                        != Some(field.data())
+                {
+                    return Err(SourceMismatch::InconsistentSyntax);
+                }
             }
         }
         Ok(())

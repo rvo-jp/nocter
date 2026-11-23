@@ -136,7 +136,14 @@ fn register_header_types(
     ) -> Result<(), ModuleSourcesFailure>,
 ) -> Result<(), ModuleSourcesFailure> {
     match header {
-        ParsedHeader::Test { .. } | ParsedHeader::Enumeration(_) => {}
+        ParsedHeader::Test { .. } => {}
+        ParsedHeader::Enumeration(header) => {
+            for (variant, types) in header.field_types.iter().enumerate() {
+                for (field, data) in types.iter().enumerate() {
+                    register(HeaderPosition::VariantField { variant, field }, data)?;
+                }
+            }
+        }
         ParsedHeader::Code(header) => {
             for (index, parameter) in header.parameters.iter().enumerate() {
                 register(HeaderPosition::Parameter(index), &parameter.data)?;

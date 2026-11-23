@@ -81,7 +81,12 @@ pub(super) struct RecordSource {
 #[derive(Clone, Debug)]
 pub(super) struct EnumSource {
     pub name: SyntaxToken,
-    pub variants: Box<[SyntaxToken]>,
+    pub variants: Box<[VariantSource]>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct VariantSource {
+    pub name: SyntaxToken,
+    pub fields: Box<[FieldSource]>,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AliasSource {
@@ -526,7 +531,15 @@ pub(super) fn header_origin(
                 match position {
                     HeaderPosition::Name => SyntaxOrigin::Token(schema.name),
                     HeaderPosition::Variant(index) => {
-                        SyntaxOrigin::Token(*schema.variants.get(index)?)
+                        SyntaxOrigin::Token(schema.variants.get(index)?.name)
+                    }
+                    HeaderPosition::VariantField { variant, field } => {
+                        let source = schema.variants.get(variant)?.fields.get(field)?;
+                        if typed {
+                            SyntaxOrigin::Node(source.ty)
+                        } else {
+                            SyntaxOrigin::Token(source.name)
+                        }
                     }
                     _ => return None,
                 }

@@ -1,14 +1,14 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
     CallableTypeSyntax, CodeSource, Failure, TypeSyntax,
-    headers::{AliasHeader, Header, RecordHeader},
-    source::Sources,
+    headers::{AliasHeader, EnumHeader, Header, RecordHeader},
+    source::{FieldSource, Sources},
     text,
 };
 use nocter_declarations::value_access::{
     DataReference, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
     FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
-    TupleData, ValueDefinition,
+    TupleData, ValueDefinition, VariantDefinition,
 };
 use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, TypeAliasId,
@@ -53,6 +53,10 @@ pub(super) struct CodeDefinition {
 pub(super) struct RecordDefinition {
     pub copy: bool,
     pub fields: Vec<FieldDefinition>,
+}
+pub(super) struct EnumDefinition {
+    pub copy: bool,
+    pub variants: Option<Box<[VariantDefinition]>>,
 }
 pub(super) struct Projection<T> {
     pub definition: Option<T>,
@@ -169,6 +173,28 @@ pub(super) fn project_record<'v>(
         progress: Progress::default(),
     };
     let definition = definitions.record(id, header)?;
+    Ok(Projection {
+        definition,
+        progress: definitions.progress,
+    })
+}
+
+pub(super) fn project_enum<'v>(
+    program: &Program,
+    scope: HeaderScope<'_>,
+    id: NominalTypeId,
+    header: &EnumHeader,
+    sources: &Sources,
+    values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
+) -> Result<Projection<EnumDefinition>, Failure> {
+    let mut definitions = Definitions {
+        program,
+        scope,
+        sources,
+        values,
+        progress: Progress::default(),
+    };
+    let definition = definitions.enumeration(id, header)?;
     Ok(Projection {
         definition,
         progress: definitions.progress,
@@ -386,31 +412,84 @@ impl Definitions<'_, '_, '_> {
         header: &RecordHeader,
     ) -> Result<Option<RecordDefinition>, Failure> {
         self.symbol(header.source.name)?;
-        let fields = header
-            .fields
+        let fields = self.nominal_fields(
+            id,
+            &header.source.fields,
+            &header.fields,
+            HeaderPosition::Field,
+        )?;
+        Ok(fields.map(|fields| RecordDefinition {
+            copy: header.copy,
+            fields,
+        }))
+    }
+    fn enumeration(
+        &mut self,
+        id: NominalTypeId,
+        header: &EnumHeader,
+    ) -> Result<Option<EnumDefinition>, Failure> {
+        self.symbol(header.source.name)?;
+        if header.opaque {
+            return Ok(Some(EnumDefinition {
+                copy: header.copy,
+                variants: None,
+            }));
+        }
+        if header.source.variants.len() != header.field_types.len() {
+            return Err(Failure::InconsistentSyntax);
+        }
+        let variants = header
+            .source
+            .variants
             .iter()
+            .zip(&header.field_types)
             .enumerate()
-            .map(|(index, data)| {
-                let Some(data) = self.data_type(
-                    data,
-                    DeclarationId::Nominal(id),
-                    HeaderPosition::Field(index),
-                )?
+            .map(|(variant, (source, types))| {
+                let fields = self.nominal_fields(id, &source.fields, types, |field| {
+                    HeaderPosition::VariantField { variant, field }
+                })?;
+                let name = self.symbol(source.name)?;
+                Ok(fields.map(|fields| VariantDefinition {
+                    name,
+                    fields: fields.into(),
+                }))
+            })
+            .collect::<Result<Vec<_>, Failure>>()?
+            .into_iter()
+            .collect::<Option<Box<[_]>>>();
+        Ok(variants.map(|variants| EnumDefinition {
+            copy: header.copy,
+            variants: Some(variants),
+        }))
+    }
+    fn nominal_fields(
+        &mut self,
+        id: NominalTypeId,
+        sources: &[FieldSource],
+        types: &[TypeSyntax],
+        position: impl Fn(usize) -> HeaderPosition,
+    ) -> Result<Option<Vec<FieldDefinition>>, Failure> {
+        if sources.len() != types.len() {
+            return Err(Failure::InconsistentSyntax);
+        }
+        Ok(types
+            .iter()
+            .zip(sources)
+            .enumerate()
+            .map(|(index, (data, source))| {
+                let Some(data) =
+                    self.data_type(data, DeclarationId::Nominal(id), position(index))?
                 else {
                     return Ok(None);
                 };
                 Ok(Some(FieldDefinition {
-                    name: self.symbol(header.source.fields[index].name)?,
+                    name: self.symbol(source.name)?,
                     data,
                 }))
             })
             .collect::<Result<Vec<_>, Failure>>()?
             .into_iter()
-            .collect::<Option<Vec<_>>>();
-        Ok(fields.map(|fields| RecordDefinition {
-            copy: header.copy,
-            fields,
-        }))
+            .collect::<Option<Vec<_>>>())
     }
     fn value(
         &mut self,

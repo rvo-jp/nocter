@@ -34,12 +34,18 @@ pub struct PayloadDependencies {
     producers: std::collections::BTreeSet<super::FunctionWitness>,
     contracts: std::collections::BTreeSet<super::FunctionWitness>,
     requires_future: bool,
+    requires_enum_payload: bool,
 }
 impl PayloadDependencies {
     /// This shape needs concrete future lifecycle evidence at its value boundary.
     #[must_use]
     pub const fn requires_future(&self) -> bool {
         self.requires_future
+    }
+    /// This shape needs executable support for a payload-bearing enum.
+    #[must_use]
+    pub const fn requires_enum_payload(&self) -> bool {
+        self.requires_enum_payload
     }
     /// Keep each frozen view: one formal can appear at more than one invocation view.
     #[must_use]
@@ -62,7 +68,11 @@ impl PayloadDependencies {
     }
     #[must_use]
     pub fn readiness(&self) -> PayloadReadiness {
-        if self.requires_future || !self.parameters.is_empty() || !self.contracts.is_empty() {
+        if self.requires_future
+            || self.requires_enum_payload
+            || !self.parameters.is_empty()
+            || !self.contracts.is_empty()
+        {
             PayloadReadiness::Unsupported
         } else if self.has_pending_producers() {
             PayloadReadiness::Pending
@@ -357,12 +367,24 @@ impl Program {
             producers: std::collections::BTreeSet::new(),
             contracts: std::collections::BTreeSet::new(),
             requires_future: false,
+            requires_enum_payload: false,
         };
         while let Some(data) = pending.pop() {
             if !seen.insert(data) {
                 continue;
             }
-            match self.data_schema(data)? {
+            let Some(schema) = self.data_schema(data) else {
+                if self
+                    .nominal_identity(data)
+                    .and_then(|id| self.enumeration(id))
+                    .is_some_and(super::Enumeration::has_payload)
+                {
+                    dependencies.requires_enum_payload = true;
+                    continue;
+                }
+                return None;
+            };
+            match schema {
                 PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_) => {}
                 PayloadSchema::Future(_) => dependencies.requires_future = true,
                 PayloadSchema::Aggregate(schema) => {

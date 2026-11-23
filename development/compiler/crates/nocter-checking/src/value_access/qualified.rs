@@ -36,6 +36,9 @@ impl Checker<'_, '_> {
         if !variant.accessible {
             return self.reject(Rule::InaccessibleName, member);
         }
+        if schema.has_payload() {
+            return self.reject(Rule::UnsupportedData, member);
+        }
         let position = self
             .program()
             .variants()

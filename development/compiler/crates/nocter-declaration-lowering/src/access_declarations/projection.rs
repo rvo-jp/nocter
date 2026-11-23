@@ -191,10 +191,17 @@ fn related(
             let DeclarationId::Nominal(id) = violation.declaration else {
                 return Err(Failure::InconsistentSyntax);
             };
-            records
-                .get(&id)
-                .and_then(|record| record.fields.get(first))
-                .map(|field| field.name)
+            match violation.position {
+                HeaderPosition::VariantField { variant, .. } => enums
+                    .get(&id)
+                    .and_then(|schema| schema.variants.get(variant))
+                    .and_then(|variant| variant.fields.get(first))
+                    .map(|field| field.name),
+                _ => records
+                    .get(&id)
+                    .and_then(|record| record.fields.get(first))
+                    .map(|field| field.name),
+            }
         }
         R::DuplicateVariant { first } => {
             let DeclarationId::Nominal(id) = violation.declaration else {
@@ -203,7 +210,7 @@ fn related(
             enums
                 .get(&id)
                 .and_then(|schema| schema.variants.get(first))
-                .copied()
+                .map(|variant| variant.name)
         }
         _ => return Ok(None),
     };

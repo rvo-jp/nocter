@@ -71,16 +71,23 @@ fn require_roots(
     if roots.len() > 1
         && program
             .payload_dependencies_all(roots.iter().map(|&(data, _)| data))
-            .is_some_and(|dependencies| !dependencies.requires_future())
+            .is_some_and(|dependencies| {
+                !dependencies.requires_future() && !dependencies.requires_enum_payload()
+            })
     {
         return Ok(());
     }
     for &(data, origin) in roots.iter().rev() {
-        if program
-            .payload_dependencies(data)
-            .is_some_and(|dependencies| dependencies.requires_future())
-        {
-            let rule = Rule::UnqualifiedFuture;
+        let rule = program.payload_dependencies(data).and_then(|dependencies| {
+            if dependencies.requires_enum_payload() {
+                Some(Rule::UnsupportedData)
+            } else if dependencies.requires_future() {
+                Some(Rule::UnqualifiedFuture)
+            } else {
+                None
+            }
+        });
+        if let Some(rule) = rule {
             return Err(diagnostics::authored_rejection(
                 syntax,
                 origin,

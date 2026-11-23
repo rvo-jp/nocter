@@ -8,7 +8,7 @@ use crate::access_declarations::{
 };
 use crate::{DeclarationContractError, SurfaceDeclarationId};
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, HeaderFailure, HeaderStep, Program, VariantDefinition,
+    DataReference, DeclarationId, HeaderFailure, HeaderStep, Program,
 };
 use nocter_model::{AccessCodeId, FrozenData};
 use std::collections::{BTreeMap, BTreeSet};
@@ -16,10 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 enum Definition {
     Code(definitions::CodeDefinition),
     Record(definitions::RecordDefinition),
-    Enumeration {
-        copy: bool,
-        variants: Option<Box<[VariantDefinition]>>,
-    },
+    Enumeration(definitions::EnumDefinition),
     Alias(DataReference),
 }
 impl ScopedModuleSources<'_> {
@@ -139,14 +136,14 @@ impl ScopedModuleSources<'_> {
                     self.records_agree(required, *raw, complete, public)?
                 }
                 (
-                    Definition::Enumeration {
+                    Definition::Enumeration(definitions::EnumDefinition {
                         copy: complete,
                         variants: Some(_),
-                    },
-                    Definition::Enumeration {
+                    }),
+                    Definition::Enumeration(definitions::EnumDefinition {
                         copy: public,
                         variants: None,
-                    },
+                    }),
                 ) => complete == public,
                 _ => false,
             };
@@ -166,13 +163,16 @@ impl ScopedModuleSources<'_> {
                 .define_record(id, definition.copy, definition.fields),
             (
                 DeclarationId::Nominal(id),
-                Definition::Enumeration {
+                Definition::Enumeration(definitions::EnumDefinition {
                     copy,
                     variants: Some(variants),
-                },
-            ) => self
-                .headers
-                .define_enum(id, copy || selected == contract, variants),
+                }),
+            ) => {
+                let exposed_scalar = selected == contract
+                    && variants.iter().all(|variant| variant.fields.is_empty());
+                self.headers
+                    .define_enum(id, copy || exposed_scalar, variants)
+            }
             (DeclarationId::Alias(id), Definition::Alias(target)) => {
                 self.headers.define_alias(id, target)
             }
@@ -329,32 +329,9 @@ fn project_occurrence<'value>(
             definitions::project_record(program, scope, record, header, sources, value)
                 .map(|p| p.map(Definition::Record))
         }
-        (DeclarationId::Nominal(_), ParsedHeader::Enumeration(header)) => {
-            let variants = if header.opaque {
-                None
-            } else {
-                Some(
-                    header
-                        .source
-                        .variants
-                        .iter()
-                        .map(|&variant| {
-                            program
-                                .symbols()
-                                .get(crate::access_declarations::text(scope.syntax, variant))
-                                .map(VariantDefinition::scalar)
-                                .ok_or_else(integrity)
-                        })
-                        .collect::<Result<_, _>>()?,
-                )
-            };
-            return Ok(Projection {
-                definition: Some(Definition::Enumeration {
-                    copy: header.copy,
-                    variants,
-                }),
-                progress: definitions::Progress::default(),
-            });
+        (DeclarationId::Nominal(enumeration), ParsedHeader::Enumeration(header)) => {
+            definitions::project_enum(program, scope, enumeration, header, sources, value)
+                .map(|p| p.map(Definition::Enumeration))
         }
         (DeclarationId::Alias(alias), ParsedHeader::Alias(header)) => {
             definitions::project_alias(program, scope, alias, header, sources, value)

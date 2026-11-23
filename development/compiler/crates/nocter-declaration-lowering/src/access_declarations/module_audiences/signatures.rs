@@ -1,12 +1,16 @@
 //! Public semantic type names, never hidden representation payloads or const supplier names.
 use super::{ModuleAudience, ModuleAudiences, VisibilityDiagnostic, VisibilityRule};
-use crate::access_declarations::{Failure, headers::Header, module_scopes::ParsedHeader};
+use crate::access_declarations::{
+    Failure,
+    headers::{EnumHeader, Header},
+    module_scopes::ParsedHeader,
+};
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
 use nocter_declarations::value_access::{
     AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, QualifiedNameError, ScopeId,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessCodeId, AccessFieldId, BuiltinType, TypeId};
+use nocter_model::{AccessCodeId, AccessFieldId, BuiltinType, NominalTypeId, TypeId};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxOrigin, direct_node};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -73,7 +77,13 @@ impl ModuleAudiences {
                         .ok_or(Failure::InconsistentSyntax)?;
                     checking.check(audience, syntax, scopes[index], ty, field.data())?;
                 }
-                Some(DeclarationId::Nominal(_)) => {}
+                Some(DeclarationId::Nominal(id)) => {
+                    if let Some(ParsedHeader::Enumeration(header)) = headers.get(&raw)
+                        && !header.opaque
+                    {
+                        checking.check_enum(audience, syntax, scopes[index], id, header)?;
+                    }
+                }
                 Some(DeclarationId::Alias(id)) => {
                     let Some(ParsedHeader::Alias(header)) = headers.get(&raw) else {
                         return Err(Failure::InconsistentSyntax);
@@ -107,6 +117,42 @@ struct Signatures<'a, 'syntax> {
     exported_types: HashMap<DeclarationId, (SurfaceDeclarationId, &'a ModuleAudience)>,
 }
 impl Signatures<'_, '_> {
+    fn check_enum(
+        &self,
+        audience: &ModuleAudience,
+        syntax: BoundSyntax<'_>,
+        scope: ScopeId,
+        id: NominalTypeId,
+        header: &EnumHeader,
+    ) -> Result<(), Failure> {
+        let schema = self
+            .program
+            .enumeration(id)
+            .ok_or(Failure::InconsistentSyntax)?;
+        if schema.variants().len() != header.source.variants.len() {
+            return Err(Failure::InconsistentSyntax);
+        }
+        for (&variant, source) in schema.variants().iter().zip(&header.source.variants) {
+            let variant = self
+                .program
+                .variants()
+                .get(variant)
+                .ok_or(Failure::InconsistentSyntax)?;
+            if variant.fields().len() != source.fields.len() {
+                return Err(Failure::InconsistentSyntax);
+            }
+            for (&id, source) in variant.fields().iter().zip(&source.fields) {
+                let field = self
+                    .program
+                    .fields()
+                    .get(id)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                self.check(audience, syntax, scope, source.ty, field.data())?;
+            }
+        }
+        Ok(())
+    }
+
     fn check_code(
         &self,
         audience: &ModuleAudience,

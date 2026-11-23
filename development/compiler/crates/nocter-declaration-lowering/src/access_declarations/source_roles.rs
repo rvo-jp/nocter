@@ -14,7 +14,6 @@ pub enum SourceRoleRule {
     MissingBody,
     MissingInitializer,
     MissingRepresentation,
-    UnqualifiedEnumPayload,
     EnumVariantMemberNameConflict,
     TypeBehaviorOwner,
     ComparisonOwner,
@@ -127,14 +126,6 @@ pub fn validate_source_role(
                 }
             }
             NodeKind::StructDeclaration | NodeKind::EnumDeclaration => {
-                if let Some(payload) =
-                    nocter_syntax::direct_node_iter(tree, declaration, NodeKind::EnumVariant)
-                        .find_map(|variant| {
-                            nocter_syntax::direct_node(tree, variant, NodeKind::EnumPayload)
-                        })
-                {
-                    return reject(syntax, SourceRoleRule::UnqualifiedEnumPayload, payload);
-                }
                 let braced = direct_token_iter(syntax.tree(), declaration)
                     .any(|token| token.kind() == TokenKind::Punctuation(Punctuation::LeftBrace));
                 (!root && !braced).then_some((SourceRoleRule::MissingRepresentation, declaration))
@@ -199,10 +190,6 @@ pub(super) fn role_failure(
         SourceRoleRule::MissingRepresentation => (
             DiagnosticCode::E0231,
             "a nominal declaration outside a contract source requires its complete representation",
-        ),
-        SourceRoleRule::UnqualifiedEnumPayload => (
-            DiagnosticCode::E0231,
-            "payload-bearing enum variants require qualified payload schemas",
         ),
         SourceRoleRule::EnumVariantMemberNameConflict => (
             DiagnosticCode::E0241,

@@ -903,17 +903,17 @@ impl Reservations {
         }
         let valid = match source.declaration {
             DeclarationId::Code(id) => self.codes.get(id).is_some_and(|code| {
-                code.name.is_some() && match source.position {
-                    HeaderPosition::Parameter(index) => index < code.parameters.len(),
-                    HeaderPosition::Result => true,
-                    _ => false,
-                }
+                code.name.is_some()
+                    && match source.position {
+                        HeaderPosition::Parameter(index) => index < code.parameters.len(),
+                        HeaderPosition::Result => true,
+                        _ => false,
+                    }
             }),
-            DeclarationId::Nominal(id) => self.nominals.field_ids(id).is_some_and(|fields| {
-                matches!(source.position, HeaderPosition::Field(index) if index < fields.len())
-            }),
-            DeclarationId::Alias(id) => self.aliases.get(id).is_some()
-                && source.position == HeaderPosition::Result,
+            DeclarationId::Nominal(id) => self.nominals.field_at(id, source.position).is_some(),
+            DeclarationId::Alias(id) => {
+                self.aliases.get(id).is_some() && source.position == HeaderPosition::Result
+            }
         };
         if !valid {
             return Err(DefinitionError::UnknownId);

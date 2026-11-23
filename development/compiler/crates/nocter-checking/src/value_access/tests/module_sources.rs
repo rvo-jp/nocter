@@ -9,6 +9,146 @@ mod primitives;
 mod reuse;
 
 #[test]
+fn authored_enum_payload_types_reconcile_required_counts_and_opaque_copy() {
+    let root = "see ./body.nct\nconst WIDTH: usize\nenum Packet { empty\ndata(values: [i32; WIDTH]) }\ncopy enum Secret";
+    let body =
+        "see ./index.nct\nconst WIDTH: usize = 3\ncopy enum Secret { hidden(value: (i32, bool)) }";
+    let fixture = Fixture::new(
+        &[
+            ("/app/index.nct", Root, root),
+            ("/app/body.nct", Implementation, body),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let unit = ModuleSourceUnit::prepare(&fixture.input()).unwrap();
+    let program = unit.unit().program();
+    let select = |name| {
+        program
+            .enumeration(
+                program
+                    .resolve_nominal(program.symbols().get(name).unwrap())
+                    .unwrap(),
+            )
+            .unwrap()
+    };
+    assert!(select("Secret").copyable());
+    let packet = select("Packet");
+    assert!(packet.has_payload() && !packet.copyable());
+    let data = program.variants().get(packet.variants()[1]).unwrap();
+    let field = program.fields().get(data.fields()[0]).unwrap();
+    let Some(PayloadSchema::Array(array)) = program.data_schema(field.data()) else {
+        panic!("the variant field retains its exact array type");
+    };
+    assert_eq!(array.length(), 3);
+    let stale = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Scalar(
+        nocter_model::ConstantValue::Integer(4),
+    )])
+    .unwrap();
+    assert!(
+        unit.declarations()
+            .current()
+            .unwrap()
+            .verify_header_values(|_| Some(&stale))
+            .is_err()
+    );
+}
+
+#[test]
+fn enum_payload_visibility_follows_the_original_contract() {
+    for (header, completion, accepted) in [
+        ("enum Packet { data(value: Private) }", "", false),
+        ("enum Packet", "enum Packet { data(value: Private) }", true),
+    ] {
+        let root = format!("see ./body.nct\n{header}");
+        let body = format!("see ./index.nct\nstruct Private {{ value: i32 }}\n{completion}");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if accepted {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let Err(SourceFailure::Declarations(declarations::Failure::Visibility(error))) = result
+            else {
+                panic!("expected hidden payload exposure diagnostic: {result:?}");
+            };
+            assert_eq!(
+                error.rule(),
+                declarations::VisibilityRule::SignatureExposure
+            );
+            let range = error.source().primary().span().range();
+            assert_eq!(range.start().get() as usize, root.rfind("Private").unwrap());
+        }
+    }
+}
+
+#[test]
+fn enum_payload_header_errors_point_to_the_original_field() {
+    for (source, expected, notes) in [
+        (
+            "enum Packet { data(value: i32, value: bool) }",
+            "value: bool",
+            1,
+        ),
+        ("enum Packet { next(value: Packet) }", "Packet) }", 1),
+        ("copy enum Packet { report(value: error) }", "error) }", 0),
+    ] {
+        let fixture = Fixture::new(&[("/app/index.nct", Root, source)], &[]);
+        let Err(SourceFailure::Declarations(declarations::Failure::Headers(errors))) =
+            ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("expected invalid payload field: {source}");
+        };
+        let [error] = errors.as_slice() else {
+            panic!("one source-positioned field error");
+        };
+        assert_eq!(
+            error.source().primary().span().range().start().get() as usize,
+            source.rfind(expected).unwrap(),
+            "{source}: {error:?}",
+        );
+        assert_eq!(error.source().notes().len(), notes);
+    }
+}
+
+#[test]
+fn scalar_only_value_operations_reject_a_payload_bearing_schema_at_the_use() {
+    for (header, definition) in [
+        (
+            "func run(): void",
+            "func run(): void { let value = Packet.empty }",
+        ),
+        (
+            "func run(value: Packet): void",
+            "func run(value: Packet): void {}",
+        ),
+    ] {
+        let root = format!("see ./body.nct\nenum Packet {{ empty\ndata(value: i32) }}\n{header}");
+        let body = format!("see ./index.nct\n{definition}");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let Err(SourceFailure::Checking(accepted::Failure::Body {
+            failure: Failure::Rejected(error),
+            ..
+        })) = ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("expected source-backed enum storage rejection: {definition}");
+        };
+        assert_eq!(error.rule(), Rule::UnsupportedData);
+        assert_eq!(error.source().primary().source(), fixture.tree(1).source());
+    }
+}
+
+#[test]
 fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
     use nocter_model::FrozenNode;
     let fixture = Fixture::new(

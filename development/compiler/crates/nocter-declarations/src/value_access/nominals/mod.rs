@@ -395,6 +395,24 @@ impl Builder {
         }
     }
 
+    pub fn field_at(&self, id: NominalTypeId, position: HeaderPosition) -> Option<AccessFieldId> {
+        match (&self.reservations.get(id)?.shape, position) {
+            (ReservationShape::Record { fields, .. }, HeaderPosition::Field(index)) => {
+                fields.get(index).copied()
+            }
+            (
+                ReservationShape::Enumeration { variants, .. },
+                HeaderPosition::VariantField { variant, field },
+            ) => self
+                .variants
+                .get(*variants.get(variant)?)?
+                .fields
+                .get(field)
+                .copied(),
+            _ => None,
+        }
+    }
+
     pub fn names(&self) -> impl Iterator<Item = (NominalTypeId, ScopeId, Symbol)> {
         self.reservations
             .iter()

@@ -1,7 +1,7 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
     Failure, TypeSyntax, project_type_syntax,
-    source::{AliasSource, EnumSource, FieldSource, ParameterSource, RecordSource},
+    source::{AliasSource, EnumSource, FieldSource, ParameterSource, RecordSource, VariantSource},
     text,
 };
 use nocter_declarations::value_access::{CodeKind, ParameterBinding};
@@ -43,6 +43,7 @@ pub(super) struct AliasHeader {
 #[derive(Clone, Debug)]
 pub(super) struct EnumHeader {
     pub source: Arc<EnumSource>,
+    pub field_types: Box<[Box<[TypeSyntax]>]>,
     pub opaque: bool,
     pub copy: bool,
 }
@@ -60,10 +61,28 @@ pub(super) fn enumeration(
     )
     .is_none();
     let variants = direct_node_iter(tree, declaration, NodeKind::EnumVariant)
-        .map(|variant| direct_identifier(tree, variant).ok_or(Failure::InconsistentSyntax))
-        .collect::<Result<_, Failure>>()?;
+        .map(|variant| {
+            let name = direct_identifier(tree, variant).ok_or(Failure::InconsistentSyntax)?;
+            let fields = direct_node(tree, variant, NodeKind::EnumPayload)
+                .into_iter()
+                .flat_map(|payload| direct_node_iter(tree, payload, NodeKind::Parameter));
+            let fields = nominal_fields(syntax, fields)?;
+            Ok((
+                VariantSource {
+                    name,
+                    fields: fields.sources,
+                },
+                fields.types,
+            ))
+        })
+        .collect::<Result<Vec<_>, Failure>>()?;
+    let (variants, field_types): (Vec<_>, Vec<_>) = variants.into_iter().unzip();
     Ok(EnumHeader {
-        source: Arc::new(EnumSource { name, variants }),
+        source: Arc::new(EnumSource {
+            name,
+            variants: variants.into(),
+        }),
+        field_types: field_types.into(),
         opaque,
         copy,
     })
@@ -189,7 +208,31 @@ pub(super) fn record(
 ) -> Result<RecordHeader, Failure> {
     let tree = syntax.tree();
     let (name, copy) = nominal_name_and_copy(syntax, declaration)?;
-    let fields = direct_node_iter(tree, declaration, NodeKind::StructField)
+    let fields = nominal_fields(
+        syntax,
+        direct_node_iter(tree, declaration, NodeKind::StructField),
+    )?;
+    Ok(RecordHeader {
+        source: Arc::new(RecordSource {
+            name,
+            fields: fields.sources,
+        }),
+        copy,
+        fields: fields.types,
+    })
+}
+
+struct NominalFields {
+    sources: Box<[FieldSource]>,
+    types: Box<[TypeSyntax]>,
+}
+
+fn nominal_fields(
+    syntax: BoundSyntax<'_>,
+    fields: impl Iterator<Item = NodeId>,
+) -> Result<NominalFields, Failure> {
+    let tree = syntax.tree();
+    let fields = fields
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
             let ty = direct_node(tree, field, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
@@ -197,13 +240,9 @@ pub(super) fn record(
         })
         .collect::<Result<Vec<_>, Failure>>()?;
     let (fields, types): (Vec<_>, Vec<_>) = fields.into_iter().unzip();
-    Ok(RecordHeader {
-        source: Arc::new(RecordSource {
-            name,
-            fields: fields.into(),
-        }),
-        copy,
-        fields: types.into(),
+    Ok(NominalFields {
+        sources: fields.into(),
+        types: types.into(),
     })
 }
 
