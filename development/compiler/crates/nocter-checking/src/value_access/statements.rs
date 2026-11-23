@@ -5,13 +5,15 @@ use super::{
     ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
 };
 use nocter_model::{
-    AccessBlockId, AccessStatementId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
-    ValueBindingKind,
+    AccessBlockId, AccessExpressionId, AccessLocalId, AccessStatementId, BuiltinType, TypeId,
+    ValueAccess as Ty, ValueAccessMode as Mode, ValueBindingKind,
 };
 use nocter_syntax::{
     ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxOrigin,
     direct_identifier_iter,
 };
+
+mod patterns;
 
 impl Checker<'_, '_> {
     pub fn block(
@@ -89,8 +91,8 @@ impl Checker<'_, '_> {
                 }
                 result = Some(value);
             } else {
-                let (statement, completes) = self.check_statement(entry, reachable && continues)?;
-                statements.push(statement);
+                let completes =
+                    self.check_statement(entry, reachable && continues, &mut statements)?;
                 continues &= completes;
             }
         }
@@ -136,9 +138,10 @@ impl Checker<'_, '_> {
         &mut self,
         node: NodeId,
         reachable: bool,
-    ) -> Result<(AccessStatementId, bool), Failure> {
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<bool, Failure> {
         let (statement, continues) = match self.kind(node)? {
-            NodeKind::BindingStatement => self.binding(node, reachable)?,
+            NodeKind::BindingStatement => return self.binding(node, reachable, statements),
             NodeKind::ExpressionStatement => {
                 let expression = self.first_child(node)?;
                 let value = self.expression(expression, None, reachable)?;
@@ -216,10 +219,16 @@ impl Checker<'_, '_> {
             }
             _ => return Err(Failure::InconsistentSyntax),
         };
-        Ok((self.statement(node, statement)?, continues))
+        statements.push(self.statement(node, statement)?);
+        Ok(continues)
     }
 
-    fn binding(&mut self, node: NodeId, reachable: bool) -> Result<(Statement, bool), Failure> {
+    fn binding(
+        &mut self,
+        node: NodeId,
+        reachable: bool,
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<bool, Failure> {
         let operation = self.token(self.direct(node, NodeKind::BindingOperation)?)?;
         let kind = match operation.kind() {
             nocter_syntax::TokenKind::Keyword(Keyword::Let) => ValueBindingKind::FixedValue,
@@ -231,7 +240,17 @@ impl Checker<'_, '_> {
             },
         };
         let pattern = self.direct(node, NodeKind::BindingPattern)?;
-        let name = self.token(pattern)?;
+        let name = (!self.has(pattern, Punctuation::LeftParen))
+            .then(|| self.token(pattern))
+            .transpose()?;
+        if name.is_none() && kind.access_mode() != Mode::Own {
+            return self.reject_message(
+                Rule::UnsupportedData,
+                pattern,
+                "scoped tuple patterns are not yet supported".into(),
+                Vec::new(),
+            );
+        }
         let annotation = self
             .direct(node, NodeKind::TypeAnnotation)
             .ok()
@@ -240,7 +259,9 @@ impl Checker<'_, '_> {
             })
             .transpose()?;
         let expression = self.direct(node, NodeKind::Expression)?;
-        if self.text(name)? == "_" {
+        if let Some(name) = name
+            && self.text(name)? == "_"
+        {
             if annotation.is_some() || kind != ValueBindingKind::FixedValue {
                 return self.reject(Rule::AnnotatedDiscard, name);
             }
@@ -252,12 +273,35 @@ impl Checker<'_, '_> {
                     Boundary::Binding(Ty::new(ty.data(), Mode::Own)),
                 )?;
             }
-            return Ok((Statement::Discard(value), self.ty(value).may_complete()));
+            statements.push(self.statement(node, Statement::Discard(value))?);
+            return Ok(self.ty(value).may_complete());
         }
-        let spelling = self.text(name)?.to_owned();
-        if self.shadows_name(&spelling, name)? {
+        let origin = name.map_or(SyntaxOrigin::Node(pattern), SyntaxOrigin::Token);
+        if let Some(name) = name
+            && self.shadows_name(self.text(name)?, name)?
+        {
             return self.reject(Rule::ShadowedName, name);
         }
+        let (value, data) =
+            self.binding_value(expression, annotation.as_ref(), kind, origin, reachable)?;
+        if let Some(name) = name {
+            let local = self.binding_local(origin, kind, data)?;
+            self.bind_local(self.text(name)?.to_owned(), local);
+            statements.push(self.statement(node, Statement::Bind { local, value })?);
+        } else {
+            self.tuple_binding(node, pattern, kind, data, value, statements)?;
+        }
+        Ok(self.ty(value).may_complete())
+    }
+
+    fn binding_value(
+        &mut self,
+        expression: NodeId,
+        annotation: Option<&Annotation>,
+        kind: ValueBindingKind,
+        origin: SyntaxOrigin,
+        reachable: bool,
+    ) -> Result<(AccessExpressionId, TypeId), Failure> {
         let mode = kind.access_mode();
         let alias = matches!(
             kind,
@@ -270,41 +314,42 @@ impl Checker<'_, '_> {
         } else {
             self.expression_with_hint(
                 expression,
-                annotation.as_ref(),
+                annotation,
                 annotation
-                    .as_ref()
                     .and_then(Annotation::data)
                     .map(|data| Boundary::Binding(Ty::new(data, mode))),
                 reachable,
             )?
         };
-        let constrained = if let Some(Annotation::Function(expected)) = &annotation {
+        let constrained = if let Some(Annotation::Function(expected)) = annotation {
             Some(self.function_pattern_data(expression, value, expected, alias)?)
         } else {
             None
         };
-        let annotated_data = annotation.as_ref().and_then(Annotation::data);
+        let annotated_data = annotation.and_then(Annotation::data);
         let data = match (annotated_data.or(constrained), self.ty(value).access()) {
             (Some(data), _) => data,
             (None, Some(ty)) => ty.data(),
-            (None, None) => return self.reject(Rule::TypeMismatch, name),
+            (None, None) => return self.reject(Rule::TypeMismatch, origin),
         };
         if annotated_data.is_none() || alias {
             value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
         }
+        Ok((value, data))
+    }
+    fn binding_local(
+        &mut self,
+        origin: SyntaxOrigin,
+        kind: ValueBindingKind,
+        data: TypeId,
+    ) -> Result<AccessLocalId, Failure> {
         let local = self.locals.insert(Local {
             data,
             kind,
             origin: LocalOrigin::Binding,
         });
-        self.origins
-            .locals
-            .insert(local, self.site(SyntaxOrigin::Token(name))?);
-        self.bind_local(spelling, local);
-        Ok((
-            Statement::Bind { local, value },
-            self.ty(value).may_complete(),
-        ))
+        self.origins.locals.insert(local, self.site(origin)?);
+        Ok(local)
     }
 
     fn writable(&mut self, node: NodeId, reachable: bool) -> Result<super::Referent, Failure> {

@@ -1,0 +1,34 @@
+use std/error as errors
+
+const func pick(): i32 {
+    let pair = (18, (24, 99))
+    let (first, (second, _)) = pair
+    var (left, right): (i32, i32) = (first, second)
+    left += pair.0 - first
+    left + right
+}
+
+const ANSWER: i32 = pick()
+
+func receive(edit evaluations: i32): ((error, i32), error) {
+    evaluations += 1
+    ((error.new("held", "held failure"), ANSWER), error.new("discarded", "unused failure"))
+}
+
+func interrupt(stop: bool): i32 {
+    let (_, answer) = (error.new("ready", "prepared before interruption"),
+        if stop { return ANSWER } else { 0 })
+    answer
+}
+
+func main(): i32 {
+    var evaluations = 0
+    let ((held, answer), _) = receive(evaluations)
+    if !held.has_code("held") || evaluations != 1 { return 1 }
+    let saved = (held^, answer)
+    var (reason, number) = saved^
+    if !reason.has_code("held") { return 2 }
+    if interrupt(true) != 42 || interrupt(false) != 0 { return 3 }
+    number += evaluations - 1
+    number
+}

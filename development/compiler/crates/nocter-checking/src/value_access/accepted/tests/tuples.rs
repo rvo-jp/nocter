@@ -85,6 +85,60 @@ fn tuple_components_preserve_noncopy_moves_reverse_cleanup_and_restoration() {
 }
 
 #[test]
+fn tuple_pattern_forms_its_named_owner_before_discarding_the_ordered_remainder() {
+    let unit = accepted(
+        "func run(take first: error, take middle: error, take last: error): error {\n\
+         let ((kept, _), _) = ((first^, middle^), last^)\nkept^\n}",
+    );
+    let body = named(&unit, "run");
+    let kept = body
+        .typed()
+        .body()
+        .locals()
+        .iter()
+        .find_map(|(id, local)| {
+            (local.origin == crate::value_access::LocalOrigin::Binding
+                && unit.program().data_kind(local.data) == Some(BuiltinType::Error))
+            .then_some(Holder::Local(id))
+        })
+        .unwrap();
+    let trace = steps(body);
+    let (bound, supplied) = trace
+        .iter()
+        .enumerate()
+        .find_map(|(position, step)| match step {
+            Step::Move {
+                source,
+                destination,
+                ..
+            } if destination.holder() == kept => Some((position, source.holder())),
+            _ => None,
+        })
+        .unwrap();
+    assert!(trace[..bound].iter().any(|step| matches!(step,
+        Step::Move { source, destination, .. }
+        if destination.holder() == supplied
+            && source.fields().concrete().unwrap().fields() == [ValueField::Tuple(0), ValueField::Tuple(0)]
+    )));
+    let mut retired = Vec::new();
+    for (position, step) in trace.iter().enumerate() {
+        if let Step::Dispose { source, payload } = step
+            && payload.disposal() == Disposal::OwnedError
+        {
+            assert!(position > bound);
+            retired.push(source.fields().concrete().unwrap().fields().to_vec());
+        }
+    }
+    assert_eq!(
+        retired,
+        [
+            vec![ValueField::Tuple(1)],
+            vec![ValueField::Tuple(0), ValueField::Tuple(1)],
+        ]
+    );
+}
+
+#[test]
 fn tuple_rejects_unmarked_noncopy_alias_extraction_holes_and_wrong_selectors() {
     for body in [
         "let pair = (first^, second^); let saved = pair",

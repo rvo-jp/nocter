@@ -283,9 +283,7 @@ fn binding(parser: &mut Parser<'_>) {
     let operation = parser.start();
     parser.bump();
     parser.complete(operation, NodeKind::BindingOperation);
-    let pattern = parser.start();
-    parser.expect_name_or_discard();
-    parser.complete(pattern, NodeKind::BindingPattern);
+    statement::binding_pattern(parser);
     if parser.at_punctuation(Punctuation::Colon) {
         let annotation = parser.start();
         parser.bump();

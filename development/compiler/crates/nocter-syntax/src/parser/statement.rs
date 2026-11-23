@@ -70,7 +70,7 @@ fn binding(parser: &mut Parser<'_>) -> CompletedMarker {
     parser.complete(marker, NodeKind::BindingStatement)
 }
 
-fn binding_pattern(parser: &mut Parser<'_>) {
+pub(super) fn binding_pattern(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if !parser.eat_punctuation(Punctuation::LeftParen) {
         parser.expect_name_or_discard();

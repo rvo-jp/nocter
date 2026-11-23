@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify nested tuple value bindings through the adopted pattern grammar and one supplied
-aggregate. Form named leaves before retiring the ignored remainder. Share ordinary binding,
-transfer and cleanup across required evaluation and native execution. Qualify scoped read/edit
-patterns after a once-evaluated place projection can preserve disjoint ignored fields.
+Qualify scoped read/edit tuple bindings using a once-evaluated existing place and separate
+per-leaf access grants. Preserve original field initialization, out-of-bounds handling,
+saved indices, disjoint ignored components, and expiry of the neutral projection.
 
 ## Remaining Contextual Representation Qualification
 
@@ -691,6 +690,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify nominal `<=` and `>=` over the committed read pair and ordinary short-circuit
   control. Verify both const requirements, incomparable pairs, a skipped trapping equality,
   written receiver order, saved evaluated indices, interrupted preparation and once-only disposal.
+- [x] Qualify nested local `let` and `var` tuple bindings through one supplied carrier and
+  ordinary leaf transfers. Verify copy/retirement of the original, interruption, reverse cleanup
+  of ignored resources after leaf formation, exact pattern shapes and required/native execution.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

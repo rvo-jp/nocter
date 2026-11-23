@@ -702,6 +702,65 @@ fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_tuple_value_bindings_supply_one_carrier_and_retire_its_remainder() {
+    let tree = TempTree::new("tuple-bindings");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("main.nct");
+    let program = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/tuple-bindings.nct"
+    ));
+    fs::write(&source, program).unwrap();
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--file", "main.nct", "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    let result = execute("run").unwrap_or_else(|error| panic!("{}", render(&error)));
+    let InvocationOutcome::Run(executed) = result else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    for (original, replacement, expected) in [
+        ("= saved^", "= saved", "E0371"),
+        (
+            "number += evaluations",
+            "number += saved.1 + evaluations",
+            "E0378",
+        ),
+        ("(first, (second, _))", "(first, (first, _))", "E0341"),
+        (
+            "(first, (second, _))",
+            "(_, (_, _))",
+            "must name at least one component",
+        ),
+        (
+            "= pair\n",
+            "= [1, 2]\n",
+            "requires a tuple with 2 components",
+        ),
+        ("(first, (second, _))", "(first,)", "E0120"),
+    ] {
+        let changed = program.replace(original, replacement);
+        assert_ne!(changed, program);
+        fs::write(&source, changed).unwrap();
+        let diagnostic = render(&execute("check").unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();
