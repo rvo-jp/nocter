@@ -22,6 +22,10 @@ Complete direct forwarding from an enclosing generic binder. Produce a call sign
 caller's symbolic assumptions, then close the retained argument sequence in each exact caller frame.
 Preserve the existing frame and work authorities for recursive applications.
 
+The forwarding changes are saved in the local Git stash `a374df07856b` for resumption. The installed
+native relay test passed. The required-evaluation regression tests and compiler checks for this
+checkpoint remain pending.
+
 ## Remaining Contextual Representation Qualification
 
 Complete occurrence-sensitive value/capture transport under the
