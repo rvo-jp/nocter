@@ -40,6 +40,19 @@ fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
         .is_some_and(|local| local.access().mode() == nocter_model::ValueAccessMode::Own)
 }
 
+fn cancelled_slots(
+    typed: &TypedQuery,
+    call: AccessExpressionId,
+    prepared: usize,
+) -> Result<impl DoubleEndedIterator<Item = usize> + '_, IntegrityError> {
+    let prefix = typed
+        .body()
+        .call_arguments(call)
+        .and_then(|arguments| arguments.prepared_prefix(prepared))
+        .ok_or(IntegrityError::InconsistentTypedBody)?;
+    Ok(prefix.map(|(slot, _)| slot))
+}
+
 /// Source-neutral diagnostic subject in the owning typed query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Origin {

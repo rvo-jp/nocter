@@ -56,6 +56,84 @@ fn module_source_coordinator_executes_each_header_supplier_before_accepting_ordi
 }
 
 #[test]
+fn reversed_comparison_commits_and_cleans_error_temporaries_in_written_order() {
+    use crate::value_access::flow::{
+        Location, Operation,
+        resources::{Disposal, Holder, Step},
+    };
+
+    let fixture = Fixture::new(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\nfunc run(take a: error, take b: error): bool",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\n\
+                 struct Ticket { rank: i32\ncause: error }\n\
+                 impl Ticket { operator (self < other: Self): bool { self.rank < other.rank } }\n\
+                 func run(take a: error, take b: error): bool {\n\
+                     let left = Ticket { rank: 2, cause: a^ }\n\
+                     let right = Ticket { rank: 1, cause: b^ }\n\
+                     left^ > right^\n\
+                 }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let source = ModuleSourceUnit::prepare(&fixture.input()).unwrap();
+    let unit = source.unit();
+    let program = unit.program();
+    let body = unit
+        .body(
+            program
+                .resolve(program.symbols().get("run").unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+    let mut prepared = Vec::new();
+    let mut committed = Vec::new();
+    let mut cleanup = Vec::new();
+    for (point, block) in body.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            if let Operation::PrepareArgument { argument, .. } = event.operation {
+                prepared.push(argument);
+            }
+            for transition in body.access().resources().at(Location { point, action }) {
+                for step in transition.steps() {
+                    match step {
+                        Step::Move {
+                            destination,
+                            payload,
+                            ..
+                        } if let Holder::Temporary { index, .. } = destination.holder() => {
+                            assert!(matches!(event.operation, Operation::CommitCall(_)));
+                            assert_eq!(payload.disposal(), Disposal::Aggregate);
+                            committed.push(index);
+                        }
+                        Step::Dispose { source, payload }
+                            if let Holder::Temporary { index, .. } = source.holder() =>
+                        {
+                            assert!(matches!(event.operation, Operation::EndEvaluation(_)));
+                            assert_eq!(payload.disposal(), Disposal::Aggregate);
+                            cleanup.push(index);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    // The written left operand becomes formal other, while cleanup releases right then left.
+    assert_eq!(prepared, [1, 0]);
+    assert_eq!(committed, [1, 0]);
+    assert_eq!(cleanup, [0, 1]);
+}
+
+#[test]
 fn module_source_coordinator_rejects_real_count_disagreement_at_both_physical_headers() {
     let fixture = counts(4);
     let Err(SourceFailure::Modules(declarations::ModuleSourcesFailure::Contract(error))) =

@@ -1,4 +1,4 @@
-use super::super::{Graph, Initialization, IntegrityError, Location, Operation};
+use super::super::{Graph, Initialization, IntegrityError, Location, Operation, cancelled_slots};
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, Referent,
 };
@@ -229,7 +229,7 @@ fn plan(
             definitions.push(Carrier::Expression(*call));
         }
         Operation::CancelCall { call, prepared } => {
-            for index in 0..*prepared {
+            for index in cancelled_slots(typed, *call, *prepared)? {
                 let carrier = Carrier::Argument { call: *call, index };
                 releases.push(carrier);
                 definitions.push(carrier);

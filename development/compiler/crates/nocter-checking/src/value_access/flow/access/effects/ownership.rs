@@ -1,5 +1,5 @@
 use super::super::super::{
-    Operation,
+    Operation, cancelled_slots,
     resources::{self, ActivationAccess, ActivationAccessSource, ActivationInput, Holder},
 };
 use super::super::{AccessRule, Violation, liveness::Carrier, state::Prepared};
@@ -214,7 +214,7 @@ impl Context<'_, '_> {
                 &mut self.steps,
             )?,
             Operation::CancelCall { call, prepared } => {
-                for index in (0..prepared).rev() {
+                for index in cancelled_slots(self.typed, call, prepared)?.rev() {
                     let holder = Holder::Prepared { call, index };
                     if self.world.resources.contains(holder) {
                         self.world.resources.dispose(
@@ -709,17 +709,12 @@ impl Context<'_, '_> {
         Ok(())
     }
     pub(super) fn commit_inputs(&mut self, call: AccessExpressionId) -> Result<()> {
-        let ExpressionKind::Call { arguments, .. } = &self
+        let arguments = self
             .typed
             .body()
-            .expressions()
-            .get(call)
-            .ok_or(Failure::Integrity)?
-            .kind
-        else {
-            return Err(Failure::Integrity);
-        };
-        for (index, argument) in arguments.iter().enumerate() {
+            .call_arguments(call)
+            .ok_or(Failure::Integrity)?;
+        for (index, argument) in arguments.preparation_order() {
             let Some(source) = self.committed_input_source(call, index, argument)? else {
                 continue;
             };

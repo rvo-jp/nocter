@@ -2,7 +2,7 @@ mod call;
 mod ownership;
 mod selection;
 use super::super::resources::StepPlan;
-use super::super::{IntegrityError, Location, Operation};
+use super::super::{IntegrityError, Location, Operation, cancelled_slots};
 use super::{
     AccessRule, Creation, Liveness, Region, RetentionKind, Root, Violation,
     liveness::Carrier,
@@ -115,7 +115,7 @@ pub(super) fn apply(
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
         Operation::CommitCall(call) => return context.apply_call(*call),
         Operation::CancelCall { call, prepared } => {
-            for index in 0..*prepared {
+            for index in cancelled_slots(typed, *call, *prepared)? {
                 context
                     .world
                     .prepared

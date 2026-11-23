@@ -745,6 +745,11 @@ fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
             "original! == replace(original!)",
             "E0396",
         ),
+        (
+            "original! == existing",
+            "original! > replace(original!)",
+            "E0396",
+        ),
         ("reserved.number()\n}", "transferred.number()\n}", "E0378"),
     ] {
         fs::write(&source, program.replace(original, replacement)).unwrap();

@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify reversed nominal strict comparison using the same prepared-input lifecycle as a call.
-Keep written evaluation, reservation, cancellation and cleanup order independent of the
-selected contract's formal input positions. Inclusive comparisons then need to retain that
-same pair across the conditional second invocation.
+Qualify nominal inclusive comparisons through the existing short-circuit control and call
+pipeline. Retain the original read pair and backing across the conditional equality call.
+Verify incomparable operands, strict success that skips effectful equality, once-only operand
+evaluation, exact retirement, interruption, and both selected entries' const requirements.
 
 ## Remaining Contextual Representation Qualification
 
@@ -685,6 +685,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind fixed nominal equality and strict comparison entries through the owner and paired
   source contracts. Qualify `==`, `!=` and `<` with non-Copy operands, guarded read places,
   exact retirement and interruption, required/native evaluation and operator navigation.
+- [x] Qualify nominal `>` with written preparation, commit, cancellation and cleanup independent
+  of the strict call's formal argument order. Verify left-to-right effects, two distinct owned
+  error inputs, reverse-written cleanup, reserve conflicts, interrupted transfers and navigation.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

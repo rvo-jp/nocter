@@ -1,11 +1,12 @@
 see ./index.nct
 use ./rank
+use std/error as errors
 
 const func compute(): i32 {
     let left = rank.Priority.create(40)
     let right = rank.Rank.create(42)
     let unordered = rank.Rank.create(0)
-    if left < right && left != right && !(unordered == unordered) {
+    if left < right && right > left && left != right && !(unordered == unordered) {
         right.number()
     } else {
         10
@@ -24,19 +25,34 @@ func replace(edit slot: rank.Rank): rank.Rank {
     rank.Rank.create(43)
 }
 
+struct Held { cause: error }
+
+impl Held {
+    operator (self < other: Self): bool {
+        self.cause.has_code("right") && other.cause.has_code("left")
+    }
+}
+
 func main(): i32 {
     var log = 0
     if !(prepare(log, 1) < prepare(log, 2)) || log != 12 { return 1 }
+    log = 0
+    if !(prepare(log, 2) > prepare(log, 1)) || log != 21 { return 6 }
     var original: rank.Priority? = rank.Priority.create(ANSWER)
     let existing = rank.Rank.create(42)
     if !(original! == existing) { return 2 }
     if (original!).number() != 42 || existing.number() != 42 { return 3 }
     let transferred = rank.Rank.create(7)
     if transferred^ != rank.Rank.create(7) { return 4 }
+    let ordered = [rank.Rank.create(42), rank.Rank.create(1)]
+    if !(ordered[0]^ > ordered[1]^) { return 7 }
+    let left = Held { cause: error.new("left", "first") }
+    let right = Held { cause: error.new("right", "second") }
+    if !(left^ > right^) { return 8 }
 
     let reserved = rank.Rank.create(42)
     loop {
-        let _ = reserved^ == if log == 12 { break } else { rank.Rank.create(7) }
+        let _ = reserved^ > if log == 21 { break } else { rank.Rank.create(7) }
         return 5
     }
     reserved.number()

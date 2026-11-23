@@ -625,7 +625,7 @@ impl Builder<'_> {
         id: AccessExpressionId,
         entry: AccessFlowPointId,
         target: nocter_model::ValueFunctionOrigin,
-        arguments: &[crate::value_access::Argument],
+        arguments: &crate::value_access::CallArguments,
     ) -> Result<Option<AccessFlowPointId>> {
         let origin = Origin::Expression(id);
         self.frames.push(Frame::Call {
@@ -633,7 +633,7 @@ impl Builder<'_> {
             prepared: 0,
         });
         let mut current = Some(entry);
-        for (index, argument) in arguments.iter().enumerate() {
+        for (index, argument) in arguments.preparation_order() {
             let Some(point) = current else {
                 break;
             };

@@ -375,7 +375,12 @@ fn v2_nominal_comparison_navigation_uses_the_selected_operator_token() {
         .iter()
         .find(|source| Path::new(source.name().as_str()) == main)
         .unwrap();
-    for (occurrence, expected) in [("== existing", "=="), ("!= right", "=="), ("< right", "<")] {
+    for (occurrence, expected) in [
+        ("== existing", "=="),
+        ("!= right", "=="),
+        ("< right", "<"),
+        ("> left", "<"),
+    ] {
         let offset = ByteOffset::new(u32::try_from(text.find(occurrence).unwrap()).unwrap());
         for (result, file) in [
             (

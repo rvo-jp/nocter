@@ -74,12 +74,14 @@ and retry exact selection, retaining successful source evidence when an earlier 
 
 The two nominal [comparison entries](../../spec/language/comparisons.md#type-owned-entries)
 use the same attached declaration and call path. A pair of matching nominal operands selects
-one equality or strict entry. Direct `==`, `!=`, and `<` prepare both operands in written order
+one equality or strict entry. The `==`, `!=`, `<`, and `>` expressions prepare both operands in written order
 as reads, retaining guarded places and explicit transfers until the normal invocation commit.
+The call retains each argument's formal slot while preparation, cancellation, and cleanup
+follow the written operand order. This lets `>` supply the right operand as the strict receiver.
 The resulting call supports required evaluation and native execution. Inequality negates the
 equality answer without reevaluating either side. Definition and implementation navigation use
-the selected entry's actual operator token. Reversed and inclusive nominal comparisons still
-need their respective prepared-input transport and conditional invocation.
+the selected entry's actual operator token. Inclusive comparisons still need to retain both
+prepared inputs across their conditional second invocation.
 
 ### Transparent Type Aliases
 

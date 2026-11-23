@@ -322,13 +322,8 @@ fn initialize(
 fn arguments(
     typed: &TypedQuery,
     call: nocter_model::AccessExpressionId,
-) -> Result<&[crate::value_access::Argument], IntegrityError> {
-    let ExpressionKind::Call { arguments, .. } =
-        &typed.body().expressions().get(call).ok_or(INVALID)?.kind
-    else {
-        return Err(INVALID);
-    };
-    Ok(arguments)
+) -> Result<&crate::value_access::CallArguments, IntegrityError> {
+    typed.body().call_arguments(call).ok_or(INVALID)
 }
 fn require_array_container(
     state: &State,
@@ -474,7 +469,8 @@ fn transfer(
             Operation::CommitCall(call) | Operation::ConstructFuture(call) => {
                 // Validate the whole reserved bundle first; consuming one argument cannot make
                 // another appear uninitialized inside the atomic transition. Aliasing is separate.
-                for argument in arguments(typed, *call)? {
+                let arguments = arguments(typed, *call)?;
+                for (_, argument) in arguments.preparation_order() {
                     require_committed_argument(
                         typed,
                         numeric,
@@ -485,7 +481,7 @@ fn transfer(
                         violations,
                     )?;
                 }
-                for argument in arguments(typed, *call)? {
+                for (_, argument) in arguments.preparation_order() {
                     if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {
                         remove_referent(typed, facts, state, place, location)?;
                     }

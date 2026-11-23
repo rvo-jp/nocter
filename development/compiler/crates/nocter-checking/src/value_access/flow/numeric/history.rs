@@ -65,20 +65,16 @@ pub(super) fn transfers(
             ExpressionKind::Move(source) => vec![source],
             _ => Vec::new(),
         },
-        Operation::CommitCall(id) => {
-            let ExpressionKind::Call { ref arguments, .. } =
-                typed.body().expressions().get(id).ok_or(INVALID)?.kind
-            else {
-                return Err(INVALID);
-            };
-            arguments
-                .iter()
-                .filter_map(|argument| match argument.action {
-                    ArgumentAction::ReserveTransfer { place, .. } => Some(place),
-                    _ => None,
-                })
-                .collect()
-        }
+        Operation::CommitCall(id) => typed
+            .body()
+            .call_arguments(id)
+            .ok_or(INVALID)?
+            .preparation_order()
+            .filter_map(|(_, argument)| match argument.action {
+                ArgumentAction::ReserveTransfer { place, .. } => Some(place),
+                _ => None,
+            })
+            .collect(),
         _ => Vec::new(),
     })
 }

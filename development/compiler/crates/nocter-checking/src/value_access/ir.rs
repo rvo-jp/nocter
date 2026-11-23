@@ -239,6 +239,72 @@ pub struct Argument {
     pub action: ArgumentAction,
 }
 
+/// Call slots are indexed by the selected contract. Preparation and cleanup may traverse them
+/// in a different order, while keeping the same slot identities in every phase.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallArguments {
+    formal: Box<[Argument]>,
+    reverse_preparation: bool,
+}
+impl CallArguments {
+    pub(super) fn in_order(formal: impl Into<Box<[Argument]>>) -> Self {
+        Self {
+            formal: formal.into(),
+            reverse_preparation: false,
+        }
+    }
+    pub(super) fn reverse_pair([left, right]: [Argument; 2]) -> Self {
+        Self {
+            formal: Box::new([right, left]),
+            reverse_preparation: true,
+        }
+    }
+    pub(super) fn preparation_order(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = (usize, &Argument)> + ExactSizeIterator + '_ {
+        let len = self.formal.len();
+        (0..len).map(move |position| {
+            let index = if self.reverse_preparation {
+                len - 1 - position
+            } else {
+                position
+            };
+            (index, &self.formal[index])
+        })
+    }
+    pub(super) fn prepared_prefix(
+        &self,
+        count: usize,
+    ) -> Option<impl DoubleEndedIterator<Item = (usize, &Argument)> + '_> {
+        (count <= self.formal.len()).then(|| self.preparation_order().take(count))
+    }
+}
+impl AsRef<[Argument]> for CallArguments {
+    fn as_ref(&self) -> &[Argument] {
+        &self.formal
+    }
+}
+impl std::ops::Deref for CallArguments {
+    type Target = [Argument];
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
+}
+impl<'a> IntoIterator for &'a CallArguments {
+    type Item = &'a Argument;
+    type IntoIter = std::slice::Iter<'a, Argument>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.formal.iter()
+    }
+}
+impl<'a> IntoIterator for &'a mut CallArguments {
+    type Item = &'a mut Argument;
+    type IntoIter = std::slice::IterMut<'a, Argument>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.formal.iter_mut()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Unary {
     Not,
@@ -406,7 +472,7 @@ pub enum ExpressionKind {
     Call {
         kind: CallKind,
         target: nocter_model::ValueFunctionOrigin,
-        arguments: Box<[Argument]>,
+        arguments: CallArguments,
     },
     /// Consume a future and deliver its output on completion.
     Await {
@@ -601,6 +667,12 @@ impl TypedBody {
     #[must_use]
     pub const fn expressions(&self) -> &Arena<AccessExpressionId, Expression> {
         &self.expressions
+    }
+    pub(super) fn call_arguments(&self, call: AccessExpressionId) -> Option<&CallArguments> {
+        match &self.expressions.get(call)?.kind {
+            ExpressionKind::Call { arguments, .. } => Some(arguments),
+            _ => None,
+        }
     }
     #[must_use]
     pub const fn statements(&self) -> &Arena<AccessStatementId, Statement> {

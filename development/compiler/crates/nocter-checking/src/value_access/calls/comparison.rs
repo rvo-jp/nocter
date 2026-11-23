@@ -1,5 +1,5 @@
-//! Fixed nominal comparison entries receive the original read operands in source order.
-use super::{CallKind, Callee, Checker, Failure, Rule, value_type};
+//! Fixed nominal comparisons retain written preparation order and the selected formal inputs.
+use super::{CallArguments, CallKind, Callee, Checker, Failure, Rule, value_type};
 use crate::value_access::ir::{Binary, ExpressionKind, Unary};
 use nocter_declaration_lowering::access_declarations::ComparisonFamily;
 use nocter_declarations::value_access::BehaviorOwner;
@@ -18,7 +18,7 @@ impl Checker<'_, '_> {
         let (family, invert) = match operation {
             Binary::Equal => (ComparisonFamily::Equality, false),
             Binary::NotEqual => (ComparisonFamily::Equality, true),
-            Binary::Less => (ComparisonFamily::Strict, false),
+            Binary::Less | Binary::Greater => (ComparisonFamily::Strict, false),
             _ => {
                 return self.reject_message(
                     Rule::TypeMismatch,
@@ -53,16 +53,22 @@ impl Checker<'_, '_> {
             .all(|&(_, operand)| self.ty(operand).may_complete());
         // Check the exact declared read pair. Neither an implicit conversion nor an outcome
         // injection can turn a different operand type into the comparison's selected Self.
-        let mut plans = Vec::with_capacity(2);
-        for ((syntax, value), &input) in operands.into_iter().zip([left, right]) {
-            plans.push(self.input_plan(syntax, value, input, None)?);
-        }
+        let [(left_syntax, left_value), (right_syntax, right_value)] = operands;
+        let plans = [
+            self.input_plan(left_syntax, left_value, *left, None)?,
+            self.input_plan(right_syntax, right_value, *right, None)?,
+        ];
+        let arguments = if operation == Binary::Greater {
+            CallArguments::reverse_pair(plans)
+        } else {
+            CallArguments::in_order(plans)
+        };
         let result = self.emit_selected_call(
             node,
             &selected,
             &contract,
             CallKind::Direct,
-            plans,
+            arguments,
             continues,
         )?;
         if invert {

@@ -46,9 +46,9 @@ mod tests;
 mod types;
 
 pub use ir::{
-    Argument, ArgumentAction, Binary, Block, BodyInput, BodyInputs, BoundaryAction, CallKind,
-    Expression, ExpressionKind, FieldValue, IndexAction, Local, LocalOrigin, Place, Referent,
-    SelectionAction, Statement, TypedBody, Unary, ValueType, WitnessBinding,
+    Argument, ArgumentAction, Binary, Block, BodyInput, BodyInputs, BoundaryAction, CallArguments,
+    CallKind, Expression, ExpressionKind, FieldValue, IndexAction, Local, LocalOrigin, Place,
+    Referent, SelectionAction, Statement, TypedBody, Unary, ValueType, WitnessBinding,
 };
 use nocter_declaration_lowering::access_declarations::{
     BodyDependencies, BodySource, Context as DeclarationContext, SourceMismatch,

@@ -2,7 +2,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{Argument, ArgumentAction, CallKind, ExpressionKind, value_type},
+    ir::{Argument, ArgumentAction, CallArguments, CallKind, ExpressionKind, value_type},
 };
 use nocter_declaration_lowering::access_declarations::{TypeMember, TypeMemberKind};
 use nocter_declarations::value_access::{
@@ -435,7 +435,14 @@ impl Checker<'_, '_> {
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
-        self.emit_selected_call(node, selected, &contract, kind, plans, continues)
+        self.emit_selected_call(
+            node,
+            selected,
+            &contract,
+            kind,
+            CallArguments::in_order(plans),
+            continues,
+        )
     }
 
     fn emit_selected_call(
@@ -444,10 +451,10 @@ impl Checker<'_, '_> {
         selected: &Callee,
         contract: &FunctionConstraint,
         kind: CallKind,
-        plans: Vec<Argument>,
+        arguments: CallArguments,
         continues: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        if super::instances::completed(&plans) {
+        if super::instances::completed(&arguments) {
             let callee = self.first_child(node)?;
             if matches!(
                 self.program().function_execution(selected.witness.origin),
@@ -457,7 +464,7 @@ impl Checker<'_, '_> {
                     || !contract
                         .inputs
                         .iter()
-                        .zip(&plans)
+                        .zip(&arguments)
                         .all(|(input, plan)| self.local_future_argument(*input, plan))
                 {
                     return self.reject(Rule::UnqualifiedFuture, callee);
@@ -500,7 +507,7 @@ impl Checker<'_, '_> {
             ExpressionKind::Call {
                 kind,
                 target: selected.witness.origin,
-                arguments: plans.into_boxed_slice(),
+                arguments,
             },
         )?;
         if let CalleeSource::Declared { token, .. } = selected.source {
