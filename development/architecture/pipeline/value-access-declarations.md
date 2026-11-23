@@ -183,6 +183,10 @@ changing the variant while a payload alias is still needed. When forming native 
 requires the exact case edge and checks that no intervening effect changes the inspected carrier.
 The occupied field reuses the dispatch's tag proof, so binding it emits no additional tag read.
 
+For a partially transferred carrier, the ownership ledger identifies the one selected case from
+the missing paths. It plans cleanup only for that case, in reverse declaration order, and skips
+transferred leaves within nested tuples. A frontier spanning several cases fails validation.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

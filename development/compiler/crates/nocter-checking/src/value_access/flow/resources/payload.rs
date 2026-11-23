@@ -4,7 +4,7 @@ use super::{
     payload,
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
-use nocter_model::{BuiltinType, ValueField};
+use nocter_model::{BuiltinType, ValueField, ValueProjection};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -86,92 +86,123 @@ impl OwnedValue {
             {
                 return Err(INVALID);
             }
-            if selected.disposal() != Disposal::Aggregate {
-                return Err(INVALID);
-            }
-            let schema = program.data_schema(selected.data()).ok_or(INVALID)?;
-            if matches!(schema, PayloadSchema::Array(_)) {
-                let depth = place.fields().fields().len();
-                let holes: Vec<_> = self
-                    .missing
-                    .iter()
-                    .filter(|hole| hole.under(place.fields()))
-                    .collect();
-                if holes.len() > 1
-                    && holes.iter().any(|hole| {
-                        matches!(
-                            hole.anchor().fields().get(depth),
-                            Some(nocter_model::ValueProjection::Array(Index::Retained(_)))
-                        )
-                    })
-                {
-                    let missing = holes.into_iter().cloned().collect();
-                    cleanup.push(Step::DisposeArrayRemainder {
-                        source: place,
-                        payload: selected,
-                        missing,
-                    });
-                    continue;
-                }
-            }
-            // The container ends after surviving regions. Stack insertion follows component
-            // order so cleanup visits them in reverse.
-            pending.push(Pending::Emit(Step::ReleaseContainer {
-                source: place.clone(),
-                payload: selected,
-            }));
-            match schema {
-                PayloadSchema::Aggregate(aggregate) => {
-                    for field in aggregate.components() {
-                        let child = place.project(field.field);
-                        pending.push(Pending::Value(child, payload(program, field.data)?));
-                    }
-                }
-                PayloadSchema::Array(array) => {
-                    self.array_frontier(program, &place, selected, array, &mut pending)?;
-                }
-                PayloadSchema::Optional(data) => {
-                    let field = ValueField::Variant(true);
-                    pending.push(Pending::Value(
-                        place.project(field),
-                        payload(program, data)?,
-                    ));
-                }
-                PayloadSchema::Fallible(data) => {
-                    let primary = self.active_variant(place.fields())?;
-                    let data = if primary {
-                        data
-                    } else {
-                        program.data_type(BuiltinType::Error).ok_or(INVALID)?
-                    };
-                    pending.push(Pending::Value(
-                        place.project(ValueField::Variant(primary)),
-                        payload(program, data)?,
-                    ));
-                }
-                PayloadSchema::Builtin(_)
-                | PayloadSchema::Enumeration(_)
-                | PayloadSchema::Function(_)
-                | PayloadSchema::Future(_) => return Err(INVALID),
-            }
+            self.queue_partial_cleanup(program, place, selected, &mut pending)?;
         }
         Ok(cleanup)
     }
+
+    fn queue_partial_cleanup(
+        &self,
+        program: &Program,
+        place: Place,
+        selected: Payload,
+        pending: &mut Vec<Pending>,
+    ) -> Result<()> {
+        if selected.disposal() != Disposal::Aggregate {
+            return Err(INVALID);
+        }
+        let schema = program.data_schema(selected.data()).ok_or(INVALID)?;
+        if matches!(schema, PayloadSchema::Array(_)) {
+            let depth = place.fields().fields().len();
+            let holes: Vec<_> = self
+                .missing
+                .iter()
+                .filter(|hole| hole.under(place.fields()))
+                .collect();
+            if holes.len() > 1
+                && holes.iter().any(|hole| {
+                    matches!(
+                        hole.anchor().fields().get(depth),
+                        Some(nocter_model::ValueProjection::Array(Index::Retained(_)))
+                    )
+                })
+            {
+                let missing = holes.into_iter().cloned().collect();
+                pending.push(Pending::Emit(Step::DisposeArrayRemainder {
+                    source: place,
+                    payload: selected,
+                    missing,
+                }));
+                return Ok(());
+            }
+        }
+        // The container ends after surviving regions. Stack insertion follows component
+        // order so cleanup visits them in reverse.
+        pending.push(Pending::Emit(Step::ReleaseContainer {
+            source: place.clone(),
+            payload: selected,
+        }));
+        match schema {
+            PayloadSchema::Aggregate(aggregate) => {
+                for field in aggregate.components() {
+                    let child = place.project(field.field);
+                    pending.push(Pending::Value(child, payload(program, field.data)?));
+                }
+            }
+            PayloadSchema::Enumeration(_) => {
+                let case = self.partial_case(place.fields(), |field| match field {
+                    ValueProjection::EnumField { variant, .. } => Some(*variant),
+                    _ => None,
+                })?;
+                for field in program
+                    .variant_components(selected.data(), case)
+                    .ok_or(INVALID)?
+                {
+                    let child = place.project(field.field);
+                    pending.push(Pending::Value(child, payload(program, field.data)?));
+                }
+            }
+            PayloadSchema::Array(array) => {
+                self.array_frontier(program, &place, selected, array, pending)?;
+            }
+            PayloadSchema::Optional(data) => {
+                let field = ValueField::Variant(true);
+                pending.push(Pending::Value(
+                    place.project(field),
+                    payload(program, data)?,
+                ));
+            }
+            PayloadSchema::Fallible(data) => {
+                let primary = self.partial_case(place.fields(), |field| match field {
+                    ValueProjection::Variant(primary) => Some(*primary),
+                    _ => None,
+                })?;
+                let data = if primary {
+                    data
+                } else {
+                    program.data_type(BuiltinType::Error).ok_or(INVALID)?
+                };
+                pending.push(Pending::Value(
+                    place.project(ValueField::Variant(primary)),
+                    payload(program, data)?,
+                ));
+            }
+            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) | PayloadSchema::Future(_) => {
+                return Err(INVALID);
+            }
+        }
+        Ok(())
+    }
     /// A missing descendant records an actual guarded acquisition from this stored carrier.
     /// Opposite variants overlap physically, but cannot both own a payload on that path.
-    fn active_variant(&self, parent: &Path) -> Result<bool> {
+    fn partial_case<T: Eq>(
+        &self,
+        parent: &Path,
+        case: impl Fn(&ValueProjection<Index>) -> Option<T>,
+    ) -> Result<T> {
         let depth = parent.fields().len();
         let mut active = None;
         for hole in self.missing.iter().filter(|hole| hole.under(parent)) {
-            let Some(nocter_model::ValueProjection::Variant(primary)) =
-                hole.anchor().fields().get(depth)
-            else {
-                return Err(INVALID);
-            };
-            if active.is_some_and(|active| active != *primary) {
+            let selected = hole
+                .anchor()
+                .fields()
+                .get(depth)
+                .and_then(&case)
+                .ok_or(INVALID)?;
+            if active.as_ref().is_some_and(|active| active != &selected) {
                 return Err(INVALID);
             }
-            active = Some(*primary);
+            active = Some(selected);
         }
         active.ok_or(INVALID)
     }

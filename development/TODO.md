@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify take decomposition of selected enum payloads. Stage the named leaves before cleaning the
-received carrier, and track the exact moved fields so cleanup skips them in reverse declaration
-order. Preserve whole-carrier disposal when every named leaf can be copied.
+Connect named take bindings to the prepared enum owner after dispatch. Stage Copy leaves before
+whole-carrier disposal, then qualify transfer of non-Copy leaves using the same case evidence
+and the partial cleanup frontier.
 
 ## Remaining Contextual Representation Qualification
 
@@ -758,6 +758,8 @@ not a language restriction derived from the current realization boundary.
   the selected take path.
 - [x] Qualify scoped read and edit bindings of named enum payloads in if-is and match. Preserve
   the prepared scrutinee, last-use invalidation, and the exact tag proof in lowering.
+- [x] Plan partial enum cleanup in the existing sparse ownership ledger. Validate a single
+  nominal case and visit only its initialized fields in reverse order.
 - [ ] Qualify take decomposition of named enum payloads. Preserve ownership ordering, active-case
   remainder cleanup, and complete initialization for user-destructible carriers.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,

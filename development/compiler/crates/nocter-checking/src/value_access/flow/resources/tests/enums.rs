@@ -98,3 +98,83 @@ fn enum_assembly_validates_the_ordered_case_before_retiring_its_fields() {
         matches!(steps.last(), Some(Step::Assemble { enum_case: Some(0), fields, .. }) if fields.is_empty())
     );
 }
+
+#[test]
+fn partial_enum_cleanup_skips_moved_leaves_and_all_inactive_fields() {
+    let fixture = nocter_test_support::ValueModuleFixture::new(
+        &[(
+            "/app/index.nct",
+            Root,
+            concat!(
+                "enum State {\n",
+                "    pending(head: error, pair: (error, error), tail: error)\n",
+                "    failed(other: error)\n",
+                "}",
+            ),
+        )],
+        &[],
+    );
+    let input = fixture.input();
+    let source = ModuleSourceUnit::prepare(&input).unwrap();
+    let program = source.unit().program();
+    let data = program.type_named("State").unwrap();
+    let schema = program
+        .enumeration(program.nominal_identity(data).unwrap())
+        .unwrap();
+    let fields = |case: usize| {
+        program
+            .variant_components(data, schema.variants()[case])
+            .unwrap()
+            .map(|component| component.field)
+            .collect::<Vec<_>>()
+    };
+    let [head, pair, tail] = fields(0).try_into().unwrap();
+    let [inactive] = fields(1).try_into().unwrap();
+    let root = Holder::Local(ArenaBuilder::<AccessLocalId, ()>::new().insert(()));
+    let place = root.place();
+    let pair = place.project(pair);
+    let mut state = State::default();
+    state
+        .construct(root, payload(program, data).unwrap(), &mut Vec::new())
+        .unwrap();
+    let owner = state.owned.get_mut(&root).unwrap();
+    owner.remove(pair.project(nocter_model::ValueField::Tuple(0)).fields());
+
+    // The retained holes describe one proven physical case. An impossible mixed frontier
+    // must fail without retiring the owner or publishing any cleanup actions.
+    let mut inconsistent = state.clone();
+    inconsistent
+        .owned
+        .get_mut(&root)
+        .unwrap()
+        .remove(place.project(inactive).fields());
+    let before = inconsistent.clone();
+    let mut steps = Vec::new();
+    assert!(inconsistent.dispose(program, &place, &mut steps).is_err());
+    assert_eq!(inconsistent, before);
+    assert!(steps.is_empty());
+
+    state.dispose(program, &place, &mut steps).unwrap();
+    let disposed = steps
+        .iter()
+        .filter_map(|step| match step {
+            Step::Dispose { source, payload } => {
+                assert_eq!(payload.disposal(), Disposal::OwnedError);
+                Some(source.clone())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        disposed,
+        [
+            place.project(tail),
+            pair.project(nocter_model::ValueField::Tuple(1)),
+            place.project(head),
+        ]
+    );
+    assert!(
+        matches!(steps.last(), Some(Step::ReleaseContainer { source, .. }) if source == &place)
+    );
+    assert!(!state.contains(root));
+}
