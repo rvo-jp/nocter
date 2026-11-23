@@ -213,6 +213,9 @@ For closed receivers, effect checking follows reached invocation instances and o
 retirement steps. A consuming callable adapter is checked against its completed environment.
 Primitive effects and backend release require target certificates. The checked unit retains
 the exact anonymous frames qualified for non-waiting, non-suspending destruction.
+The declaration binder retains an exact receiver context in the ordinary explicit input slot.
+Effect analysis projects structural components through the shared declaration schema and
+follows callable environments through their selected witness.
 The analysis follows the whole receiver through delegated edit inputs and rejects a replacement
 that would recursively retire that same value. Updates to its components remain ordinary edits.
 MIR associates the qualified body with its exact represented receiver. The native cleanup helper

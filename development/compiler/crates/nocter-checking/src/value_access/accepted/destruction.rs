@@ -14,7 +14,7 @@ use nocter_declarations::value_access::{
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessLocalId, BuiltinType, ValueApplication, ValueCode,
-    ValueField, ValueInputOperation,
+    ValueInputOperation,
 };
 use nocter_runtime_contract::RuntimeAbiIdentity;
 use std::{borrow::Cow, collections::BTreeSet};
@@ -342,13 +342,11 @@ impl Proof<'_, '_, '_> {
                 continue;
             }
             self.work.step().map_err(|_| WORK)?;
-            if let Some(destructor) = program.data_destructor(data.data()) {
+            if program.data_destructor(data.data()).is_some() {
                 if !data.is_context_free() {
                     return Err("context-dependent destructor cleanup is unresolved");
                 }
-                let key = program
-                    .bind_code(destructor.into(), [])
-                    .map_err(|_| CLEANUP)?;
+                let key = program.bind_destructor(&data).map_err(|_| CLEANUP)?;
                 let body = self.checked.code(key.code()).ok_or(CLEANUP)?.typed().body();
                 let [receiver] = body.inputs().explicit() else {
                     return Err(CLEANUP);
@@ -358,7 +356,7 @@ impl Proof<'_, '_, '_> {
                     protected: BTreeSet::from([receiver.local]),
                 });
             }
-            let fields = match data.schema(program).map_err(|_| CLEANUP)? {
+            match data.schema(program).map_err(|_| CLEANUP)? {
                 InstanceSchema::Builtin(BuiltinType::Error) => {
                     if !self
                         .abi
@@ -366,33 +364,17 @@ impl Proof<'_, '_, '_> {
                     {
                         return Err(CLEANUP);
                     }
-                    continue;
                 }
-                InstanceSchema::Uninhabited | InstanceSchema::Builtin(_) => continue,
-                InstanceSchema::Aggregate(aggregate) => {
-                    aggregate.components().map(|field| field.field).collect()
-                }
-                InstanceSchema::Enumeration(schema) => {
-                    let mut fields = Vec::new();
-                    for &case in schema.variants() {
-                        fields.extend(
-                            program
-                                .variant_components(data.data(), case)
-                                .ok_or(CLEANUP)?
-                                .map(|field| field.field),
-                        );
-                    }
-                    fields
-                }
-                InstanceSchema::Array(array) if array.is_empty() => continue,
-                InstanceSchema::Array(_) => vec![ValueField::Array(0)],
-                InstanceSchema::Optional(_) => vec![ValueField::Variant(true)],
-                InstanceSchema::Fallible(_) => {
-                    vec![ValueField::Variant(true), ValueField::Variant(false)]
+                InstanceSchema::Uninhabited | InstanceSchema::Builtin(_) => {}
+                InstanceSchema::Aggregate(_)
+                | InstanceSchema::Enumeration(_)
+                | InstanceSchema::Array(_)
+                | InstanceSchema::Optional(_)
+                | InstanceSchema::Fallible(_) => {
+                    pending.extend(data.component_instances(program).map_err(|_| CLEANUP)?);
                 }
                 InstanceSchema::Function(_) => {
                     pending.extend(data.environment(program).map_err(|_| CLEANUP)?);
-                    continue;
                 }
                 InstanceSchema::FunctionAlternatives(_) => {
                     let cases = data
@@ -400,11 +382,7 @@ impl Proof<'_, '_, '_> {
                         .map_err(|_| CLEANUP)?
                         .ok_or(CLEANUP)?;
                     pending.extend(cases);
-                    continue;
                 }
-            };
-            for field in fields {
-                pending.push(data.component(program, field).map_err(|_| CLEANUP)?);
             }
         }
         Ok(())

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Share the structural component projection used by destructor effect analysis. Preserve each
-received component's context and the distinct effects of owned callable environments while
-preparing to qualify context-dependent receivers.
+Require a qualified body when a represented nominal receiver reaches executable retirement.
+Carry the declaration's lifecycle obligation alongside the matched frame so missing context
+cannot silently bypass an authored destructor.
 
 ## Remaining Contextual Representation Qualification
 
@@ -795,6 +795,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Close executable destructor bodies from reached retirement schemas, including completed
   adapter environments and local-future cancellation. Remove unused destructor bodies and their
   dependencies from executable MIR. Qualify zero-size receivers and cancellation without drive.
+- [x] Bind destructor frames through the exact receiver contract and preserve distinct contextual
+  receiver keys. Derive structural cleanup components from their shared declaration projection.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

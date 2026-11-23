@@ -150,6 +150,21 @@ impl DataInstanceKey {
         }
         program.instantiate_closed_data(data)
     }
+    /// Project the declaration's ordered structural components with their retained contexts.
+    /// A homogeneous array contributes one element schema. Inactive alternatives are metadata;
+    /// this supplies no active-case evidence, storage or access grant.
+    /// # Errors
+    /// Rejects absent schemas and unresolved positive components.
+    pub fn component_instances(&self, program: &Program) -> Result<Vec<Self>, CodeBindingError> {
+        if self.is_uninhabited() {
+            return Ok(Vec::new());
+        }
+        program
+            .instance_fields(self.data)?
+            .into_iter()
+            .map(|(field, _)| self.component(program, field))
+            .collect()
+    }
     /// Follow validated component metadata without replacing context by a source type lookup.
     /// This supplies no source access, numeric-index relation or initialization proof.
     /// # Errors

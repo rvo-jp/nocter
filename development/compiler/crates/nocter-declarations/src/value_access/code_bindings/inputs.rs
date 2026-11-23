@@ -16,6 +16,31 @@ pub enum InputBindingError {
 }
 
 impl Program {
+    /// Select the anonymous destructor frame for one complete receiver contract. Its contextual
+    /// representation occupies the ordinary explicit input slot and grants no callable witness.
+    /// # Errors
+    /// Rejects an absent destructor header, invalid receiver context or uninhabited receiver.
+    pub fn bind_destructor(
+        &self,
+        receiver: &DataInstanceKey,
+    ) -> Result<CodeInstanceKey, CodeBindingError> {
+        let owner = self
+            .nominal_identity(receiver.data())
+            .ok_or(CodeBindingError::InvalidWitness)?;
+        let destructor = self
+            .destructor(owner)
+            .ok_or(CodeBindingError::UnknownCode)?;
+        if receiver.is_uninhabited() {
+            return Err(CodeBindingError::InvalidWitness);
+        }
+        self.validate_data_instance(receiver)?;
+        let mut frame = self.bind_code(destructor.into(), [])?;
+        if !receiver.is_context_free() {
+            frame.inputs.insert(0, receiver.clone());
+        }
+        Ok(frame)
+    }
+
     /// Original explicit callback-input ordinals and physical formal IDs of one selected code.
     /// A nested type contract supplies neither a code owner nor an additional physical parameter.
     /// # Errors

@@ -4,7 +4,7 @@ use crate::{
     DefinitionError,
     value_access::{BehaviorOwner, HeaderPosition, ParameterBinding, ScopeId, VariantDefinition},
 };
-use nocter_model::ValueInputOperation;
+use nocter_model::{ValueField, ValueInputOperation, ValueInvocation};
 
 #[test]
 fn destructor_requires_one_move_only_owner_and_has_no_callable_binding() {
@@ -56,6 +56,76 @@ fn destructor_requires_one_move_only_owner_and_has_no_callable_binding() {
     );
     assert_eq!(parameter.operation(), ValueInputOperation::Edit);
     assert_eq!(program.nominal_identity(parameter.data()), Some(owner));
+    let receiver = program.instantiate_closed_data(parameter.data()).unwrap();
+    assert_eq!(
+        program.bind_destructor(&receiver),
+        program.bind_code(destructor.into(), [])
+    );
+}
+
+#[test]
+fn destructor_frame_retains_the_context_of_its_exact_receiver() {
+    use crate::value_access::{FieldDefinition, FunctionDefinition, FunctionWitness};
+    use nocter_model::{CompileTimeGuarantee, ValueFunctionOrigin};
+    let symbols = SymbolTable::from_spellings(["Handler", "first", "second", "callback", "self"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let owner = reservations.reserve_record(symbols.get("Handler").unwrap(), 1);
+    let scope = reservations
+        .new_behavior_scope(ScopeId::ROOT, BehaviorOwner::Nominal(owner))
+        .unwrap();
+    let destructor = reservations.reserve_destructor(scope, owner).unwrap();
+    let functions =
+        ["first", "second"].map(|name| reservations.reserve(symbols.get(name).unwrap(), 0));
+    let mut declarations = reservations.finish().unwrap();
+    for function in functions {
+        declarations
+            .define(
+                function,
+                CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                [],
+                BuiltinType::I32,
+            )
+            .unwrap();
+    }
+    declarations
+        .define_record(
+            owner,
+            false,
+            [FieldDefinition {
+                name: symbols.get("callback").unwrap(),
+                data: DataReference::Function(Box::new(FunctionDefinition {
+                    invocation: ValueInvocation::Read,
+                    inputs: Box::new([]),
+                    result: BuiltinType::I32.into(),
+                })),
+            }],
+        )
+        .unwrap();
+    let program = declarations.finish().unwrap();
+    let nominal = program.record(owner).unwrap();
+    let field = nominal.fields()[0];
+    let field_data = program.fields().get(field).unwrap().data();
+    let frames = functions.map(|function| {
+        let witness = program
+            .concrete_witness(FunctionWitness {
+                origin: ValueFunctionOrigin::Declaration(function),
+                invocation: ValueInvocation::Read,
+            })
+            .unwrap();
+        let component = program.instantiate_function(field_data, &witness).unwrap();
+        let receiver = program
+            .instantiate_components(nominal.data(), [(ValueField::Record(field), component)])
+            .unwrap();
+        let frame = program.bind_destructor(&receiver).unwrap();
+        assert_eq!(frame.code(), destructor.into());
+        assert_eq!(frame.input_data(0), Some(&receiver));
+        frame
+    });
+    assert_ne!(frames[0], frames[1]);
+    let uninhabited = program
+        .instantiate_uninhabited_data(nominal.data())
+        .unwrap();
+    assert!(program.bind_destructor(&uninhabited).is_err());
 }
 
 #[test]
