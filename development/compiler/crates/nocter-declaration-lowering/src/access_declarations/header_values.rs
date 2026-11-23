@@ -2,7 +2,7 @@
 use super::{
     CodeSource, Context, SourceMismatch,
     definitions::{self, HeaderScope, Projection},
-    headers::{self, Header, RecordHeader},
+    headers::{self, EnumHeader, Header, RecordHeader},
     module_scopes::ParsedHeader,
 };
 use nocter_declarations::value_access::{DeclarationId, Program};
@@ -29,6 +29,9 @@ impl Context<'_> {
                     }
                     (DeclarationId::Nominal(id), ParsedHeader::Record(header)) => {
                         self.verify_record_header(id, header, scope, &mut values)?;
+                    }
+                    (DeclarationId::Nominal(id), ParsedHeader::Enumeration(header)) => {
+                        self.verify_enum_header(id, header, scope)?;
                     }
                     (DeclarationId::Alias(id), ParsedHeader::Alias(header)) => {
                         let actual = complete(
@@ -140,6 +143,47 @@ impl Context<'_> {
                 .program()
                 .existing_field_data_reference(id, &field.data)
                 != Some(slot.data())
+            {
+                return Err(SourceMismatch::InconsistentSyntax);
+            }
+        }
+        Ok(())
+    }
+
+    fn verify_enum_header(
+        &self,
+        id: NominalTypeId,
+        header: &EnumHeader,
+        scope: HeaderScope<'_>,
+    ) -> Result<(), SourceMismatch> {
+        let program = self.program();
+        let enumeration = program
+            .enumeration(id)
+            .ok_or(SourceMismatch::InconsistentSyntax)?;
+        if header.opaque {
+            return if enumeration.copyable() == header.copy {
+                Ok(())
+            } else {
+                Err(SourceMismatch::InconsistentSyntax)
+            };
+        }
+        if enumeration.variants().len() != header.source.variants.len() {
+            return Err(SourceMismatch::InconsistentSyntax);
+        }
+        for (position, (&variant, &source)) in enumeration
+            .variants()
+            .iter()
+            .zip(&header.source.variants)
+            .enumerate()
+        {
+            let variant = program
+                .variants()
+                .get(variant)
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
+            if variant.owner() != id
+                || variant.position() != position
+                || program.symbols().spelling(variant.name())
+                    != Some(super::text(scope.syntax, source))
             {
                 return Err(SourceMismatch::InconsistentSyntax);
             }

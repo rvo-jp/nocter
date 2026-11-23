@@ -10,12 +10,16 @@ use crate::{DeclarationContractError, SurfaceDeclarationId};
 use nocter_declarations::value_access::{
     DataReference, DeclarationId, HeaderFailure, HeaderStep, Program,
 };
-use nocter_model::{AccessCodeId, FrozenData};
+use nocter_model::{AccessCodeId, FrozenData, Symbol};
 use std::collections::{BTreeMap, BTreeSet};
 
 enum Definition {
     Code(definitions::CodeDefinition),
     Record(definitions::RecordDefinition),
+    Enumeration {
+        copy: bool,
+        variants: Option<Box<[Symbol]>>,
+    },
     Alias(DataReference),
 }
 impl ScopedModuleSources<'_> {
@@ -134,6 +138,16 @@ impl ScopedModuleSources<'_> {
                 (Definition::Record(complete), Definition::Record(public)) => {
                     self.records_agree(required, *raw, complete, public)?
                 }
+                (
+                    Definition::Enumeration {
+                        copy: complete,
+                        variants: Some(_),
+                    },
+                    Definition::Enumeration {
+                        copy: public,
+                        variants: None,
+                    },
+                ) => complete == public,
                 _ => false,
             };
             if !agrees {
@@ -150,6 +164,15 @@ impl ScopedModuleSources<'_> {
             (DeclarationId::Nominal(id), Definition::Record(definition)) => self
                 .headers
                 .define_record(id, definition.copy, definition.fields),
+            (
+                DeclarationId::Nominal(id),
+                Definition::Enumeration {
+                    copy,
+                    variants: Some(variants),
+                },
+            ) => self
+                .headers
+                .define_enum(id, copy || selected == contract, variants),
             (DeclarationId::Alias(id), Definition::Alias(target)) => {
                 self.headers.define_alias(id, target)
             }
@@ -203,7 +226,7 @@ impl ScopedModuleSources<'_> {
         let root = self.binding.paired.inventory.declarations()[contract.index()];
         let body = self.binding.paired.inventory.declarations()[definition.index()];
         let error = match root.kind() {
-            crate::SurfaceDeclarationKind::Struct => {
+            crate::SurfaceDeclarationKind::Struct | crate::SurfaceDeclarationKind::Enum => {
                 DeclarationContractError::MismatchedRepresentation {
                     contract: root.node(),
                     definition: body.node(),
@@ -235,6 +258,7 @@ impl ScopedModuleSources<'_> {
         };
         let mut codes = self.binding.catalog.sources.codes.as_ref().clone();
         let mut records = self.binding.catalog.sources.records.as_ref().clone();
+        let mut enums = self.binding.catalog.sources.enums.as_ref().clone();
         for (raw, header) in &self.binding.catalog.parsed {
             if self.binding.paired.contracts.representative(*raw) != *raw {
                 continue;
@@ -256,6 +280,9 @@ impl ScopedModuleSources<'_> {
                 (Some(DeclarationId::Nominal(id)), ParsedHeader::Record(header)) => {
                     records.insert(id, header.source.clone());
                 }
+                (Some(DeclarationId::Nominal(id)), ParsedHeader::Enumeration(header)) => {
+                    enums.insert(id, header.source.clone());
+                }
                 (Some(DeclarationId::Alias(_)), ParsedHeader::Alias(_)) => {}
                 _ => return integrity(),
             }
@@ -272,6 +299,7 @@ impl ScopedModuleSources<'_> {
             &trees,
             &codes,
             &records,
+            &enums,
             &self.binding.catalog.sources.aliases,
             violations,
         ))
@@ -300,6 +328,32 @@ fn project_occurrence<'value>(
         (DeclarationId::Nominal(record), ParsedHeader::Record(header)) => {
             definitions::project_record(program, scope, record, header, sources, value)
                 .map(|p| p.map(Definition::Record))
+        }
+        (DeclarationId::Nominal(_), ParsedHeader::Enumeration(header)) => {
+            let variants = if header.opaque {
+                None
+            } else {
+                Some(
+                    header
+                        .source
+                        .variants
+                        .iter()
+                        .map(|&variant| {
+                            program
+                                .symbols()
+                                .get(crate::access_declarations::text(scope.syntax, variant))
+                                .ok_or_else(integrity)
+                        })
+                        .collect::<Result<_, _>>()?,
+                )
+            };
+            return Ok(Projection {
+                definition: Some(Definition::Enumeration {
+                    copy: header.copy,
+                    variants,
+                }),
+                progress: definitions::Progress::default(),
+            });
         }
         (DeclarationId::Alias(alias), ParsedHeader::Alias(header)) => {
             definitions::project_alias(program, scope, alias, header, sources, value)

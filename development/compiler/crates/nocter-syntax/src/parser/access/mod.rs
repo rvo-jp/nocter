@@ -3,6 +3,7 @@
 mod behavior;
 mod directives;
 mod expression;
+mod nominal;
 mod types;
 use types::type_;
 #[cfg(test)]
@@ -80,7 +81,12 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
             || (parser.at_contextual(ContextualSpelling::Copy)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
         {
-            record(parser);
+            nominal::record(parser);
+        } else if parser.at_keyword(Keyword::Enum)
+            || (parser.at_contextual(ContextualSpelling::Copy)
+                && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Enum))
+        {
+            nominal::enumeration(parser);
         } else if parser.at_keyword(Keyword::Impl) {
             behavior::declaration(parser);
         } else if parser.at_keyword(Keyword::Test) {
@@ -103,26 +109,6 @@ fn type_alias(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Equal);
     type_(parser);
     parser.complete(declaration, NodeKind::TypeAliasDeclaration);
-}
-
-fn record(parser: &mut Parser<'_>) {
-    let marker = parser.start();
-    if parser.at_contextual(ContextualSpelling::Copy) {
-        parser.bump();
-    }
-    parser.expect_keyword(Keyword::Struct);
-    parser.expect_name();
-    if parser.at_punctuation(Punctuation::LeftBrace) {
-        parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, |parser| {
-            let field = parser.start();
-            directives::prefix(parser, false);
-            parser.expect_name();
-            parser.expect_punctuation(Punctuation::Colon);
-            type_(parser);
-            parser.complete(field, NodeKind::StructField);
-        });
-    }
-    parser.complete(marker, NodeKind::StructDeclaration);
 }
 
 fn function(parser: &mut Parser<'_>, kind: NodeKind) {

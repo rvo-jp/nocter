@@ -17,6 +17,7 @@ pub(super) use recipes::Recipes;
 pub(super) struct Sources {
     pub codes: Arc<BTreeMap<AccessCodeId, CodeSource>>,
     pub records: Arc<BTreeMap<NominalTypeId, Arc<RecordSource>>>,
+    pub enums: Arc<BTreeMap<NominalTypeId, Arc<EnumSource>>>,
     pub aliases: Arc<BTreeMap<TypeAliasId, AliasSource>>,
     expressions: Arc<BTreeMap<NodeId, AccessCodeId>>,
 }
@@ -25,12 +26,13 @@ impl Sources {
         codes: BTreeMap<AccessCodeId, CodeSource>,
         records: BTreeMap<NominalTypeId, Arc<RecordSource>>,
     ) -> Result<Self, super::Failure> {
-        Self::with_aliases(codes, records, BTreeMap::new())
+        Self::from_module(codes, records, BTreeMap::new(), BTreeMap::new())
     }
 
-    pub(super) fn with_aliases(
+    pub(super) fn from_module(
         codes: BTreeMap<AccessCodeId, CodeSource>,
         records: BTreeMap<NominalTypeId, Arc<RecordSource>>,
+        enums: BTreeMap<NominalTypeId, Arc<EnumSource>>,
         aliases: BTreeMap<TypeAliasId, AliasSource>,
     ) -> Result<Self, super::Failure> {
         let mut expressions = BTreeMap::new();
@@ -44,6 +46,7 @@ impl Sources {
         Ok(Self {
             codes: Arc::new(codes),
             records: Arc::new(records),
+            enums: Arc::new(enums),
             aliases: Arc::new(aliases),
             expressions: Arc::new(expressions),
         })
@@ -74,6 +77,11 @@ pub(super) struct FieldSource {
 pub(super) struct RecordSource {
     pub name: SyntaxToken,
     pub fields: Box<[FieldSource]>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct EnumSource {
+    pub name: SyntaxToken,
+    pub variants: Box<[SyntaxToken]>,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AliasSource {
@@ -462,6 +470,7 @@ fn header<'source>(
     let Some(SyntaxOrigin::Node(node)) = header_origin(
         &context.sources.codes,
         &context.sources.records,
+        &context.sources.enums,
         &context.sources.aliases,
         declaration,
         position,
@@ -477,6 +486,7 @@ fn header<'source>(
 pub(super) fn header_origin(
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    enums: &BTreeMap<NominalTypeId, Arc<EnumSource>>,
     aliases: &BTreeMap<TypeAliasId, AliasSource>,
     declaration: DeclarationId,
     position: HeaderPosition,
@@ -500,12 +510,24 @@ pub(super) fn header_origin(
             }
         }
         DeclarationId::Nominal(id) => {
-            let s = records.get(&id)?;
-            match position {
-                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
-                HeaderPosition::Field(i) if typed => SyntaxOrigin::Node(s.fields.get(i)?.ty),
-                HeaderPosition::Field(i) => SyntaxOrigin::Token(s.fields.get(i)?.name),
-                _ => return None,
+            if let Some(record) = records.get(&id) {
+                match position {
+                    HeaderPosition::Name => SyntaxOrigin::Token(record.name),
+                    HeaderPosition::Field(i) if typed => {
+                        SyntaxOrigin::Node(record.fields.get(i)?.ty)
+                    }
+                    HeaderPosition::Field(i) => SyntaxOrigin::Token(record.fields.get(i)?.name),
+                    _ => return None,
+                }
+            } else {
+                let schema = enums.get(&id)?;
+                match position {
+                    HeaderPosition::Name => SyntaxOrigin::Token(schema.name),
+                    HeaderPosition::Variant(index) => {
+                        SyntaxOrigin::Token(*schema.variants.get(index)?)
+                    }
+                    _ => return None,
+                }
             }
         }
         DeclarationId::Alias(id) => {

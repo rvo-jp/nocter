@@ -32,19 +32,27 @@ pub(super) fn project_violations(
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
-    project_violations_in(&[tree], sources, records, &BTreeMap::new(), violations)
+    project_violations_in(
+        &[tree],
+        sources,
+        records,
+        &BTreeMap::new(),
+        &BTreeMap::new(),
+        violations,
+    )
 }
 pub(super) fn project_violations_in(
     trees: &[&SyntaxTree],
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    enums: &BTreeMap<NominalTypeId, Arc<super::source::EnumSource>>,
     aliases: &BTreeMap<TypeAliasId, AliasSource>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
     let origin = |source| crate::diagnostic::origin_from_syntax(trees.iter().copied(), source);
     let projected = violations
         .into_iter()
-        .map(|v| project(&origin, sources, records, aliases, v))
+        .map(|v| project(&origin, sources, records, enums, aliases, v))
         .collect::<Option<Vec<_>>>();
     let Some(mut diagnostics) = projected else {
         return Failure::InconsistentSyntax;
@@ -66,6 +74,7 @@ fn project(
     origin: &impl Fn(SyntaxOrigin) -> Option<SourceOrigin>,
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    enums: &BTreeMap<NominalTypeId, Arc<super::source::EnumSource>>,
     aliases: &BTreeMap<TypeAliasId, AliasSource>,
     violation: DeclarationViolation,
 ) -> Option<HeaderDiagnostic> {
@@ -85,12 +94,13 @@ fn project(
     let primary = super::source::header_origin(
         sources,
         records,
+        enums,
         aliases,
         violation.declaration,
         violation.position,
         typed,
     )?;
-    let related = related(sources, records, aliases, violation).ok()?;
+    let related = related(sources, records, enums, aliases, violation).ok()?;
     at_origin(origin, violation, primary, related)
 }
 
@@ -138,6 +148,7 @@ fn at_origin(
 fn related(
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    enums: &BTreeMap<NominalTypeId, Arc<super::source::EnumSource>>,
     aliases: &BTreeMap<TypeAliasId, AliasSource>,
     violation: DeclarationViolation,
 ) -> Result<Option<SyntaxOrigin>, Failure> {
@@ -146,13 +157,15 @@ fn related(
         R::DuplicateValue { first } | R::ParameterShadowsValue { declaration: first } => {
             sources.get(&first).and_then(CodeSource::name)
         }
-        R::DuplicateRecord { first } | R::RecursivePayload { through: first } => {
-            records.get(&first).map(|record| record.name)
-        }
+        R::DuplicateRecord { first } | R::RecursivePayload { through: first } => records
+            .get(&first)
+            .map(|record| record.name)
+            .or_else(|| enums.get(&first).map(|schema| schema.name)),
         R::DuplicateTypeName { first } => {
             return super::source::header_origin(
                 sources,
                 records,
+                enums,
                 aliases,
                 first,
                 HeaderPosition::Name,
@@ -165,6 +178,7 @@ fn related(
             return super::source::header_origin(
                 sources,
                 records,
+                enums,
                 aliases,
                 violation.declaration,
                 first,
@@ -181,6 +195,15 @@ fn related(
                 .get(&id)
                 .and_then(|record| record.fields.get(first))
                 .map(|field| field.name)
+        }
+        R::DuplicateVariant { first } => {
+            let DeclarationId::Nominal(id) = violation.declaration else {
+                return Err(Failure::InconsistentSyntax);
+            };
+            enums
+                .get(&id)
+                .and_then(|schema| schema.variants.get(first))
+                .copied()
         }
         _ => return Ok(None),
     };

@@ -1,7 +1,7 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
     Failure, TypeSyntax, project_type_syntax,
-    source::{AliasSource, FieldSource, ParameterSource, RecordSource},
+    source::{AliasSource, EnumSource, FieldSource, ParameterSource, RecordSource},
     text,
 };
 use nocter_declarations::value_access::{CodeKind, ParameterBinding};
@@ -38,6 +38,35 @@ pub(super) struct RecordHeader {
 pub(super) struct AliasHeader {
     pub source: AliasSource,
     pub target: TypeSyntax,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct EnumHeader {
+    pub source: Arc<EnumSource>,
+    pub opaque: bool,
+    pub copy: bool,
+}
+
+pub(super) fn enumeration(
+    syntax: BoundSyntax<'_>,
+    declaration: NodeId,
+) -> Result<EnumHeader, Failure> {
+    let tree = syntax.tree();
+    let (name, copy) = nominal_name_and_copy(syntax, declaration)?;
+    let opaque = nocter_syntax::direct_token(
+        tree,
+        declaration,
+        nocter_syntax::TokenKind::Punctuation(nocter_syntax::Punctuation::LeftBrace),
+    )
+    .is_none();
+    let variants = direct_node_iter(tree, declaration, NodeKind::EnumVariant)
+        .map(|variant| direct_identifier(tree, variant).ok_or(Failure::InconsistentSyntax))
+        .collect::<Result<_, Failure>>()?;
+    Ok(EnumHeader {
+        source: Arc::new(EnumSource { name, variants }),
+        opaque,
+        copy,
+    })
 }
 
 pub(super) fn alias(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<AliasHeader, Failure> {
@@ -159,10 +188,7 @@ pub(super) fn record(
     declaration: NodeId,
 ) -> Result<RecordHeader, Failure> {
     let tree = syntax.tree();
-    let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
-    let first = first_direct_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
-    let copy =
-        ContextualSpelling::from_spelling(text(syntax, first)) == Some(ContextualSpelling::Copy);
+    let (name, copy) = nominal_name_and_copy(syntax, declaration)?;
     let fields = direct_node_iter(tree, declaration, NodeKind::StructField)
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
@@ -179,6 +205,18 @@ pub(super) fn record(
         copy,
         fields: types.into(),
     })
+}
+
+fn nominal_name_and_copy(
+    syntax: BoundSyntax<'_>,
+    declaration: NodeId,
+) -> Result<(SyntaxToken, bool), Failure> {
+    let tree = syntax.tree();
+    let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
+    let first = first_direct_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
+    let copy =
+        ContextualSpelling::from_spelling(text(syntax, first)) == Some(ContextualSpelling::Copy);
+    Ok((name, copy))
 }
 
 pub(super) fn collect(

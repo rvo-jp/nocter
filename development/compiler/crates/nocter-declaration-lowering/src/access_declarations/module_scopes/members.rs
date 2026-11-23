@@ -75,6 +75,33 @@ pub(super) struct Members {
 }
 
 impl Members {
+    pub fn verify_enum_member_names(
+        &self,
+        paired: &PairedModuleSources<'_>,
+        program: &Program,
+    ) -> Result<(), ModuleSourcesFailure> {
+        for (&(owner, key), &raw) in &self.entries {
+            let (BehaviorOwner::Nominal(owner), MemberKey::Named(name)) = (owner, key) else {
+                continue;
+            };
+            if program
+                .enumeration(owner)
+                .and_then(|schema| schema.resolve_variant(name))
+                .is_some()
+            {
+                let source = paired.inventory.declarations()[raw.index()];
+                return Err(ModuleSourcesFailure::Access(
+                    super::super::source_roles::role_failure(
+                        syntax(paired, source.source())?,
+                        super::super::SourceRoleRule::EnumVariantMemberNameConflict,
+                        source.node(),
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn index(
         paired: &PairedModuleSources<'_>,
         occurrences: BTreeMap<SurfaceDeclarationId, MemberOccurrence>,
@@ -301,16 +328,9 @@ impl Members {
         caller: nocter_source::SourceId,
         id: SurfaceDeclarationId,
     ) -> Option<TypeMember> {
-        let caller = binding.physical_source(caller)?;
         let inventory = &binding.paired.inventory;
         let declaration = inventory.declarations()[id.index()];
-        let visible = inventory.audience(id).map_or_else(
-            || {
-                crate::access_declarations::module_sources::visible_sources(&binding.paired, caller)
-                    .any(|source| source == declaration.source())
-            },
-            |audience| audience.contains(inventory.sources()[caller.index()].module()),
-        );
+        let visible = binding.declaration_access(caller, id)?;
         let DeclarationId::Code(code) = binding.declarations[id.index()]? else {
             return None;
         };
@@ -473,18 +493,18 @@ pub(super) fn occurrences(
     {
         return Ok(BTreeMap::new());
     }
-    let mut records = BTreeMap::<(SurfaceSourceId, Symbol), BTreeSet<_>>::new();
+    let mut nominals = BTreeMap::<(SurfaceSourceId, Symbol), BTreeSet<_>>::new();
     for (raw, declaration) in inventory.declaration_entries() {
         let contract = paired.contracts.representative(raw);
-        let Some(DeclarationId::Nominal(record)) = declarations[contract.index()] else {
+        let Some(DeclarationId::Nominal(nominal)) = declarations[contract.index()] else {
             continue;
         };
         let name = declaration.name().ok_or_else(integrity)?;
         let name = symbol(paired, declaration.source(), name)?;
-        records
+        nominals
             .entry((declaration.source(), name))
             .or_default()
-            .insert((BehaviorOwner::Nominal(record), contract));
+            .insert((BehaviorOwner::Nominal(nominal), contract));
     }
     let mut scopes_by_owner = BTreeMap::new();
     let mut owners = BTreeMap::new();
@@ -510,7 +530,13 @@ pub(super) fn occurrences(
                     let name = symbol(paired, source, name)?;
                     let mut seen = BTreeSet::new();
                     for visible in super::super::module_sources::visible_sources(paired, source) {
-                        seen.extend(records.get(&(visible, name)).into_iter().flatten().copied());
+                        seen.extend(
+                            nominals
+                                .get(&(visible, name))
+                                .into_iter()
+                                .flatten()
+                                .copied(),
+                        );
                     }
                     (seen.len() == 1).then(|| seen.pop_first()).flatten()
                 };

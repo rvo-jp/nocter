@@ -24,6 +24,12 @@ mod record_views;
 mod reuse;
 pub use reuse::ModuleQuery;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EnumVariant {
+    pub id: nocter_model::VariantId,
+    pub accessible: bool,
+}
+
 /// Closed source names and a progressive header writer. Reservation alone grants no typed metadata;
 /// selected header publication grants no checked-body, primitive-authority or accepted-Unit proof.
 #[derive(Debug)]
@@ -120,6 +126,7 @@ impl ModuleSourceBinding<'_> {
 pub(super) enum ParsedHeader {
     Code(Header),
     Record(RecordHeader),
+    Enumeration(headers::EnumHeader),
     Alias(headers::AliasHeader),
     Test {
         name: SyntaxToken,
@@ -354,6 +361,9 @@ impl<'syntax> ScopedModuleSources<'syntax> {
             .members
             .verify_conversions(&self.binding, &program)?;
         self.binding
+            .members
+            .verify_enum_member_names(&self.binding.paired, &program)?;
+        self.binding
             .paired
             .inventory
             .audiences
@@ -410,6 +420,31 @@ impl ModuleSourceBinding<'_> {
     ) -> ConversionSelection {
         self.members
             .conversion(self, caller, program, owner, target)
+    }
+
+    fn declaration_access(
+        &self,
+        caller: nocter_source::SourceId,
+        declaration: SurfaceDeclarationId,
+    ) -> Option<bool> {
+        let caller = self.physical_source(caller)?;
+        let inventory = &self.paired.inventory;
+        let physical = inventory.declarations().get(declaration.index())?;
+        Some(inventory.audience(declaration).map_or_else(
+            || {
+                super::module_sources::visible_sources(&self.paired, caller)
+                    .any(|source| source == physical.source())
+            },
+            |audience| audience.contains(inventory.sources()[caller.index()].module()),
+        ))
+    }
+
+    pub(super) fn enum_variant_access(
+        &self,
+        caller: nocter_source::SourceId,
+        owner: NominalTypeId,
+    ) -> Option<bool> {
+        self.declaration_access(caller, *self.catalog.enum_owners.get(&owner)?)
     }
 
     fn physical_source(&self, source: nocter_source::SourceId) -> Option<SurfaceSourceId> {
@@ -579,6 +614,7 @@ fn project_namespace(
 ) -> ModuleSourcesFailure {
     let mut codes = BTreeMap::new();
     let mut records = BTreeMap::new();
+    let mut enums = BTreeMap::new();
     let mut aliases = BTreeMap::new();
     for (id, header) in parsed {
         if paired.contracts.representative(*id) != *id {
@@ -590,6 +626,9 @@ fn project_namespace(
             }
             (Some(DeclarationId::Nominal(id)), ParsedHeader::Record(header)) => {
                 records.insert(id, Arc::clone(&header.source));
+            }
+            (Some(DeclarationId::Nominal(id)), ParsedHeader::Enumeration(header)) => {
+                enums.insert(id, Arc::clone(&header.source));
             }
             (Some(DeclarationId::Alias(id)), ParsedHeader::Alias(header)) => {
                 aliases.insert(id, header.source);
@@ -604,7 +643,7 @@ fn project_namespace(
         .map(crate::SurfaceSource::syntax)
         .collect::<Vec<_>>();
     ModuleSourcesFailure::Access(projection::project_violations_in(
-        &trees, &codes, &records, &aliases, violations,
+        &trees, &codes, &records, &enums, &aliases, violations,
     ))
 }
 fn field_positions(
@@ -720,6 +759,13 @@ fn collect_headers(
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
+                SurfaceDeclarationKind::Enum => {
+                    syntax(paired, declaration.source()).and_then(|s| {
+                        headers::enumeration(s, declaration.node())
+                            .map(ParsedHeader::Enumeration)
+                            .map_err(ModuleSourcesFailure::Access)
+                    })
+                }
                 SurfaceDeclarationKind::TypeAlias => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         headers::alias(s, declaration.node())
@@ -740,6 +786,7 @@ fn collect_headers(
                     })
                 }
                 SurfaceDeclarationKind::Field
+                | SurfaceDeclarationKind::Variant
                 | SurfaceDeclarationKind::TypeBehavior
                 | SurfaceDeclarationKind::PrimitiveType
                 | SurfaceDeclarationKind::StructuralLiteralGrant => {
@@ -767,6 +814,7 @@ fn reserve_canonical(
         let (record, name) = match header {
             ParsedHeader::Code(header) => (false, Some(header.name)),
             ParsedHeader::Record(header) => (true, Some(header.source.name)),
+            ParsedHeader::Enumeration(header) => (true, Some(header.source.name)),
             ParsedHeader::Alias(header) => (false, Some(header.source.name)),
             ParsedHeader::Test { .. } => (false, None),
         };
@@ -783,17 +831,19 @@ fn reserve_canonical(
     for &(_, _, name, id) in &ordered[..first_code] {
         let definition = paired.contracts.representation(id).unwrap_or(id);
         let physical = paired.inventory.declarations()[definition.index()];
-        let Some(ParsedHeader::Record(header)) = parsed.get(&definition) else {
-            return Err(integrity());
-        };
-        let record = reservations
-            .reserve_record_in(
-                scopes[physical.source().index()],
-                name.ok_or_else(integrity)?,
-                header.fields.len(),
-            )
-            .map_err(|_| integrity())?;
-        declarations[id.index()] = Some(DeclarationId::Nominal(record));
+        let scope = scopes[physical.source().index()];
+        let name = name.ok_or_else(integrity)?;
+        let nominal = match parsed.get(&definition).ok_or_else(integrity)? {
+            ParsedHeader::Record(header) => {
+                reservations.reserve_record_in(scope, name, header.fields.len())
+            }
+            ParsedHeader::Enumeration(header) if !header.opaque => {
+                reservations.reserve_enum_in(scope, name, header.source.variants.len())
+            }
+            _ => return Err(integrity()),
+        }
+        .map_err(|_| integrity())?;
+        declarations[id.index()] = Some(DeclarationId::Nominal(nominal));
     }
     let members = members::occurrences(paired, declarations, scopes, reservations)?;
     let mut test_names = BTreeMap::new();
@@ -811,7 +861,7 @@ fn reserve_canonical(
                 }
                 .map(DeclarationId::Code)
             }
-            ParsedHeader::Record(_) => return Err(integrity()),
+            ParsedHeader::Record(_) | ParsedHeader::Enumeration(_) => return Err(integrity()),
             ParsedHeader::Alias(_) => reservations
                 .reserve_alias(
                     scopes[declaration.source().index()],

@@ -23,6 +23,147 @@ fn advance(
 }
 
 #[test]
+fn scalar_enum_pairs_keep_copy_policy_and_original_variant_audience() {
+    let mut scoped = inventory(
+        &[
+            ("/app/index.nct", Root, "see ./body.nct\nenum State { ready\nwaiting }\nenum Secret\ncopy enum Token"),
+            ("/app/body.nct", Implementation, "see ./index.nct\nenum Secret { hidden }\ncopy enum Token { issued }\nfunc inside(): void {}"),
+            ("/app/observer.nct", Implementation, "see ./index.nct\nfunc observer(): void {}"),
+        ],
+        &[(0, 0, 1), (1, 0, 0), (2, 0, 0)],
+        true,
+    ).pair().unwrap().reserve_names().unwrap();
+    let identify = |scoped: &ScopedModuleSources<'_>, path, kind, name| {
+        scoped
+            .declaration(declaration(scoped, path, kind, name))
+            .unwrap()
+    };
+    let inside = identify(&scoped, "/app/body.nct", Kind::Function, "inside");
+    let observer = identify(&scoped, "/app/observer.nct", Kind::Function, "observer");
+    let ids = scoped.declaration_ids().collect::<Vec<_>>();
+    for id in ids {
+        assert_eq!(advance(&mut scoped, id).unwrap(), HeaderProgress::Ready);
+    }
+    let ready = scoped.seal().unwrap();
+    let current = ready.current().unwrap();
+    current.verify_header_values(|_| None).unwrap();
+    let DeclarationId::Code(inside) = inside else {
+        panic!("inside body")
+    };
+    let DeclarationId::Code(observer) = observer else {
+        panic!("observer body")
+    };
+    let inside = current.for_code(inside).unwrap();
+    let observer = current.for_code(observer).unwrap();
+    let program = ready.program();
+    for (name, variant, copy, public) in [
+        ("State", "waiting", true, true),
+        ("Secret", "hidden", false, false),
+        ("Token", "issued", true, false),
+    ] {
+        let data = program
+            .type_identity_named_in(observer.lookup_scope(), name)
+            .expect("visible nominal header");
+        let nominal = program.nominal_identity(data).unwrap();
+        assert_eq!(program.enumeration(nominal).unwrap().copyable(), copy);
+        let selected = inside.enum_variant(data, variant).unwrap();
+        let external = observer.enum_variant(data, variant).unwrap();
+        assert_eq!(selected.id, external.id);
+        assert!(selected.accessible);
+        assert_eq!(external.accessible, public);
+    }
+}
+
+#[test]
+fn scalar_enum_headers_reject_empty_repeated_or_second_representations() {
+    for (text, code) in [
+        ("enum State {}", "E0200"),
+        ("enum State { idle\nidle }", "E0241"),
+    ] {
+        let mut scoped = inventory(&[("/app/index.nct", Root, text)], &[], false)
+            .pair()
+            .unwrap()
+            .reserve_names()
+            .unwrap();
+        let id = scoped
+            .declaration(declaration(&scoped, "/app/index.nct", Kind::Enum, "State"))
+            .unwrap();
+        let Err(ModuleSourcesFailure::Access(Failure::Headers(errors))) = advance(&mut scoped, id)
+        else {
+            panic!("invalid enum schema");
+        };
+        assert_eq!(errors[0].source().code(), code);
+        assert_eq!(
+            errors[0].source().notes().len(),
+            usize::from(code == "E0241")
+        );
+    }
+    let completed = inventory(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\nenum State { idle }",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nenum State { idle }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair();
+    let Err(ModuleSourcesFailure::Contract(diagnostic)) = completed else {
+        panic!("closed enum completed again");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        DeclarationContractRule::DuplicateRepresentation
+    );
+}
+
+#[test]
+fn scalar_enum_variants_and_type_members_share_one_namespace() {
+    let mut scoped = inventory(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\nenum State { idle }",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nimpl State { func idle(): Self { loop {} } }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair()
+    .unwrap()
+    .reserve_names()
+    .unwrap();
+    let ids = scoped
+        .declaration_ids()
+        .chain(scoped.code_ids().map(DeclarationId::Code))
+        .collect::<Vec<_>>();
+    for id in ids {
+        assert_eq!(advance(&mut scoped, id).unwrap(), HeaderProgress::Ready);
+    }
+    let sealed = scoped.seal();
+    let Err(ModuleSourcesFailure::Access(Failure::SourceRole(error))) = sealed else {
+        panic!(
+            "type member and variant names must be distinct: {:?}",
+            sealed.err()
+        );
+    };
+    assert_eq!(error.rule(), SourceRoleRule::EnumVariantMemberNameConflict);
+}
+
+#[test]
 fn paired_headers_agree_on_nominal_identity_before_payload_readiness() {
     for (kind, root_header, body_header, expected_rule) in [
         (

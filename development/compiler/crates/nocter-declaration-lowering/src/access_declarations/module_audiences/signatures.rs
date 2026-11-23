@@ -92,6 +92,7 @@ impl ModuleAudiences {
                     SurfaceDeclarationKind::TypeBehavior
                         | SurfaceDeclarationKind::StructuralLiteralGrant
                         | SurfaceDeclarationKind::PrimitiveType
+                        | SurfaceDeclarationKind::Variant
                 ) => {}
                 _ => return Err(Failure::InconsistentSyntax),
             }

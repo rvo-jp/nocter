@@ -37,6 +37,7 @@ mod tests;
 use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
+pub use module_scopes::EnumVariant;
 use nocter_declarations::value_access::{
     DeclarationId, HeaderFailure, HeaderPublication, HeaderStep, Program, Reservations,
 };
@@ -140,6 +141,7 @@ impl<'source> Preparation<'source> {
                     | NodeKind::BlockUseDeclaration
                     | NodeKind::TargetDirective
                     | NodeKind::TestDeclaration
+                    | NodeKind::EnumDeclaration
                     | NodeKind::TypeBehaviorDeclaration
                     | NodeKind::PrimitiveTypeDeclaration
             )
@@ -460,6 +462,17 @@ impl Query {
 }
 
 impl<'source> Context<'source> {
+    /// Select a variant from the original nominal representation and check its source audience.
+    #[must_use]
+    pub fn enum_variant(&self, data: nocter_model::TypeId, name: &str) -> Option<EnumVariant> {
+        let owner = self.program().nominal_identity(data)?;
+        let name = self.program().symbols().get(name)?;
+        let id = self.program().enumeration(owner)?.resolve_variant(name)?;
+        let accessible = self
+            .module?
+            .enum_variant_access(self.syntax.tree().source(), owner)?;
+        Some(EnumVariant { id, accessible })
+    }
     /// Select the member identity and its accessibility from this exact physical source.
     #[must_use]
     pub fn type_member(

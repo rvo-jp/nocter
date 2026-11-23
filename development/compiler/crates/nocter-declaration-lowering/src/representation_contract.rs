@@ -27,6 +27,36 @@ struct LooseNominalKey {
     name: Box<str>,
 }
 
+#[derive(Default)]
+struct NominalDefinitions {
+    exact: BTreeMap<NominalKey, Vec<SurfaceDeclarationId>>,
+    loose: BTreeMap<LooseNominalKey, Vec<SurfaceDeclarationId>>,
+}
+impl NominalDefinitions {
+    fn collect(surface: &DeclarationSurface<'_>) -> Result<Self, DeclarationContractError> {
+        let mut definitions = Self::default();
+        for (index, declaration) in surface.declarations().iter().copied().enumerate() {
+            if !is_nominal(declaration.kind())
+                || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
+            {
+                continue;
+            }
+            let id = SurfaceDeclarationId::from_index(index);
+            definitions
+                .exact
+                .entry(nominal_key(surface, declaration)?)
+                .or_default()
+                .push(id);
+            definitions
+                .loose
+                .entry(loose_nominal_key(surface, declaration)?)
+                .or_default()
+                .push(id);
+        }
+        Ok(definitions)
+    }
+}
+
 /// Joins public opaque nominal contracts to the private representation occurrence that completes
 /// their fields or variants. Callable-body matching remains a separate responsibility.
 pub(super) fn join_nominal_contracts(
@@ -35,46 +65,36 @@ pub(super) fn join_nominal_contracts(
     representatives: &mut [SurfaceDeclarationId],
     representations: &mut [Option<SurfaceDeclarationId>],
 ) -> Result<(), DeclarationContractError> {
-    let mut exact: BTreeMap<NominalKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
-    let mut loose: BTreeMap<LooseNominalKey, Vec<SurfaceDeclarationId>> = BTreeMap::new();
-    for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        if !is_nominal(declaration.kind())
-            || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
-        {
-            continue;
-        }
-        let id = SurfaceDeclarationId::from_index(index);
-        exact
-            .entry(nominal_key(surface, declaration)?)
-            .or_default()
-            .push(id);
-        loose
-            .entry(loose_nominal_key(surface, declaration)?)
-            .or_default()
-            .push(id);
-    }
+    let definitions = NominalDefinitions::collect(surface)?;
 
     let mut used = BTreeSet::new();
     for (index, contract) in surface.declarations().iter().copied().enumerate() {
-        if !is_nominal(contract.kind()) || !requires_representation(surface, contract)? {
+        if !is_nominal(contract.kind()) {
+            continue;
+        }
+        let requires = requires_representation(surface, contract)?;
+        let closed_enum = !requires
+            && contract.kind() == SurfaceDeclarationKind::Enum
+            && source_kind(surface, contract)? == ModuleSourceKind::Root
+            && is_access_source(surface, contract)?;
+        if !requires && !closed_enum {
             continue;
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
-        let loose_candidates = loose
+        let loose_candidates = definitions
+            .loose
             .get(&loose_nominal_key(surface, contract)?)
             .map_or(&[][..], Vec::as_slice);
-        let reciprocal_definition = || {
-            loose_candidates
-                .iter()
-                .map(|id| surface.declarations()[id.index()])
-                .find(|definition| {
-                    has_reciprocal_source_visibility(
-                        surface,
-                        contract.source(),
-                        definition.source(),
-                    )
-                })
-        };
+        let reciprocal_definition = || visible_definition(surface, contract, loose_candidates);
+        if closed_enum {
+            if let Some(definition) = reciprocal_definition() {
+                return Err(DeclarationContractError::DuplicateRepresentation {
+                    contract: contract.node(),
+                    definition: definition.node(),
+                });
+            }
+            continue;
+        }
         if let Some(grant) = structural_grants.get(&contract_id) {
             if let Some(definition) = reciprocal_definition() {
                 return Err(DeclarationContractError::InvalidStructuralGrant {
@@ -88,7 +108,8 @@ pub(super) fn join_nominal_contracts(
         let candidates = definition_candidates(
             surface,
             contract,
-            exact
+            definitions
+                .exact
                 .get(&nominal_key(surface, contract)?)
                 .map_or(&[], Vec::as_slice),
             loose_candidates,
@@ -136,6 +157,19 @@ pub(super) fn join_nominal_contracts(
         }
     }
     Ok(())
+}
+
+fn visible_definition(
+    surface: &DeclarationSurface<'_>,
+    contract: SurfaceDeclaration,
+    candidates: &[SurfaceDeclarationId],
+) -> Option<SurfaceDeclaration> {
+    candidates
+        .iter()
+        .map(|id| surface.declarations()[id.index()])
+        .find(|definition| {
+            has_reciprocal_source_visibility(surface, contract.source(), definition.source())
+        })
 }
 
 fn requires_representation(

@@ -107,6 +107,16 @@ construction under the grant's effective audience and checks every listed field 
 audience. The ordinary record initializer consumes the resulting schema. Compile-time evaluation
 and native lowering retain the written initializer order and the schema's field identities.
 
+### Scalar Enum Declarations
+
+The [enum contract](../../spec/language/structs-and-enums.md#public-and-opaque-schemas) selects
+one braced schema from the declaring source or the opaque contract's paired implementation.
+The common nominal authority reserves its variant IDs in declaration order and publishes the
+schema after validation. The effective Copy property comes from the contract and schema
+exposure. Variant lookup checks the original schema's audience or direct source visibility,
+including when an alias names the same type. Type-owned callable names and variant names share
+the owner's namespace.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

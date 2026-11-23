@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind nongeneric scalar enum declarations from the physical module sources. Pair opaque roots
-with one complete definition, retain original variant identities and visibility, and use that same
-schema for payloadless construction and compile-time/native representation.
+Carry payloadless variants from the selected nominal declaration through value checking,
+required evaluation and native storage. Preserve source visibility, Copy and exact variant
+identity while selecting the physical tag width from the complete schema.
 
 ## Remaining Contextual Representation Qualification
 
@@ -709,6 +709,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Reserve and publish record and scalar enum schemas in one nominal authority. Verify
   define-once identities, declaration-order variants, atomic invalid-schema rejection and the
   selected Copy contract for a scalar enum inside a containing record.
+- [x] Bind scalar enum declarations in the physical source catalog. Qualify braced and opaque
+  contracts, original variant audiences, complete Copy policy, correspondence, and collisions
+  with variant or type-owned callable names.
 - [ ] Qualify nongeneric scalar enum schemas and payloadless variant construction through
   ordinary source. Preserve original variant order and audiences, reject incomplete or
   conflicting schemas, and carry one selected tag through required and native execution.
