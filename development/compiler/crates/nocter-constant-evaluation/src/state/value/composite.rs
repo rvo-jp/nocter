@@ -53,6 +53,22 @@ impl Data {
             .and_then(|n| n.checked_add(1))
             .ok_or(Rule::StorageLimit)
     }
+    pub(in crate::state) fn selected_component(
+        &self,
+        coordinate: super::Coordinate,
+    ) -> Option<&Value> {
+        match (self, coordinate) {
+            (
+                Self::Enum {
+                    tag: active,
+                    fields,
+                },
+                super::Coordinate::EnumField { tag, field },
+            ) if *active == tag => fields.get(field),
+            (_, super::Coordinate::Field(index)) => self.component(index),
+            _ => None,
+        }
+    }
     pub(in crate::state) fn component(&self, index: usize) -> Option<&Value> {
         match self {
             Self::Aggregate(fields) => fields.get(index),

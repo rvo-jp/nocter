@@ -120,6 +120,11 @@ impl Type {
             _ => None,
         }
     }
+    /// Select field metadata for a declared case. The value's active case is checked separately.
+    #[must_use]
+    pub fn enum_field(&self, tag: u64, field: usize) -> Option<usize> {
+        self.enum_case_fields(tag)?.get(field).copied()
+    }
     fn component_count(&self) -> Option<u64> {
         match self {
             Self::Record(fields) => u64::try_from(fields.len()).ok(),

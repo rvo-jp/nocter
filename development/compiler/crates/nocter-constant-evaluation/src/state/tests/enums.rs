@@ -190,6 +190,167 @@ fn enum_dispatch_validates_the_active_payload_without_qualifying_other_cases() {
     }
 }
 
+fn nested_payload_types() -> [Type; 6] {
+    let nominal = ArenaBuilder::<nocter_model::NominalTypeId, ()>::new().insert(());
+    // Both variants have the same field shape and ordinal.
+    [
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Bool,
+        Type::Integer(nocter_model::BuiltinType::Usize),
+        Type::Array {
+            element: 0,
+            length: 4,
+        },
+        Type::Record(Box::new([1, 3])),
+        Type::Enum {
+            nominal,
+            cases: Box::new([Box::new([4]), Box::new([4])]),
+        },
+    ]
+}
+
+fn payload_paths(tag: u64, field: usize) -> Plan {
+    let mut plan = literal();
+    let mut slots = owned_slots([5, 5, 2, 0, 0]).to_vec();
+    slots.extend([
+        Slot {
+            data: 4,
+            storage: Storage::Alias,
+        },
+        Slot {
+            data: 0,
+            storage: Storage::Owned,
+        },
+    ]);
+    plan.slots = slots.into();
+    let index = Projection::Index { slot: 2, bound: 4 };
+    let case = Projection::EnumField { tag, field };
+    let selected = Place {
+        slot: 5,
+        fields: vec![Projection::Field(1), index].into(),
+    };
+    let array_pattern = [case, Projection::Field(1), index];
+    let projected = |slot| Place {
+        slot,
+        fields: array_pattern.to_vec().into(),
+    };
+    let copy = |source, slot| Operation::Copy {
+        source,
+        destination: Place::root(slot),
+    };
+    let mut dispose = action(
+        copy(projected(1), 4),
+        &[0, 1, 2, 3],
+        vec![
+            Effect::Construct(4),
+            Effect::Release(Place::root(0)),
+            Effect::Dispose(Place::root(1)),
+            Effect::Dispose(Place::root(2)),
+        ],
+    );
+    dispose.alternatives[0]
+        .owned
+        .insert(0, Box::new([projected(0).fields.into()]));
+    let mut points = ArenaBuilder::new();
+    plan.entry = points.insert(Point {
+        actions: Box::new([
+            acquire_literal(
+                0,
+                Value::enumeration(
+                    1,
+                    vec![Value::aggregate(vec![
+                        Value::boolean(true),
+                        Value::aggregate([10, 20, 30, 40].map(Value::integer)),
+                    ])],
+                ),
+                &[],
+            ),
+            action(copy(Place::root(0), 1), &[0], vec![Effect::Construct(1)]),
+            acquire_literal(2, Value::integer(2), &[0, 1]),
+            acquire_literal(3, Value::integer(12), &[0, 1, 2]),
+            action(
+                Operation::Alias {
+                    destination: 5,
+                    source: Place {
+                        slot: 0,
+                        fields: vec![case].into(),
+                    },
+                },
+                &[0, 1, 2, 3],
+                vec![Effect::Replace {
+                    source: Place::root(3),
+                    destination: selected.clone(),
+                }],
+            ),
+            action(
+                Operation::None,
+                &[0, 1, 2],
+                vec![Effect::Move {
+                    source: projected(0),
+                    destination: Place::root(3),
+                }],
+            ),
+            dispose,
+            action(
+                Operation::Binary {
+                    destination: Place::root(6),
+                    operation: crate::CompileTimeBinaryOperation::Add,
+                    left: Place::root(3),
+                    right: Place::root(4),
+                },
+                &[3, 4],
+                vec![
+                    Effect::Construct(6),
+                    Effect::Dispose(Place::root(3)),
+                    Effect::Dispose(Place::root(4)),
+                ],
+            ),
+        ]),
+        terminator: Terminator::Return(Place::root(6)),
+    });
+    plan.points = points.finish();
+    plan
+}
+
+fn acquire_literal(slot: usize, value: Value, owned: &[usize]) -> Action {
+    action(
+        Operation::Literal {
+            destination: slot,
+            value,
+        },
+        owned,
+        vec![Effect::Construct(slot)],
+    )
+}
+
+#[test]
+fn enum_coordinates_keep_aliases_copies_and_retired_array_elements_exact() {
+    let (id, _) = code_ids();
+    let build = |tag, field| {
+        Program::new(
+            nested_payload_types(),
+            BTreeMap::from([(id.into(), payload_paths(tag, field))]),
+            BTreeMap::new(),
+        )
+    };
+    let mut budget = Budget::new(Limits::default());
+    let program = build(1, 0).unwrap();
+    let actual = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(id)
+        .unwrap();
+    assert_eq!(actual, Value::integer(42));
+    drop(actual);
+
+    let wrong_case = build(0, 0).unwrap();
+    let error = Executor::new(&wrong_case, &mut budget, 0)
+        .evaluate_initializer(id)
+        .unwrap_err();
+    assert_eq!(error.rule, Rule::InvalidPlan);
+    assert!(build(1, 1).is_err());
+    assert!(build(2, 0).is_err());
+    assert_eq!(budget.storage_used(), 0);
+}
+
 #[test]
 fn enum_leaf_stays_intact_when_a_neighboring_outcome_widens() {
     use super::super::transport;

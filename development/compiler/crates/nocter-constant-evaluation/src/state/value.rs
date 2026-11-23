@@ -2,6 +2,7 @@
 use super::{
     Rule,
     budget::{Lease, Storage},
+    projection::Coordinate,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -151,19 +152,33 @@ impl Value {
     pub(super) fn component_mut(
         &mut self,
         storage: &Storage,
-        index: usize,
+        field: Coordinate,
     ) -> Result<&mut Self, Rule> {
         let node = self.unique_node(storage)?;
-        match &mut node.data {
-            Data::Aggregate(fields) => fields.get_mut(index).ok_or(Rule::InvalidPlan),
-            Data::Variant { primary, payload } if index == usize::from(!*primary) => {
+        match (&mut node.data, field) {
+            (
+                Data::Enum {
+                    tag: active,
+                    fields,
+                },
+                Coordinate::EnumField { tag, field },
+            ) if *active == tag => fields.get_mut(field).ok_or(Rule::InvalidPlan),
+            (Data::Aggregate(fields), Coordinate::Field(index)) => {
+                fields.get_mut(index).ok_or(Rule::InvalidPlan)
+            }
+            (Data::Variant { primary, payload }, Coordinate::Field(index))
+                if index == usize::from(!*primary) =>
+            {
                 payload.as_mut().ok_or(Rule::InvalidPlan)
             }
-            Data::Repeated {
-                element,
-                length,
-                replacements,
-            } => {
+            (
+                Data::Repeated {
+                    element,
+                    length,
+                    replacements,
+                },
+                Coordinate::Field(index),
+            ) => {
                 let index = u64::try_from(index).map_err(|_| Rule::InvalidPlan)?;
                 if index >= length.get() {
                     return Err(Rule::InvalidPlan);

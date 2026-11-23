@@ -1,5 +1,5 @@
 //! One sparse retirement frontier for an owning evaluator slot, including moved prefixes.
-use super::{Path, Result, Rule, Storage};
+use super::{Coordinate, Path, Result, Rule, Storage};
 use crate::state::budget::Resident;
 use std::collections::BTreeMap;
 
@@ -13,25 +13,25 @@ pub(in crate::state) struct Ownership {
     holes: BTreeMap<Hole, Resident<()>>,
 }
 impl Hole {
-    fn contains(&self, path: &[usize]) -> bool {
+    fn contains(&self, path: &[Coordinate]) -> bool {
         match self {
             Self::Value(hole) => path.starts_with(hole),
             Self::Array { base, start, end } => {
                 path.starts_with(base)
                     && path
                         .get(base.len())
-                        .and_then(|&i| u64::try_from(i).ok())
+                        .and_then(|index| index.array_index())
                         .is_some_and(|i| *start <= i && i < *end)
             }
         }
     }
-    fn under(&self, path: &[usize]) -> bool {
+    fn under(&self, path: &[Coordinate]) -> bool {
         match self {
             Self::Value(hole) => hole.starts_with(path),
             Self::Array { base, .. } => base.starts_with(path),
         }
     }
-    fn overlaps(&self, path: &[usize]) -> bool {
+    fn overlaps(&self, path: &[Coordinate]) -> bool {
         self.contains(path) || self.under(path)
     }
     fn overlaps_array(&self, base: &Path, start: u64, end: u64) -> bool {
@@ -52,7 +52,7 @@ impl Hole {
         selected.starts_with(base)
             && selected
                 .get(base.len())
-                .and_then(|&i| u64::try_from(i).ok())
+                .and_then(|index| index.array_index())
                 .is_some_and(|i| start <= i && i < end)
     }
 }

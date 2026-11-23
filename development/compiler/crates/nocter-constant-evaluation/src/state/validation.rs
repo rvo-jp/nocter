@@ -64,6 +64,11 @@ pub(super) fn project_data(
                 .get(data)
                 .and_then(|ty| ty.component(*field))
                 .ok_or(INVALID)?,
+            super::Projection::EnumField { tag, field } => program
+                .types
+                .get(data)
+                .and_then(|ty| ty.enum_field(*tag, *field))
+                .ok_or(INVALID)?,
             super::Projection::Index { slot, bound } => {
                 let snapshot = slots.get(*slot).ok_or(INVALID)?;
                 if snapshot.storage != Storage::Owned

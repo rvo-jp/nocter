@@ -2,15 +2,46 @@
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Projection {
     Field(usize),
-    Index { slot: usize, bound: u64 },
+    /// A field of one declared enum case. Resolving it requires that case to be active.
+    EnumField {
+        tag: u64,
+        field: usize,
+    },
+    Index {
+        slot: usize,
+        bound: u64,
+    },
 }
+
+/// An address with any dynamic array selections resolved to their saved indices.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum Coordinate {
+    Field(usize),
+    EnumField { tag: u64, field: usize },
+}
+impl Coordinate {
+    pub(super) fn array_index(self) -> Option<u64> {
+        match self {
+            Self::Field(index) => u64::try_from(index).ok(),
+            Self::EnumField { .. } => None,
+        }
+    }
+
+    pub(super) fn data(self, ty: &super::Type) -> Option<usize> {
+        match self {
+            Self::Field(index) => ty.component(index),
+            Self::EnumField { tag, field } => ty.enum_field(tag, field),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ProjectionPath(Box<[Projection]>);
 impl ProjectionPath {
     pub fn indices(&self) -> impl Iterator<Item = (usize, u64)> + '_ {
         self.iter().filter_map(|projection| match *projection {
             Projection::Index { slot, bound } => Some((slot, bound)),
-            Projection::Field(_) => None,
+            Projection::Field(_) | Projection::EnumField { .. } => None,
         })
     }
 }

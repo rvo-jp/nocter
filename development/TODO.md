@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Retain the selected enum case in evaluator address paths. Validate the active tag when following
-its field, preserve copies and writable aliases through nested tuples and arrays, and keep sparse
-ownership coordinates exact before connecting named source bindings.
+Qualify scoped read and edit bindings in enum branches. Connect the prepared scrutinee and exact
+case evidence to payload aliases, preserve the ordinary lifetime and update rules, and exercise
+the same typed projections in required evaluation and native execution.
 
 ## Remaining Contextual Representation Qualification
 
@@ -752,7 +752,7 @@ not a language restriction derived from the current realization boundary.
 - [x] Permit exact enum leaves in guarded evaluator transport of enclosing carriers. Retain each
   frozen active case and field value while rejecting substitution of a distinct nominal enum.
 - [x] Qualify the written arity of enum payload patterns and cases whose positions are discarded.
-- [ ] Carry validated enum case identities in evaluator field projections and aliases. Keep active
+- [x] Carry validated enum case identities in evaluator field projections and aliases. Keep active
   tag validation and exact nested paths through reads, updates, and the ownership ledger.
 - [ ] Qualify named enum payload patterns with scoped read/edit bindings and take decomposition of
   active fields. Preserve the prepared scrutinee, ownership ordering and cleanup on all exits.

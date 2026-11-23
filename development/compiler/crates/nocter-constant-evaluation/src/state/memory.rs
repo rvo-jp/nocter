@@ -1,4 +1,5 @@
 mod ownership;
+use super::projection::Coordinate;
 use super::slot_types::SlotTypes;
 use super::{
     Missing, Place, Projection, ProjectionPath, Rule, Slot, Storage as SlotStorage, Value,
@@ -13,19 +14,22 @@ use std::{
     sync::Arc,
 };
 struct PathData {
-    fields: Box<[usize]>,
+    fields: Box<[Coordinate]>,
     _allocation: Lease,
 }
 #[derive(Clone, Default)]
 pub(super) struct Path(Option<Arc<PathData>>);
 impl Path {
     pub(super) fn extended(&self, storage: &Storage, tail: &[usize]) -> Result<Self> {
-        self.extended_with(storage, tail.iter().copied().map(Ok))
+        self.extended_with(
+            storage,
+            tail.iter().map(|&index| Ok(Coordinate::Field(index))),
+        )
     }
     fn extended_with(
         &self,
         storage: &Storage,
-        tail: impl ExactSizeIterator<Item = Result<usize>>,
+        tail: impl ExactSizeIterator<Item = Result<Coordinate>>,
     ) -> Result<Self> {
         if tail.len() == 0 {
             return Ok(self.clone());
@@ -48,8 +52,8 @@ impl Path {
     }
 }
 impl Deref for Path {
-    type Target = [usize];
-    fn deref(&self) -> &[usize] {
+    type Target = [Coordinate];
+    fn deref(&self) -> &[Coordinate] {
         self.0.as_ref().map_or(&[], |p| p.fields.as_ref())
     }
 }
@@ -217,9 +221,11 @@ impl Memory {
         base.extended_with(
             &self.storage,
             fields.iter().map(|projection| match *projection {
-                Projection::Field(field) => Ok(field),
+                Projection::Field(field) => Ok(Coordinate::Field(field)),
+                Projection::EnumField { tag, field } => Ok(Coordinate::EnumField { tag, field }),
                 Projection::Index { slot, bound } => {
                     usize::try_from(self.snapshot_index(frame, slot, bound)?)
+                        .map(Coordinate::Field)
                         .map_err(|_| Rule::StorageLimit)
                 }
             }),
@@ -261,7 +267,7 @@ impl Memory {
             .get(place.slot)
             .ok_or(Rule::InvalidPlan)?
             .storage;
-        match current.cells.get(&place.slot).map(|entry| &entry.value) {
+        let address = match current.cells.get(&place.slot).map(|entry| &entry.value) {
             Some(Cell::Alias(base)) if role == SlotStorage::Alias => {
                 if let Root::Local { frame, slot } = base.root {
                     let root = self
@@ -304,16 +310,28 @@ impl Memory {
                 },
                 fields: self.resolve_path(frame, &place.fields)?,
             }),
+        }?;
+        // Even effects that only mutate ownership and aliases without uses must establish
+        // the selected case. Physically retained components keep their tag after retirement.
+        if let Some(last) = address
+            .fields
+            .iter()
+            .rposition(|field| matches!(field, Coordinate::EnumField { .. }))
+        {
+            self.read_path(address.root, &address.fields[..=last])?;
         }
+        Ok(address)
     }
     pub fn read(&self, address: &Address) -> Result<Value> {
-        let mut value = match address.root {
+        Ok(self.read_path(address.root, &address.fields)?.clone())
+    }
+    fn read_path(&self, root: Root, fields: &[Coordinate]) -> Result<&Value> {
+        let mut value = match root {
             Root::Static(id) => self
                 .globals
                 .get(&id)
-                .ok_or(Rule::InvalidPlan)?
-                .value
-                .clone(),
+                .map(|entry| &entry.value)
+                .ok_or(Rule::InvalidPlan)?,
             Root::Local { frame, slot } => {
                 let Some(Cell::Data(value)) = self
                     .frames
@@ -323,15 +341,14 @@ impl Memory {
                 else {
                     return Err(Rule::InvalidPlan);
                 };
-                value.clone()
+                value
             }
         };
-        for &field in address.fields.iter() {
+        for &field in fields {
             value = value
                 .data()
-                .component(field)
-                .ok_or(Rule::InvalidPlan)?
-                .clone();
+                .selected_component(field)
+                .ok_or(Rule::InvalidPlan)?;
         }
         Ok(value)
     }
@@ -402,7 +419,7 @@ impl Memory {
             || selected
                 .fields
                 .last()
-                .and_then(|&index| u64::try_from(index).ok())
+                .and_then(|index| index.array_index())
                 .is_none_or(|index| index >= length)
             || self
                 .frames
@@ -429,12 +446,12 @@ impl Memory {
         Ok(())
     }
 }
-fn type_path(program: &super::Program, mut data: usize, fields: &[usize]) -> Result<usize> {
+fn type_path(program: &super::Program, mut data: usize, fields: &[Coordinate]) -> Result<usize> {
     for &field in fields {
         data = program
             .types
             .get(data)
-            .and_then(|ty| ty.component(field))
+            .and_then(|ty| field.data(ty))
             .ok_or(Rule::InvalidPlan)?;
     }
     Ok(data)

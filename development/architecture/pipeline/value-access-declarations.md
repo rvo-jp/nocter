@@ -147,6 +147,11 @@ case from prepared field owners using the same metered staging as aggregate cons
 Tag tests and dispatch inspect the stored case. Only the selected case's fields participate in
 validating an evaluator value.
 
+Evaluator field addresses carry the declared case and field ordinals through alias resolution.
+Resolving a path checks each selected case against the current value before binding an alias or
+changing its ownership state. Nested array indices use their saved bounded values. Copies,
+writable aliases and the sparse retirement frontier share these exact paths.
+
 An enum assembly carries one selected case from the ownership ledger into lowering. The ledger
 validates its ordered fields before retiring the prepared owners. The native operation writes the
 fields at their declared offsets and commits the tag after those writes. The same receipt supplies

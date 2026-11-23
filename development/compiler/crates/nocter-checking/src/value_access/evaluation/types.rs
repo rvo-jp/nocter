@@ -220,6 +220,11 @@ impl Types {
                     .get(data)
                     .and_then(|shape| shape.ty.component(index))
                     .ok_or(INVALID)?,
+                Projection::EnumField { tag, field } => self
+                    .shapes
+                    .get(data)
+                    .and_then(|shape| shape.ty.enum_field(tag, field))
+                    .ok_or(INVALID)?,
                 Projection::Index { bound, .. } => self.array_element(data, bound)?,
             };
         }

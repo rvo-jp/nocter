@@ -1,4 +1,5 @@
 //! Live working storage: sharing, bounded peaks, failed cleanup and copy-on-write.
+use super::projection::Coordinate;
 use super::{budget::Storage as MeteredStorage, *};
 use std::num::NonZeroU64;
 
@@ -159,7 +160,9 @@ fn insufficient_space_rejects_shared_path_copy_before_mutation() {
     let record = budget.storage.aggregate([leaf].into_iter()).unwrap();
     let mut edited = record.clone();
     assert_eq!(
-        edited.component_mut(&budget.storage, 0).unwrap_err(),
+        edited
+            .component_mut(&budget.storage, Coordinate::Field(0))
+            .unwrap_err(),
         Rule::StorageLimit
     );
     assert_eq!(edited, record);
@@ -393,10 +396,14 @@ fn sparse_repetition_edits_share_defaults_and_replace_entries_without_write_hist
     let snapshot = edited.clone();
     let replacement = integer(&budget.storage, 2);
     let before = budget.storage_used();
-    *edited.component_mut(&budget.storage, 0).unwrap() = replacement;
+    *edited
+        .component_mut(&budget.storage, Coordinate::Field(0))
+        .unwrap() = replacement;
     assert_eq!(budget.storage_used(), before + 4); // copied default edge/node and one sparse key/value
     let after = budget.storage_used();
-    *edited.component_mut(&budget.storage, 0).unwrap() = integer(&budget.storage, 3);
+    *edited
+        .component_mut(&budget.storage, Coordinate::Field(0))
+        .unwrap() = integer(&budget.storage, 3);
     assert_eq!(budget.storage_used(), after);
     assert_eq!(edited.data().component(0).unwrap(), &Value::integer(3));
     assert_eq!(edited.data().component(1).unwrap(), &Value::integer(1));
@@ -420,7 +427,9 @@ fn repeated_and_listed_values_compare_logical_components_including_replaced_defa
         ))
         .unwrap();
     for index in 0..2 {
-        *value.component_mut(&budget.storage, index).unwrap() = integer(&budget.storage, 2);
+        *value
+            .component_mut(&budget.storage, Coordinate::Field(index))
+            .unwrap() = integer(&budget.storage, 2);
     }
     assert_eq!(value, Value::aggregate(vec![Value::integer(2); 2]));
     assert_eq!(
@@ -454,8 +463,8 @@ fn failed_compact_imports_and_sparse_copy_on_write_release_every_charge() {
             let snapshot = value.clone();
             let replacement = budget.storage.primitive(Data::Integer(2))?;
             *value
-                .component_mut(&budget.storage, 0)?
-                .component_mut(&budget.storage, 0)? = replacement;
+                .component_mut(&budget.storage, Coordinate::Field(0))?
+                .component_mut(&budget.storage, Coordinate::Field(0))? = replacement;
             assert_eq!(snapshot, source);
             assert_eq!(
                 value.data().component(1).unwrap(),
