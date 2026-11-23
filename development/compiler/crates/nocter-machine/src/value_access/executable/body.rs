@@ -362,10 +362,10 @@ impl<'a> Builder<'a> {
                             nocter_model::ValueInputOperation::Take => {
                                 builder.copy(&field.source, &field.destination)?;
                             }
-                            nocter_model::ValueInputOperation::Read => {
+                            nocter_model::ValueInputOperation::Read
+                            | nocter_model::ValueInputOperation::Edit => {
                                 builder.bind_address(field.destination.slot, &field.source)?;
                             }
-                            nocter_model::ValueInputOperation::Edit => return Err(Self::invalid()),
                         }
                     }
                     Ok(())

@@ -11,7 +11,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct OwnedValue {
     pub payload: Payload,
-    pub retained_reads: Option<Arc<[super::ActivationRead]>>,
+    pub retained_accesses: Option<Arc<[super::ActivationAccess]>>,
     // Prefix-free unavailable selections. Do not merge missing siblings into their parent:
     // the parent container still exists and permits restoring an individual child.
     pub missing: BTreeSet<Missing>,
@@ -24,7 +24,7 @@ impl OwnedValue {
     pub fn new(payload: Payload) -> Self {
         Self {
             payload,
-            retained_reads: None,
+            retained_accesses: None,
             missing: BTreeSet::new(),
         }
     }

@@ -422,6 +422,10 @@ impl Histories {
             Operation::CommitCall(call) => {
                 self.call_writes(typed, cells.call_writes.at(call), phases, state, seen);
             }
+            Operation::DriveFuture { .. } => {
+                // Producer write footprints are not yet projected into this graph.
+                self.call_writes(typed, None, phases, state, seen);
+            }
             Operation::Bind { local, .. } | Operation::Drop(local) => {
                 self.local_epoch(phases, state, seen, local);
             }

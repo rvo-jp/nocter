@@ -3,7 +3,9 @@
 use super::{IntegrityError, Location};
 use crate::value_access::{Argument, Query as TypedQuery};
 use nocter_declarations::value_access::{PayloadSchema, Program};
-use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId};
+use nocter_model::{
+    AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId, ValueInputOperation,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod assembly;
@@ -136,15 +138,29 @@ impl Payload {
     }
 }
 
-/// A take input whose descriptor suffices for local activation storage.
-/// The call must supply this exact payload and independently qualify cancellation.
+/// A closed input whose descriptor suffices for local activation storage.
+/// Edits require a stable scalar: completion must leave the original representation
+/// initialized with no dependent access or disposal to write back.
 pub(in crate::value_access) fn local_future_input(
     program: &Program,
     data: TypeId,
+    operation: ValueInputOperation,
 ) -> Option<Payload> {
     let key = program.instantiate_closed_data(data).ok()?;
     if !key.is_context_free() {
         return None;
+    }
+    if operation == ValueInputOperation::Edit {
+        let PayloadSchema::Builtin(builtin) = program.data_schema(data)? else {
+            return None;
+        };
+        if builtin != BuiltinType::Bool
+            && nocter_model::BuiltinNumericType::for_builtin(builtin)
+                .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                .is_none()
+        {
+            return None;
+        }
     }
     let payload = payload(program, data).ok()?;
     matches!(
@@ -163,19 +179,20 @@ pub(super) struct FutureActivation<'a> {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ActivationInput<P> {
     Take { source: Place, payload: P },
-    Read(ActivationRead),
+    Access(ActivationAccess),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct ActivationRead {
-    pub source: ActivationReadSource,
+pub struct ActivationAccess {
+    pub source: ActivationAccessSource,
     pub data: TypeId,
+    pub operation: ValueInputOperation,
     pub region: super::access::Region,
     pub created: Location,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum ActivationReadSource {
+pub enum ActivationAccessSource {
     Existing(crate::value_access::Referent),
     Temporary {
         call: AccessExpressionId,
@@ -183,12 +200,12 @@ pub enum ActivationReadSource {
     },
 }
 
-impl ActivationRead {
+impl ActivationAccess {
     pub(in crate::value_access::flow) fn retained_access(&self) -> super::access::RetainedAccess {
         use super::access::{Creation, RetainedAccess, RetentionKind};
         RetainedAccess {
             created: Creation::Action(self.created),
-            kind: RetentionKind::Access(nocter_model::ValueAccessMode::Read),
+            kind: RetentionKind::Access(self.operation.access_mode()),
             required: None,
         }
     }
@@ -197,10 +214,9 @@ impl ActivationRead {
 impl ActivationInput<Payload> {
     #[must_use]
     pub fn contract(&self) -> nocter_declarations::value_access::FunctionInput {
-        use nocter_model::ValueInputOperation;
         let (data, operation) = match self {
             Self::Take { payload, .. } => (payload.data(), ValueInputOperation::Take),
-            Self::Read(read) => (read.data, ValueInputOperation::Read),
+            Self::Access(access) => (access.data, access.operation),
         };
         nocter_declarations::value_access::FunctionInput { data, operation }
     }
@@ -245,16 +261,13 @@ pub(super) fn future_activation(
         .zip(declaration.parameters())
         .map(|(argument, &id)| {
             let parameter = program.parameters().get(id).ok_or(INVALID)?;
-            if !matches!(
-                argument.operation,
-                nocter_model::ValueInputOperation::Take | nocter_model::ValueInputOperation::Read
-            ) || parameter.operation() != argument.operation
-            {
+            if parameter.operation() != argument.operation {
                 return Err(INVALID);
             }
             Ok((
                 argument,
-                local_future_input(program, parameter.data()).ok_or(INVALID)?,
+                local_future_input(program, parameter.data(), parameter.operation())
+                    .ok_or(INVALID)?,
             ))
         })
         .collect::<Result<_>>()?;

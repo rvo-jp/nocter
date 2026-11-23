@@ -441,8 +441,8 @@ fn inputs(
     let mut cleanup = Vec::new();
     for (position, input) in fields.iter().enumerate().rev() {
         if input.operation == ValueInputOperation::Take {
-            let payload =
-                flow::resources::local_future_input(program, input.data).ok_or(INVALID)?;
+            let payload = flow::resources::local_future_input(program, input.data, input.operation)
+                .ok_or(INVALID)?;
             if payload.disposal() != Disposal::Trivial {
                 cleanup.push(FutureInputCleanup { position, payload });
             }

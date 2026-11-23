@@ -9,7 +9,7 @@ use nocter_checking::value_access::{
     flow::{
         self, Operation,
         resources::{
-            ActivationInput, ActivationReadSource, Disposal as CheckedDisposal, Holder, Step,
+            ActivationAccessSource, ActivationInput, Disposal as CheckedDisposal, Holder, Step,
         },
     },
 };
@@ -878,16 +878,17 @@ impl Builder<'_> {
                                 source: self.root(source.holder(), destination.data, false)?,
                                 destination,
                             },
-                            ActivationInput::Read(read) => Effect::BindAddress {
-                                source: match read.source {
-                                    ActivationReadSource::Existing(referent) => {
+                            ActivationInput::Access(access) => Effect::BindAddress {
+                                source: match access.source {
+                                    ActivationAccessSource::Existing(referent) => {
                                         self.referent(referent, destination.data)?
                                     }
-                                    ActivationReadSource::Temporary { call, index } => self.root(
-                                        Holder::Temporary { call, index },
-                                        destination.data,
-                                        false,
-                                    )?,
+                                    ActivationAccessSource::Temporary { call, index } => self
+                                        .root(
+                                            Holder::Temporary { call, index },
+                                            destination.data,
+                                            false,
+                                        )?,
                                 },
                                 destination: destination.slot,
                             },

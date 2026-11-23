@@ -130,6 +130,77 @@ fn local_future_read_selection_checks_bounds_before_cancellation() {
 }
 
 #[test]
+fn local_future_edit_inputs_write_through_only_when_driven() {
+    let source = r"
+        struct Pair {
+            left: i32
+            right: i32
+        }
+        async func change(edit value: i32, take by: i32): i32 {
+            value += by
+            value
+        }
+        async func snapshot(take value: i32): i32 { value }
+        async func abandon(edit value: i32): i32 {
+            value = 100
+            value / (value - value)
+        }
+        async func nested(edit value: i32): i32 {
+            await change(value, 1)
+        }
+        func cancel_implicit(edit value: i32): void {
+            let pending = abandon(value)
+        }
+        async func run(): i32 {
+            var state = Pair { left: 20, right: 9 }
+            var iteration: i32 = 0
+            while iteration < 2 {
+                let pending = if iteration == 0 {
+                    change(state.left, 10)
+                } else {
+                    snapshot(state.left)
+                }
+                state.right += 1
+                let carried = pending^
+                let answer = await carried^
+                if state.left != 30 || answer != 30 { return 3 }
+                iteration += 1
+            }
+            let discarded = abandon(state.left)
+            drop discarded
+            cancel_implicit(state.left)
+            if state.left != 30 { return 4 }
+            let answer = await nested(state.left)
+            if answer != 31 { return 5 }
+            state.left + state.right
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "local-future-edit-inputs", 42);
+}
+
+#[test]
+fn local_future_edit_invalidates_the_previous_index_at_await() {
+    let source = r"
+        async func shift(edit index: usize): void { index += 2 }
+        async func run(): i32 {
+            let values = [3, 5]
+            var index: usize = 0
+            if values[index] != 3 { return 1 }
+            await shift(index)
+            values[index]
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_signal(
+        &compile(source),
+        &package.0,
+        "local-future-edit-new-bound",
+        5,
+    );
+}
+
+#[test]
 fn private_type_and_value_names_select_independently_through_native_execution() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

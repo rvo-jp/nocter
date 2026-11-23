@@ -199,6 +199,7 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
                     }
                 }
                 Operation::CommitCall(id) => body.calls.push(id),
+                Operation::DriveFuture { .. } => body.local = Writes::Unknown,
                 _ => {}
             }
         }

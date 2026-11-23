@@ -102,16 +102,20 @@ impl Drop for Fixture {
 
 #[test]
 fn async_contracts_match_before_future_admission() {
-    let contract = "see ./body.nct\nasync func run(edit result: i32): i32";
+    let contract = "see ./body.nct\nasync func run(edit result: [i32; 2]): i32";
     for (body, code, primary) in [
-        ("func run(edit result: i32): i32 { result }", "E0251", None),
         (
-            "async func run(edit result: i32): i32 { true }",
+            "func run(edit result: [i32; 2]): i32 { result[0] }",
+            "E0251",
+            None,
+        ),
+        (
+            "async func run(edit result: [i32; 2]): i32 { true }",
             "E0370",
             Some("true"),
         ),
         (
-            "async func run(edit result: i32): i32 { result }",
+            "async func run(edit result: [i32; 2]): i32 { result[0] }",
             "E0291",
             Some("async"),
         ),

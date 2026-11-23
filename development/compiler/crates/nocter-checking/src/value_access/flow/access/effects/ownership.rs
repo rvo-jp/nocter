@@ -1,6 +1,6 @@
 use super::super::super::{
     Operation,
-    resources::{self, ActivationInput, ActivationRead, ActivationReadSource, Holder},
+    resources::{self, ActivationAccess, ActivationAccessSource, ActivationInput, Holder},
 };
 use super::super::{AccessRule, Violation, liveness::Carrier, state::Prepared};
 use super::{Context, Failure, Result};
@@ -48,18 +48,18 @@ impl Context<'_, '_> {
                 _ => None,
             };
             if let Some(root) = root {
-                if let Some(read) = self
+                if let Some(access) = self
                     .world
                     .resources
-                    .retained_reads()
-                    .find(|read| read.region.root == root)
+                    .retained_accesses()
+                    .find(|access| access.region.root == root)
                 {
                     return Err(Violation {
                         location: self.at,
                         rule: AccessRule::ExpiredRoot,
                         root,
-                        fields: read.region.fields.clone(),
-                        retained: Some(read.retained_access()),
+                        fields: access.region.fields.clone(),
+                        retained: Some(access.retained_access()),
                     }
                     .into());
                 }
@@ -598,11 +598,11 @@ impl Context<'_, '_> {
         }
         let mut sources = Vec::with_capacity(activation.inputs.len());
         for (index, &(argument, expected)) in activation.inputs.iter().enumerate() {
-            if argument.operation == ValueInputOperation::Read {
-                sources.push(ActivationInput::Read(self.retain_activation_read(
+            if argument.operation != ValueInputOperation::Take {
+                sources.push(ActivationInput::Access(self.retain_activation_access(
                     call,
                     index,
-                    &argument.action,
+                    argument,
                     expected.data(),
                     &preparations[index],
                 )?));
@@ -635,24 +635,27 @@ impl Context<'_, '_> {
         )?;
         Ok(())
     }
-    fn retain_activation_read(
+    fn retain_activation_access(
         &mut self,
         call: AccessExpressionId,
         index: usize,
-        action: &ArgumentAction,
+        argument: &Argument,
         data: nocter_model::TypeId,
         prepared: &Prepared,
-    ) -> Result<ActivationRead> {
+    ) -> Result<ActivationAccess> {
         let Prepared::Reserved {
-            region,
-            permission: Mode::Read,
-            ..
+            region, permission, ..
         } = prepared
         else {
             return Err(Failure::Integrity);
         };
-        let source = match *action {
-            ArgumentAction::ReserveRead(referent) => {
+        let operation = argument.operation;
+        if *permission != operation.access_mode() {
+            return Err(Failure::Integrity);
+        }
+        let source = match (operation, &argument.action) {
+            (ValueInputOperation::Read, ArgumentAction::ReserveRead(referent))
+            | (ValueInputOperation::Edit, ArgumentAction::ReserveUpdate(referent)) => {
                 if matches!(
                     region.root,
                     super::Root::Expression(_) | super::Root::Temporary { .. }
@@ -666,9 +669,9 @@ impl Context<'_, '_> {
                     }
                     .into());
                 }
-                ActivationReadSource::Existing(referent)
+                ActivationAccessSource::Existing(*referent)
             }
-            ArgumentAction::AccessOwnedValue
+            (ValueInputOperation::Read, ArgumentAction::AccessOwnedValue)
                 if region.root == (super::Root::Temporary { call, index }) =>
             {
                 self.commit_temporary_input(
@@ -676,13 +679,14 @@ impl Context<'_, '_> {
                     index,
                     &Holder::Prepared { call, index }.place(),
                 )?;
-                ActivationReadSource::Temporary { call, index }
+                ActivationAccessSource::Temporary { call, index }
             }
             _ => return Err(Failure::Integrity),
         };
-        Ok(ActivationRead {
+        Ok(ActivationAccess {
             source,
             data,
+            operation,
             region: region.clone(),
             created: self.at,
         })

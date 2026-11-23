@@ -35,14 +35,10 @@ pub(super) fn require_local_activation(
     let inputs_are_represented = code.parameters().iter().all(|&id| {
         program.parameters().get(id).is_some_and(|parameter| {
             use nocter_model::ValueInputOperation;
-            flow::resources::local_future_input(program, parameter.data()).is_some()
-                && match parameter.operation() {
-                    ValueInputOperation::Take => {
-                        local_data(program, parameter.data(), cancellation, &mut known)
-                    }
-                    ValueInputOperation::Read => true,
-                    ValueInputOperation::Edit => false,
-                }
+            flow::resources::local_future_input(program, parameter.data(), parameter.operation())
+                .is_some()
+                && (parameter.operation() != ValueInputOperation::Take
+                    || local_data(program, parameter.data(), cancellation, &mut known))
         })
     });
     if !inputs_are_represented || !local_data(program, output, DataUse::Output, &mut known) {

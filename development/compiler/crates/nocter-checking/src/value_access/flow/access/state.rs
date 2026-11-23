@@ -54,8 +54,8 @@ impl World {
             .map(|node| node.region.clone())
             .chain(
                 self.resources
-                    .retained_reads()
-                    .map(|read| read.region.clone()),
+                    .retained_accesses()
+                    .map(|access| access.region.clone()),
             )
             .chain(
                 self.prepared
@@ -380,23 +380,23 @@ impl World {
         tag_only: bool,
     ) -> Result<(), Violation> {
         self.check_lifetime(region, location)?;
-        if permission != Mode::Read
-            && let Some(read) = self
-                .resources
-                .retained_reads()
-                .find(|read| read.region.overlaps(region))
-        {
-            return Err(Violation {
-                location,
-                rule: if permission == Mode::Update {
-                    AccessRule::ConflictingUpdate
-                } else {
-                    AccessRule::ConflictingTransfer
-                },
-                root: region.root,
-                fields: region.fields.clone(),
-                retained: Some(read.retained_access()),
-            });
+        let conflict = |retained| Violation {
+            location,
+            rule: match permission {
+                Mode::Read => AccessRule::ConflictingRead,
+                Mode::Update => AccessRule::ConflictingUpdate,
+                Mode::Own => AccessRule::ConflictingTransfer,
+            },
+            root: region.root,
+            fields: region.fields.clone(),
+            retained: Some(retained),
+        };
+        if let Some(access) = self.resources.retained_accesses().find(|access| {
+            (permission != Mode::Read || access.operation.access_mode() == Mode::Update)
+                && access.region.overlaps(region)
+                && !(tag_only && access.region.inside_payload(region))
+        }) {
+            return Err(conflict(access.retained_access()));
         }
         let mut ancestors = BTreeSet::new();
         let mut cursor = actor;
@@ -418,21 +418,11 @@ impl World {
                 continue;
             }
             if permission != Mode::Read || node.kind == RetentionKind::Access(Mode::Update) {
-                return Err(Violation {
-                    location,
-                    rule: match permission {
-                        Mode::Read => AccessRule::ConflictingRead,
-                        Mode::Update => AccessRule::ConflictingUpdate,
-                        Mode::Own => AccessRule::ConflictingTransfer,
-                    },
-                    root: region.root,
-                    fields: region.fields.clone(),
-                    retained: Some(RetainedAccess {
-                        created: node.created,
-                        kind: node.kind,
-                        required: self.witness(key, location, live),
-                    }),
-                });
+                return Err(conflict(RetainedAccess {
+                    created: node.created,
+                    kind: node.kind,
+                    required: self.witness(key, location, live),
+                }));
             }
         }
         Ok(())

@@ -201,7 +201,9 @@ impl<P> Step<P> {
                                 source: source.clone(),
                                 payload: map(PayloadSite::Source(source), payload)?,
                             },
-                            ActivationInput::Read(read) => ActivationInput::Read(read.clone()),
+                            ActivationInput::Access(access) => {
+                                ActivationInput::Access(access.clone())
+                            }
                         })
                     })
                     .collect::<std::result::Result<_, E>>()?,

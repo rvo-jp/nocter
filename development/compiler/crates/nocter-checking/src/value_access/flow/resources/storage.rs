@@ -1,6 +1,6 @@
 //! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
 use super::{
-    ActivationInput, ActivationRead, Disposal, Frame, Holder, INVALID, Missing, OwnedValue,
+    ActivationAccess, ActivationInput, Disposal, Frame, Holder, INVALID, Missing, OwnedValue,
     Payload, Place, Program, Result, State, Step, TypedQuery, payload,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
@@ -244,7 +244,7 @@ impl State {
     ) -> Result<()> {
         let mut staged = self.clone();
         let mut inputs = Vec::with_capacity(sources.len());
-        let mut retained_reads = Vec::new();
+        let mut retained_accesses = Vec::new();
         let mut changes = Vec::new();
         for input in sources {
             match input {
@@ -255,17 +255,17 @@ impl State {
                         return Err(INVALID);
                     }
                 }
-                ActivationInput::Read(read) => retained_reads.push(read.clone()),
+                ActivationInput::Access(access) => retained_accesses.push(access.clone()),
             }
             inputs.push(input.clone());
         }
         staged.insert(destination, payload, false)?;
-        if !retained_reads.is_empty() {
+        if !retained_accesses.is_empty() {
             staged
                 .owned
                 .get_mut(&destination)
                 .ok_or(INVALID)?
-                .retained_reads = Some(retained_reads.into());
+                .retained_accesses = Some(retained_accesses.into());
         }
         changes.push(Step::ConstructActivation {
             destination,
@@ -277,12 +277,12 @@ impl State {
         steps.extend(changes);
         Ok(())
     }
-    pub(in crate::value_access::flow) fn retained_reads(
+    pub(in crate::value_access::flow) fn retained_accesses(
         &self,
-    ) -> impl Iterator<Item = &ActivationRead> {
+    ) -> impl Iterator<Item = &ActivationAccess> {
         self.owned
             .values()
-            .flat_map(|value| value.retained_reads.iter().flat_map(|reads| reads.iter()))
+            .flat_map(|value| value.retained_accesses.as_deref().into_iter().flatten())
     }
     pub fn receive(
         &mut self,
@@ -366,7 +366,7 @@ impl State {
             staged.clear(program, destination, true, &mut changes)?;
         }
         staged.install(program, destination, value, outer)?;
-        if let Some(reads) = moved.retained_reads {
+        if let Some(accesses) = moved.retained_accesses {
             if !destination.fields().is_root() {
                 return Err(INVALID);
             }
@@ -374,7 +374,7 @@ impl State {
                 .owned
                 .get_mut(&destination.holder())
                 .ok_or(INVALID)?
-                .retained_reads = Some(reads);
+                .retained_accesses = Some(accesses);
         }
         changes.push(Step::Move {
             source: source.clone(),

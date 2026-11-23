@@ -366,6 +366,11 @@ bounds check during preparation. The backend transports the saved address and di
 from a take input of the same data type. A fresh input can stay in its caller-owned evaluation
 slot through a local drive or cancellation. Ending that evaluation retires its storage in reverse
 construction order and diagnoses a retained access whose activation would survive it.
+Stable named scalar places also support deferred edit. Construction delegates exclusive access
+to the activation. A drive passes the saved address through the ordinary edit ABI, so the
+selected body updates the original place. Its normal exit must leave the scalar initialized.
+Unstarted cancellation releases that access without running the body. In the flow analysis,
+a drive invalidates caller facts whose preservation would need a producer write footprint.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
 A future type in a body uses a producer selector when a reached drive has multiple producers

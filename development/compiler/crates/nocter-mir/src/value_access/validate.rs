@@ -721,8 +721,7 @@ impl Context<'_> {
     fn future_input_slot(&self, place: &Place, mode: ValueInputOperation) -> bool {
         let storage = match mode {
             ValueInputOperation::Take => Storage::Payload,
-            ValueInputOperation::Read => Storage::Address,
-            ValueInputOperation::Edit => return false,
+            ValueInputOperation::Read | ValueInputOperation::Edit => Storage::Address,
         };
         place.projections.is_empty() && self.body.slots.get(place.slot).is_some_and(|slot| {
             slot.storage == storage

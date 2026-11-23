@@ -267,9 +267,18 @@ impl Checker<'_, '_> {
                     ValueInputOperation::Read,
                     ArgumentAction::ReserveRead(_) | ArgumentAction::AccessOwnedValue
                 )
+                | (
+                    ValueInputOperation::Edit,
+                    ArgumentAction::ReserveUpdate(super::Referent::Place(_))
+                )
         );
         supported
-            && super::flow::resources::local_future_input(self.program(), input.data).is_some()
+            && super::flow::resources::local_future_input(
+                self.program(),
+                input.data,
+                input.operation,
+            )
+            .is_some()
     }
 
     fn selected_call(

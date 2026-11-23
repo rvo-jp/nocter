@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify retained edit inputs with a stable scalar representation. Establish exclusivity at
-construction, use the retained address during a drive, and propagate the original writeback
-obligations. Verify that unstarted cancellation releases the access without committing edits.
+Qualify evaluated scalar edit places and fresh caller-owned edit temporaries as local future inputs.
+Preserve the address chosen during argument preparation and the original evaluation frame.
+Verify exclusive access, the bounds check, immediate drives and cancellation, and diagnose a
+temporary whose owner would otherwise expire while the future survives.
 
 ## Remaining Contextual Representation Qualification
 
@@ -822,6 +823,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain caller-owned fresh read inputs through an immediate drive or cancellation in the
   same evaluation. Verify that the native caller cleans a temporary compound with owned error
   nodes and that storing a longer-lived activation reports the actual expired source operand.
+- [x] Retain exclusive access to stable named scalar edit inputs, including fields. Verify the
+  source conflict after moving the activation, writes through the selected address on await,
+  release without writes on explicit and scoped cancellation, and bounds checks after a
+  nested drive edits the caller's index.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
