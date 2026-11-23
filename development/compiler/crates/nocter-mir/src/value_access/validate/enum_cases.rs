@@ -1,6 +1,5 @@
 //! An enum field address must be formed on its exact case edge, before effects can retag the input.
-use super::{Context, Effect, Failure, Operation, Place, Terminator};
-use nocter_model::MirLocalId;
+use super::{Context, Effect, Failure, Operation, Place, Storage, Terminator};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy)]
@@ -58,7 +57,7 @@ pub(super) fn validate(context: &Context<'_>) -> Result<(), Failure> {
             .flat_map(|path| &path.before)
             .chain(&action.call_bindings)
         {
-            retain(active, effect);
+            retain(context, active, effect);
         }
         for operation in &action.operations {
             match operation {
@@ -70,23 +69,41 @@ pub(super) fn validate(context: &Context<'_>) -> Result<(), Failure> {
                     context.require(*destination != edge.source.slot)?;
                     context.guarded_place(source, Some(edge))?;
                 }
-                Operation::Storage(effect) => retain(active, effect),
+                Operation::Copy { destination, .. }
+                    if active.is_some_and(|edge| isolated_write(context, edge, destination)) => {}
+                Operation::Storage(effect) => retain(context, active, effect),
                 _ => *active = None,
             }
         }
         for effect in action.alternatives.iter().flat_map(|path| &path.after) {
-            retain(active, effect);
+            retain(context, active, effect);
         }
     }
     Ok(())
 }
 
-fn retain(active: &mut Option<CaseEdge<'_>>, effect: &Effect) {
-    if active.is_some_and(|edge| !address_write_only(effect, edge.source.slot)) {
+fn retain(context: &Context<'_>, active: &mut Option<CaseEdge<'_>>, effect: &Effect) {
+    let Some(edge) = *active else { return };
+    let preserves = match effect {
+        Effect::BindAddress { destination, .. } => *destination != edge.source.slot,
+        Effect::Transfer { destination, .. }
+        | Effect::Initialize(destination)
+        | Effect::End(destination) => isolated_write(context, edge, destination),
+        _ => false,
+    };
+    if !preserves {
         *active = None;
     }
 }
 
-fn address_write_only(effect: &Effect, source: MirLocalId) -> bool {
-    matches!(effect, Effect::BindAddress { destination, .. } if *destination != source)
+fn isolated_write(context: &Context<'_>, edge: CaseEdge<'_>, destination: &Place) -> bool {
+    // Distinct payload slots cannot alias. An address slot can reference either payload.
+    edge.source.slot != destination.slot
+        && [edge.source.slot, destination.slot].into_iter().all(|id| {
+            context
+                .body
+                .slots
+                .get(id)
+                .is_some_and(|slot| slot.storage == Storage::Payload)
+        })
 }

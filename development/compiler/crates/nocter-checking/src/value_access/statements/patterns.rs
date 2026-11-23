@@ -5,7 +5,9 @@ use super::{
 };
 use crate::value_access::ir::{Boundary, ExpressionKind, SelectionAction, value_type};
 use nocter_declarations::value_access::{AggregateForm, Parameter, PayloadSchema};
-use nocter_model::{FieldPath, ValueAccess, ValueAccessMode as Mode, ValueField};
+use nocter_model::{
+    FieldPath, ValueAccess, ValueAccessMode as Mode, ValueField, ValueInputOperation,
+};
 use std::collections::BTreeSet;
 
 pub(in crate::value_access) struct Leaf {
@@ -17,12 +19,31 @@ pub(in crate::value_access) struct Leaf {
 }
 
 pub(in crate::value_access) struct BranchBindings {
-    pub pattern: NodeId,
-    pub source: AccessExpressionId,
-    pub kind: ValueBindingKind,
-    pub leaves: Vec<Leaf>,
+    source: AccessExpressionId,
+    kind: ValueBindingKind,
+    leaves: Vec<Leaf>,
 }
 impl BranchBindings {
+    pub(in crate::value_access) fn for_input(
+        source: AccessExpressionId,
+        operation: ValueInputOperation,
+        leaves: Vec<Leaf>,
+    ) -> Option<Self> {
+        if leaves.is_empty() && operation != ValueInputOperation::Take {
+            return None;
+        }
+        let kind = match operation {
+            ValueInputOperation::Read => ValueBindingKind::ReadAlias,
+            ValueInputOperation::Edit => ValueBindingKind::EditAlias,
+            ValueInputOperation::Take => ValueBindingKind::FixedValue,
+        };
+        Some(Self {
+            source,
+            kind,
+            leaves,
+        })
+    }
+
     pub(super) fn binds(&self, spelling: &str) -> bool {
         self.leaves.iter().any(|leaf| leaf.name == spelling)
     }
@@ -35,18 +56,34 @@ enum Carrier {
 }
 
 impl Checker<'_, '_> {
-    pub(super) fn form_case_bindings(
+    pub(in crate::value_access) fn form_case_bindings(
         &mut self,
-        bindings: BranchBindings,
+        node: NodeId,
+        bindings: Option<BranchBindings>,
     ) -> Result<Vec<AccessStatementId>, Failure> {
         let mut statements = Vec::new();
+        let Some(bindings) = bindings else {
+            return Ok(statements);
+        };
+        let owns = bindings.kind.access_mode() == Mode::Own;
+        if owns
+            && let Some(leaf) = bindings
+                .leaves
+                .iter()
+                .find(|leaf| !self.copyable(leaf.data))
+        {
+            return self.reject(Rule::UnsupportedData, leaf.syntax);
+        }
         self.form_leaves(
-            bindings.pattern,
+            node,
             bindings.kind,
             Carrier::Place(bindings.source),
             bindings.leaves,
             &mut statements,
         )?;
+        if owns {
+            statements.push(self.statement(node, Statement::DiscardPrepared(bindings.source))?);
+        }
         Ok(statements)
     }
 

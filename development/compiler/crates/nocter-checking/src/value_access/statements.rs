@@ -111,7 +111,7 @@ impl Checker<'_, '_> {
         self.scopes.push(std::collections::BTreeMap::new());
         let mut statements = match entry {
             BlockEntry::Statements(statements) => statements,
-            BlockEntry::Case(bindings) => self.form_case_bindings(bindings)?,
+            BlockEntry::Case(bindings) => self.form_case_bindings(node, Some(bindings))?,
         };
         let entries = if let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) {
             self.children(sequence)

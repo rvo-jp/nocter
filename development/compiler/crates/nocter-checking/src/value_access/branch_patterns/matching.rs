@@ -3,6 +3,7 @@ use super::{Checker, Failure, Rule, TagPattern};
 use crate::value_access::{
     annotations::Annotation,
     ir::{Boundary, ExpressionKind, ValueType},
+    statements::BranchBindings,
 };
 use nocter_model::{AccessBlockId, AccessExpressionId, TypeId, ValueAccess, ValueAccessMode};
 use nocter_syntax::{NodeId, NodeKind};
@@ -52,13 +53,19 @@ impl Checker<'_, '_> {
             .into_iter()
             .map(|(pattern, block)| {
                 let tag = pattern.tag;
-                let bindings = self.branch_bindings(pattern, source, operation)?;
+                let bindings = BranchBindings::for_input(source, operation, pattern.leaves);
                 Ok((tag, check(self, block, bindings)?))
             })
             .collect::<Result<_, Failure>>()?;
         let fallback = arms
             .fallback
-            .map(|block| check(self, block, None))
+            .map(|block| {
+                check(
+                    self,
+                    block,
+                    BranchBindings::for_input(source, operation, Vec::new()),
+                )
+            })
             .transpose()?;
         let blocks = || cases.iter().map(|&(_, block)| block).chain(fallback);
         let ty = self.enum_match_type(node, source_ty, blocks())?;

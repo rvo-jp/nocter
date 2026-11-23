@@ -7,8 +7,7 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::input_operation;
 use nocter_model::{
-    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueBindingKind,
-    ValueInputOperation,
+    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueInputOperation,
 };
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
 
@@ -23,11 +22,20 @@ pub(super) enum IfTest {
         tag: u64,
     },
 }
+impl IfTest {
+    pub(super) fn fallback_bindings(self) -> Option<BranchBindings> {
+        match self {
+            Self::Boolean(_) => None,
+            Self::Enum {
+                source, operation, ..
+            } => BranchBindings::for_input(source, operation, Vec::new()),
+        }
+    }
+}
 
 struct TagPattern {
     data: TypeId,
     tag: u64,
-    syntax: NodeId,
     leaves: Vec<Leaf>,
 }
 
@@ -55,7 +63,10 @@ impl Checker<'_, '_> {
             operation,
             tag: pattern.tag,
         };
-        Ok((test, self.branch_bindings(pattern, source, operation)?))
+        Ok((
+            test,
+            BranchBindings::for_input(source, operation, pattern.leaves),
+        ))
     }
 
     fn tag_pattern(&self, pattern: NodeId) -> Result<TagPattern, Failure> {
@@ -114,31 +125,8 @@ impl Checker<'_, '_> {
         Ok(TagPattern {
             data,
             tag,
-            syntax: payload.unwrap_or(pattern),
             leaves: self.binding_leaves(roots)?,
         })
-    }
-
-    fn branch_bindings(
-        &self,
-        pattern: TagPattern,
-        source: AccessExpressionId,
-        operation: ValueInputOperation,
-    ) -> Result<Option<BranchBindings>, Failure> {
-        if pattern.leaves.is_empty() {
-            return Ok(None);
-        }
-        let kind = match operation {
-            ValueInputOperation::Read => ValueBindingKind::ReadAlias,
-            ValueInputOperation::Edit => ValueBindingKind::EditAlias,
-            ValueInputOperation::Take => return self.reject(Rule::UnsupportedData, pattern.syntax),
-        };
-        Ok(Some(BranchBindings {
-            pattern: pattern.syntax,
-            source,
-            kind,
-            leaves: pattern.leaves,
-        }))
     }
 
     fn pattern_input(

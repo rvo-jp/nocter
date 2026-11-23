@@ -163,7 +163,6 @@ impl Builder<'_> {
         let Some(end) = self.expression(source, entry)? else {
             return Ok(None);
         };
-        let origin = Origin::Expression(id);
         let branches: Vec<_> = cases
             .iter()
             .map(|&(tag, block)| (tag, block, self.point()))
@@ -192,9 +191,6 @@ impl Builder<'_> {
             .map(|(_, block, point)| (block, point))
             .chain(fallback.map(|block| (block, otherwise)))
         {
-            if operation == ValueInputOperation::Take {
-                self.action(point, origin, Operation::Discard(source))?;
-            }
             if let Some(exit) = self.block(block, point, Output::Forward(id))? {
                 self.terminate(exit, Terminator::Jump(join))?;
                 continues = true;
@@ -352,6 +348,10 @@ impl Builder<'_> {
             ),
             Statement::Discard(value) | Statement::Evaluate(value) => {
                 (value, Operation::Discard(value))
+            }
+            Statement::DiscardPrepared(value) => {
+                self.action(point, origin, Operation::Discard(value))?;
+                return Ok(Some(point));
             }
             Statement::PreparePlace(value) => return self.prepare_place(value, point),
             Statement::Return(value) => {

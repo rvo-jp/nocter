@@ -586,6 +586,8 @@ pub enum Statement {
         value: AccessExpressionId,
     },
     Discard(AccessExpressionId),
+    /// Retire an already acquired carrier without evaluating the scrutinee again.
+    DiscardPrepared(AccessExpressionId),
     Evaluate(AccessExpressionId),
     /// Evaluate an existing place once and keep its address for the following projections.
     PreparePlace(AccessExpressionId),

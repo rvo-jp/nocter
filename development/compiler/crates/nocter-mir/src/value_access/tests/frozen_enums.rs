@@ -171,3 +171,57 @@ fn enum_field_addresses_require_the_exact_unmodified_case_edge() {
         );
     }
 }
+
+#[test]
+fn enum_take_stages_each_copy_before_releasing_its_prepared_carrier() {
+    let contract = "copy enum Entry { empty\n pair(first: i32, second: i32) }\nfunc run(): i32";
+    for branch in [
+        "if take entry^ is Entry.pair(left, right) { left + right } else { 0 }",
+        "match take entry { Entry.pair(left, right) { left + right }\n _ { 0 } }",
+    ] {
+        let program = lower_module(
+            contract,
+            &format!("func run(): i32 {{\nlet entry = Entry.pair(19, 23)\n{branch}\n}}"),
+        );
+        validate::program(&program).unwrap();
+        let body = &program.bodies[&program.root];
+        let (carrier, selected) = body
+            .terminators
+            .values()
+            .find_map(|term| match term {
+                Terminator::EnumSwitch { source, cases, .. } => Some((source, cases[0].1)),
+                _ => None,
+            })
+            .unwrap();
+        let mut addresses = Vec::new();
+        let mut copies = 0;
+        let mut retired = false;
+        for (_, action) in body.actions.iter().filter(|(at, _)| at.point == selected) {
+            let has_disposal = |effects: &[Effect]| {
+                effects.iter().any(
+                    |effect| matches!(effect, Effect::Dispose { source, .. } if source == carrier),
+                )
+            };
+            retired |= action
+                .alternatives
+                .iter()
+                .any(|path| has_disposal(&path.before));
+            for operation in &action.operations {
+                match operation {
+                    Operation::BindEnumAddress { destination, .. } => addresses.push(*destination),
+                    Operation::Copy { source, .. } if addresses.contains(&source.slot) => {
+                        assert!(!retired);
+                        copies += 1;
+                    }
+                    _ => {}
+                }
+            }
+            retired |= action
+                .alternatives
+                .iter()
+                .any(|path| has_disposal(&path.after));
+        }
+        assert_eq!(copies, 2);
+        assert!(retired);
+    }
+}

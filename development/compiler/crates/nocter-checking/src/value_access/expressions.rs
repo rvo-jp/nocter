@@ -18,6 +18,7 @@ struct IfBranches {
     reachable: bool,
     known_condition: Option<bool>,
     bindings: Option<BranchBindings>,
+    fallback: Option<BranchBindings>,
 }
 
 impl Checker<'_, '_> {
@@ -451,6 +452,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let (test, bindings) =
             self.if_test(self.direct(node, NodeKind::IfCondition)?, reachable)?;
+        let fallback = test.fallback_bindings();
         let (source, known_condition) = match test {
             IfTest::Boolean(condition) => (condition, self.normal_boolean(condition)),
             IfTest::Enum { source, .. } => (source, None),
@@ -471,6 +473,7 @@ impl Checker<'_, '_> {
                     reachable: branches_reachable,
                     known_condition,
                     bindings,
+                    fallback,
                 },
             )?
         } else {
@@ -487,7 +490,8 @@ impl Checker<'_, '_> {
             )?;
             let value = self.unit(node)?;
             let value = self.boundary(node, value, boundary)?;
-            let else_block = self.emit_block(node, Vec::new(), Some(value), self.ty(value))?;
+            let entry = self.form_case_bindings(node, fallback)?;
+            let else_block = self.emit_block(node, entry, Some(value), self.ty(value))?;
             [then_block, else_block]
         };
         let ty = self.conditional_type(
@@ -553,6 +557,16 @@ impl Checker<'_, '_> {
                 branches.bindings,
             )
         };
+        let check_other = |this: &mut Self, construction| {
+            this.conditional_else(
+                clause,
+                expected,
+                hint,
+                construction,
+                other_reachable,
+                branches.fallback,
+            )
+        };
         let context_from = |this: &Self, block| {
             this.block_ty(block)
                 .access()
@@ -561,8 +575,7 @@ impl Checker<'_, '_> {
                 .or(construction)
         };
         if then_absent && !else_absent {
-            let other =
-                self.conditional_else(clause, expected, hint, construction, other_reachable)?;
+            let other = check_other(self, construction)?;
             let selected = context_from(self, other);
             let first = check_first(self, selected)?;
             return Ok([first, other]);
@@ -573,7 +586,7 @@ impl Checker<'_, '_> {
         } else {
             construction
         };
-        let other = self.conditional_else(clause, expected, hint, selected, other_reachable)?;
+        let other = check_other(self, selected)?;
         Ok([first, other])
     }
     fn conditional_else(
@@ -583,13 +596,15 @@ impl Checker<'_, '_> {
         hint: Option<&Annotation>,
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
+        bindings: Option<BranchBindings>,
     ) -> Result<AccessBlockId, Failure> {
         let child = self.first_child(clause)?;
         if self.kind(child)? == NodeKind::Block {
-            self.block_with_construction(child, expected, hint, construction, reachable)
+            self.block_with_case(child, expected, hint, construction, reachable, bindings)
         } else {
+            let entry = self.form_case_bindings(clause, bindings)?;
             let value = self.if_expression(child, expected, hint, construction, reachable)?;
-            self.emit_block(clause, Vec::new(), Some(value), self.ty(value))
+            self.emit_block(clause, entry, Some(value), self.ty(value))
         }
     }
     pub(super) fn supply_conditional_results(

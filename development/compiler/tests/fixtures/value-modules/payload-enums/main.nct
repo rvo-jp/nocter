@@ -51,6 +51,30 @@ const func adjust(seed: i32): i32 {
 
 const ADJUSTED: i32 = adjust(13)
 
+const func receive(take packet: Packet): i32 {
+    if take packet^ is Packet.grid((left, right), enabled) {
+        if enabled { left + right } else { 0 }
+    } else {
+        match take Packet.pair(12, 9) {
+            Packet.pair(first, second) { first + second }
+            _ { 0 }
+        }
+    }
+}
+
+const RECEIVED: i32 = receive(Packet.grid((20, 22), true))
+
+copy enum Snapshot {
+    stored(value: i32)
+}
+
+func snapshot(input: i32): i32 {
+    let original = Snapshot.stored(input)
+    let taken = match take original { Snapshot.stored(value) { value } }
+    let retained = match original { Snapshot.stored(value) { value } }
+    taken + retained
+}
+
 func main(): i32 {
     var steps = 0
     let packet = Packet.pair(note(steps, 1), note(steps, 2))
@@ -78,6 +102,12 @@ func main(): i32 {
     let created = if Packet.pair(17, 25) is Packet.pair(first, second) { first + second } else { 0 }
     if created != 42 {
         return 96
+    }
+    if RECEIVED != 42 || receive(Packet.grid((20, 22), true)) != RECEIVED {
+        return 95
+    }
+    if receive(Packet.empty) != 21 || snapshot(21) != 42 {
+        return 94
     }
     selected + steps + discarded
 }

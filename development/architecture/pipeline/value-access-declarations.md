@@ -173,8 +173,9 @@ Required evaluation and native lowering use this case table to read the tag once
 
 A pattern that discards every payload position needs only the tag read. Read and edit leave
 the payload in place. Edit checks update authority during inspection. Take uses the ordinary
-Copy or transfer boundary. The selected arm retires the received carrier before executing its
-body, including an if-is fallback or a discard arm handling an opaque enum.
+Copy or transfer boundary before inspecting the tag. When each named leaf has Copy evidence,
+the selected arm stages the snapshots in pattern order and then retires the complete received
+carrier before executing its body. A fallback or wholly discarded pattern retires it immediately.
 
 Named read and edit bindings reuse the common tuple-leaf and lexical binding machinery.
 They alias the selected payload, including tuple components, and keep a fresh scrutinee's

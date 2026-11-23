@@ -292,6 +292,10 @@ fn named_enum_leaves_are_scoped_to_the_selected_case() {
             None,
         ),
         (
+            "if take packet^ is Packet.data((a, b), _) { a + b } else if true { 0 } else { 1 }",
+            None,
+        ),
+        (
             "if edit packet is Packet.data((a, _), _) {\n let observed = a\n packet = Packet.empty\n observed } else { 0 }",
             None,
         ),
