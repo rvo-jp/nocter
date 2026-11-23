@@ -697,9 +697,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Project explicitly applied signatures through the shared type substitution and prepare
   concrete inputs through the ordinary boundary. Verify canonical replay, authored passing
   operations, rollback on invalid data and original operand diagnostics.
-- [ ] Bind explicit applications to concrete frames. Qualify distinct types and
-  lengths, exact input/return rules, original generic moves, and concrete cleanup through the
-  ordinary native path.
+- [x] Retain exact generic applications in declaration-owned frame identity and intern specialized
+  body descriptors in the canonical type authority. Verify distinct lengths, ordinary data
+  instantiation, and refusal to bind an unprojected application.
+- [ ] Connect source calls to concrete frames. Qualify distinct types and lengths, exact
+  input/return rules, original generic moves, and concrete cleanup through the ordinary native
+  path.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

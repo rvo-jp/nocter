@@ -1,10 +1,10 @@
 use super::*;
-use nocter_model::{ValueClosure, ValueFunctionOrigin};
+use nocter_model::{GenericApplication, UsizeTerm, ValueClosure, ValueFunctionOrigin};
+use std::collections::BTreeSet;
 
-#[test]
-fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
+fn generic_array_signature() -> (Program, AccessCodeId, UsizeTerm) {
     use crate::GenericParameterDomain::{Type, UsizeConstant};
-    use nocter_model::{GenericApplication, GenericValue, UsizeTerm, ValueInputOperation};
+    use nocter_model::ValueInputOperation;
     use std::sync::Arc;
 
     let symbols = SymbolTable::from_spellings(["decode", "T", "N", "parts"]);
@@ -19,6 +19,7 @@ fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
     let &[element, count] = slots.generic_parameter_ids(code).unwrap() else {
         panic!("expected two ordered binders");
     };
+    let length = UsizeTerm::Parameter(count);
     let parameter = Arc::new(DataReference::GenericParameter(element));
     headers
         .define_generic(
@@ -28,7 +29,7 @@ fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
                 binding: ParameterBinding::Name(name("parts")),
                 data: DataReference::Array {
                     element: parameter.clone(),
-                    length: UsizeTerm::Parameter(count),
+                    length,
                 }
                 .into(),
                 operation: ValueInputOperation::Take,
@@ -36,7 +37,13 @@ fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
             DataReference::Fallible(parameter),
         )
         .unwrap();
-    let header = headers.finish().unwrap();
+    (headers.finish().unwrap(), code, length)
+}
+
+#[test]
+fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
+    use nocter_model::{GenericValue, ValueInputOperation};
+    let (header, code, length) = generic_array_signature();
     let mut body = header.body_types(code).unwrap();
     let integer = header.data_type(BuiltinType::I32).unwrap();
     let result = body.fallible(integer).unwrap();
@@ -45,7 +52,7 @@ fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
     for values in [
         vec![integer.into()],
         vec![count_four, integer.into()],
-        vec![integer.into(), UsizeTerm::Parameter(count).into()],
+        vec![integer.into(), length.into()],
         vec![result.into(), count_four],
     ] {
         assert_eq!(
@@ -71,6 +78,44 @@ fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
     let data = canonical.project(code, applied.inputs[0].data).unwrap();
     let canonical = canonical.finish();
     assert_eq!(array(&canonical, data).length(), 4);
+}
+
+#[test]
+fn exact_frames_project_body_types_with_the_selected_length() {
+    let (header, owner, length) = generic_array_signature();
+    let integer = header.data_type(BuiltinType::I32).unwrap();
+    let generic_input = header.codes().get(owner).unwrap().parameters()[0];
+    let generic_input = header.parameters().get(generic_input).unwrap().data();
+    let application =
+        |count| GenericApplication::new([integer.into(), UsizeTerm::Value(count).into()]);
+    let mut body = header.body_types(owner).unwrap();
+    let local = body.array(integer, length).unwrap();
+    let body = body.finish();
+    let canonical = header
+        .canonical_body_types(BTreeMap::from([(owner.into(), &body)]))
+        .unwrap();
+    let local = canonical.project(owner, local).unwrap();
+    let program = canonical.finish();
+    assert_eq!(
+        program.bind_generic_call(owner, &application(4)),
+        Err(CodeBindingError::InvalidGenericApplication(owner))
+    );
+    let program = program
+        .project_generic_frames(BTreeMap::from([
+            ((owner, application(4)), BTreeSet::from([local])),
+            ((owner, application(7)), BTreeSet::from([local])),
+        ]))
+        .unwrap();
+    let first = program.bind_generic_call(owner, &application(4)).unwrap();
+    let second = program.bind_generic_call(owner, &application(7)).unwrap();
+    assert_eq!(first.code(), second.code());
+    assert_ne!(first, second);
+    for (frame, count) in [(first, 4), (second, 7)] {
+        let data = program.instantiate_data(local, &frame).unwrap().data();
+        assert_eq!(program.frame_type(&frame, generic_input), Ok(data));
+        assert_eq!(array(&program, data).length(), count);
+    }
+    assert!(program.instantiate_closed_data(local).is_err());
 }
 
 #[test]

@@ -12,6 +12,7 @@ use nocter_model::{
     TypeKind, ValueFunctionOrigin,
 };
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[cfg(test)]
 mod tests;
@@ -423,6 +424,7 @@ impl HeaderPublication {
             closure_parameters: BTreeMap::new(),
             callable_contracts: BTreeMap::new(),
             applications: BTreeMap::new(),
+            generic_frames: Arc::default(),
             symbols: self.definitions.symbols.clone(),
             types: self.types.clone(),
             header_prefix: self.types.store().clone(),

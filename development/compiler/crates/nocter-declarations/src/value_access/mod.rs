@@ -299,6 +299,7 @@ pub struct Program {
     closure_parameters: BTreeMap<nocter_model::ValueParameter, FunctionConstraint>,
     callable_contracts: BTreeMap<nocter_model::ValueCallableContract, FunctionConstraint>,
     applications: BTreeMap<nocter_model::ValueAppliedResult, FunctionWitness>,
+    generic_frames: Arc<body_types::GenericFrameTypes>,
 }
 
 impl Program {

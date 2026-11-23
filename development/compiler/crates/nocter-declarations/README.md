@@ -460,6 +460,13 @@ cannot admit missing children, unresolved positive dependencies or noncanonical 
 into free-parameter bindings. Symbolic template closure supplies no compound-input receipts, even
 for the same code: those require the original supplying bundle. The checking owner qualifies
 source-call and body-entry projection separately; this constructor adds no source or payload admission.
+
+Generic frame identity retains the original declaration and complete ordered application. The
+canonical unit interns the application's concrete body descriptors in the same type authority.
+Frame-aware data instantiation projects through that application before selecting representation
+metadata. The original declaration remains available for source checking. Exact binding requires
+an application present in the canonical type projection.
+
 `instantiate_environment` selects that complete environment input, including an independently
 closed environment when no contextual substitutions are needed. It shares environment selection
 with callable data projection. `DataInstanceKey::project_path` preserves context through validated

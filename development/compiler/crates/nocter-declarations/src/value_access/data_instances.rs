@@ -284,6 +284,8 @@ impl Program {
         data: TypeId,
         frame: &CodeInstanceKey,
     ) -> Result<DataInstanceKey, CodeBindingError> {
-        self.bind_payload_with(data, |witness| frame.resolve(self, witness))
+        self.bind_payload_with(self.frame_type(frame, data)?, |witness| {
+            frame.resolve(self, witness)
+        })
     }
 }

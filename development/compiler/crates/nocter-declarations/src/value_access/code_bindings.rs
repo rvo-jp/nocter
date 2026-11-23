@@ -1,7 +1,8 @@
 //! Canonical metadata bindings for one code frame; no body, const, layout or ownership admission.
 use super::{FunctionConstraint, FunctionMismatch, FunctionWitness, PayloadSchema, Program};
 use nocter_model::{
-    AccessCodeId, ValueCode, ValueCodeRoot, ValueFunctionOrigin, ValueInvocation, ValueParameter,
+    AccessCodeId, GenericApplication, TypeId, ValueCode, ValueCodeRoot, ValueFunctionOrigin,
+    ValueInvocation, ValueParameter,
 };
 use std::collections::BTreeMap;
 mod context_debug;
@@ -58,6 +59,7 @@ impl ConcreteWitness {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CodeInstanceKey {
     code: ValueCode,
+    application: Option<GenericApplication>,
     witnesses: BTreeMap<ValueParameter, ConcreteWitness>,
     environment: Option<super::DataInstanceKey>,
     inputs: BTreeMap<usize, super::DataInstanceKey>,
@@ -77,6 +79,11 @@ impl CodeInstanceKey {
     #[must_use]
     pub const fn code(&self) -> ValueCode {
         self.code
+    }
+    /// The complete compile-time argument sequence for the original generic declaration.
+    #[must_use]
+    pub const fn generic_application(&self) -> Option<&GenericApplication> {
+        self.application.as_ref()
     }
     #[must_use]
     pub const fn witnesses(&self) -> &BTreeMap<ValueParameter, ConcreteWitness> {
@@ -190,6 +197,7 @@ impl CodeTemplateKey {
 pub enum CodeBindingError {
     UnknownCode,
     MissingGenericApplication(AccessCodeId),
+    InvalidGenericApplication(AccessCodeId),
     InvalidWitness,
     Missing(ValueParameter),
     Unexpected(ValueParameter),
@@ -303,11 +311,66 @@ impl Program {
         }
         Ok(CodeInstanceKey {
             code,
+            application: None,
             witnesses,
             environment: None,
             inputs: BTreeMap::new(),
         })
     }
+    /// Bind a selected named application whose data has already been projected in this unit.
+    /// # Errors
+    /// Rejects an unprojected application or an input that still needs a callable witness.
+    pub fn bind_generic_call(
+        &self,
+        owner: AccessCodeId,
+        application: &GenericApplication,
+    ) -> Result<CodeInstanceKey, CodeBindingError> {
+        if !self
+            .generic_frames
+            .get(&owner)
+            .is_some_and(|frames| frames.contains_key(application))
+        {
+            return Err(CodeBindingError::InvalidGenericApplication(owner));
+        }
+        let code = ValueCode::Declaration(owner);
+        if let Some((&parameter, _)) = self.code_parameters(code)?.first_key_value() {
+            return Err(CodeBindingError::Missing(parameter));
+        }
+        Ok(CodeInstanceKey {
+            code,
+            application: Some(application.clone()),
+            witnesses: BTreeMap::new(),
+            environment: None,
+            inputs: BTreeMap::new(),
+        })
+    }
+
+    /// Project one original body descriptor under the exact named application in the frame.
+    /// # Errors
+    /// Rejects unprojected symbolic data and unknown applications.
+    pub fn frame_type(
+        &self,
+        frame: &CodeInstanceKey,
+        data: TypeId,
+    ) -> Result<TypeId, CodeBindingError> {
+        let Some(application) = frame.generic_application() else {
+            return Ok(data);
+        };
+        let owner = frame.code().source_owner();
+        let invalid = CodeBindingError::InvalidGenericApplication(owner);
+        let projection = self
+            .generic_frames
+            .get(&owner)
+            .and_then(|frames| frames.get(application))
+            .ok_or(invalid)?;
+        if let Some(&target) = projection.get(&data) {
+            return Ok(target);
+        }
+        (self.types.store().is_concrete(data) == Some(true))
+            .then_some(data)
+            .ok_or(invalid)
+    }
+
     /// Build the identity condition frame for a code's own direct callable formals.
     /// # Errors
     /// Rejects code or parameter views outside this declaration authority.
@@ -539,6 +602,7 @@ impl Program {
         )?;
         Ok(CodeInstanceKey {
             code,
+            application: None,
             witnesses,
             environment,
             inputs: BTreeMap::new(),
