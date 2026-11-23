@@ -225,7 +225,8 @@ fn tuple_interruption_cleans_completed_components_without_assembling_a_value() {
         .expressions()
         .iter()
         .find_map(|(_, expression)| {
-            if let crate::value_access::ExpressionKind::Aggregate { fields } = &expression.kind {
+            if let crate::value_access::ExpressionKind::Aggregate { fields, .. } = &expression.kind
+            {
                 Some(fields)
             } else {
                 None

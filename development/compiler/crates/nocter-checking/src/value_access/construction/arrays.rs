@@ -107,6 +107,7 @@ impl Checker<'_, '_> {
             node,
             value_type(data, Mode::Own).with_continuation(continues),
             ExpressionKind::Aggregate {
+                enum_case: None,
                 fields: fields.into(),
             },
         )

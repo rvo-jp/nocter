@@ -86,7 +86,7 @@ fn interrupted_construction_cleans_components_in_reverse_production_order_withou
             .expressions()
             .iter()
             .find_map(|(_, e)| match &e.kind {
-                ExpressionKind::Aggregate { fields } => Some(fields),
+                ExpressionKind::Aggregate { fields, .. } => Some(fields),
                 _ => None,
             })
             .unwrap();

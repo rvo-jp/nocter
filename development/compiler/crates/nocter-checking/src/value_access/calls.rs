@@ -201,13 +201,14 @@ impl Checker<'_, '_> {
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Text(_)),
             ) => ExpressionKind::Constant(value.clone()),
             (_, nocter_model::FrozenNode::Enum { tag, fields })
-                if fields.is_empty()
-                    && matches!(
-                        self.program().data_schema(data),
-                        Some(PayloadSchema::Enumeration(schema))
-                            if !schema.has_payload()
-                                && usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
-                    ) =>
+                if matches!(
+                    self.program().data_schema(data),
+                    Some(PayloadSchema::Enumeration(schema))
+                        if usize::try_from(*tag).ok()
+                            .and_then(|tag| schema.variants().get(tag))
+                            .and_then(|&variant| self.program().variant_components(data, variant))
+                            .is_some_and(|components| components.len() == fields.len())
+                ) =>
             {
                 ExpressionKind::Constant(value.clone())
             }
@@ -249,14 +250,6 @@ impl Checker<'_, '_> {
             if token.kind() == TokenKind::Identifier
                 && let Some(owner) = self.constructor_owner(*base)?
             {
-                if self.enum_variant(owner, token)?.is_some() {
-                    return self.reject_message(
-                        Rule::InvalidCall,
-                        token,
-                        "use a payloadless enum variant without parentheses".into(),
-                        Vec::new(),
-                    );
-                }
                 let Some(member) = self.context.type_member(owner, self.text(token)?) else {
                     return self.reject(Rule::InvalidCall, token);
                 };
@@ -364,6 +357,15 @@ impl Checker<'_, '_> {
         let [callee, suffix] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
+        if let Some((member, variant)) = self.qualified_enum_variant(*callee)? {
+            return self.enum_value(
+                node,
+                member,
+                variant,
+                Some(&self.children(*suffix)),
+                reachable,
+            );
+        }
         let selected = self.callee(*callee, reachable)?;
         self.selected_call(node, &self.children(*suffix), &selected, reachable)
     }

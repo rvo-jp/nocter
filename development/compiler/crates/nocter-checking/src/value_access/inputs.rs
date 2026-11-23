@@ -103,7 +103,7 @@ impl Checker<'_, '_> {
                     adapters.push(value);
                     value = source;
                 }
-                super::ir::ExpressionKind::Aggregate { ref fields }
+                super::ir::ExpressionKind::Aggregate { ref fields, .. }
                     if matches!(
                         fields.as_ref(),
                         [super::ir::FieldValue {

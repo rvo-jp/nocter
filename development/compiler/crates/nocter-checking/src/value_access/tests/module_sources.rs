@@ -116,22 +116,18 @@ fn enum_payload_header_errors_point_to_the_original_field() {
 }
 
 #[test]
-fn scalar_only_value_operations_reject_a_payload_bearing_schema_at_the_use() {
-    for (header, definition) in [
-        (
-            "func run(): void",
-            "func run(): void { let value = Packet.empty }",
-        ),
-        (
-            "func run(value: Packet): void",
-            "func run(value: Packet): void {}",
-        ),
+fn enum_construction_reports_a_missing_or_extra_payload_at_the_variant() {
+    for (expression, rule) in [
+        ("Packet.data", Rule::InvalidConstruction),
+        ("Packet.data()", Rule::InvalidConstruction),
+        ("Packet.data(1, 2)", Rule::InvalidConstruction),
+        ("Packet.empty()", Rule::InvalidCall),
     ] {
-        let root = format!("see ./body.nct\nenum Packet {{ empty\ndata(value: i32) }}\n{header}");
-        let body = format!("see ./index.nct\n{definition}");
+        let root = "see ./body.nct\nenum Packet { empty\ndata(value: i32) }\nfunc run(): void";
+        let body = format!("see ./index.nct\nfunc run(): void {{ let value = {expression} }}");
         let fixture = Fixture::new(
             &[
-                ("/app/index.nct", Root, &root),
+                ("/app/index.nct", Root, root),
                 ("/app/body.nct", Implementation, &body),
             ],
             &[(0, 0, 1), (1, 0, 0)],
@@ -141,11 +137,74 @@ fn scalar_only_value_operations_reject_a_payload_bearing_schema_at_the_use() {
             ..
         })) = ModuleSourceUnit::prepare(&fixture.input())
         else {
-            panic!("expected source-backed enum storage rejection: {definition}");
+            panic!("expected exact constructor arity: {expression}");
         };
-        assert_eq!(error.rule(), Rule::UnsupportedData);
+        assert_eq!(error.rule(), rule);
         assert_eq!(error.source().primary().source(), fixture.tree(1).source());
     }
+}
+
+#[test]
+fn authored_enum_construction_freezes_the_selected_typed_values() {
+    use nocter_model::{ConstantValue, FrozenNode};
+    let fixture = Fixture::new(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                concat!(
+                    "see ./body.nct\n",
+                    "enum Packet { empty\ndata(number: i32, flag: bool)\nfailed(reason: error) }\n",
+                    "const DATA: Packet\nconst EMPTY: Packet\nfunc run(): i32"
+                ),
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                concat!(
+                    "see ./index.nct\n",
+                    "const func make(value: i32): Packet { Packet.data(value, true) }\n",
+                    "const DATA: Packet = make(42)\nconst EMPTY: Packet = Packet.empty\n",
+                    "func run(): i32 { if DATA is Packet.empty { 0 } else { 42 } }"
+                ),
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let input = fixture.input();
+    let source = ModuleSourceUnit::prepare(&input).unwrap();
+    let unit = source.unit();
+    let value = |name| {
+        let program = unit.program();
+        unit.constant_value(
+            program
+                .resolve_constant(program.symbols().get(name).unwrap())
+                .unwrap(),
+        )
+        .unwrap()
+    };
+    let selected = value("DATA");
+    let FrozenNode::Enum { tag: 1, fields } = selected.node() else {
+        panic!("expected Packet.data")
+    };
+    let [number, flag] = fields.as_ref() else {
+        panic!("exact active components")
+    };
+    assert_eq!(
+        selected.nodes()[*number],
+        FrozenNode::Scalar(ConstantValue::Integer(42))
+    );
+    assert_eq!(
+        selected.nodes()[*flag],
+        FrozenNode::Scalar(ConstantValue::Bool(true))
+    );
+    assert_eq!(
+        value("EMPTY").node(),
+        &FrozenNode::Enum {
+            tag: 0,
+            fields: Box::new([])
+        }
+    );
 }
 
 #[test]

@@ -77,7 +77,7 @@ impl Builder<'_> {
                 source: self.value(point, *base, state)?,
                 index: self.value(point, *index, state)?,
             },
-            ExpressionKind::Aggregate { fields } => {
+            ExpressionKind::Aggregate { fields, .. } => {
                 let fields = fields
                     .iter()
                     .map(|field| Ok((field.field, self.value(point, field.value, state)?)))

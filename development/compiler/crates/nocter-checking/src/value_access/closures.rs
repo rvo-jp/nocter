@@ -193,6 +193,7 @@ impl Checker<'_, '_> {
                     head,
                     value_type(data, ValueAccessMode::Own),
                     ExpressionKind::Aggregate {
+                        enum_case: None,
                         fields: fields.into(),
                     },
                 )?

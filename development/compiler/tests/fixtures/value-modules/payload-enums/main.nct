@@ -1,0 +1,46 @@
+see ./index.nct
+use std/error as errors
+
+const func saved(): Packet {
+    Packet.pair(5, 6)
+}
+
+const SAVED: Packet = saved()
+static ARCHIVE: Packet = SAVED
+
+func note(edit steps: i32, digit: i32): i32 {
+    steps = steps * 10 + digit
+    steps
+}
+
+func prepare(edit steps: i32): error {
+    steps += 5
+    error.new("test.staged", "prepared before early return")
+}
+
+func interrupted(stop: bool): i32 {
+    var steps = 0
+    let packet = Packet.staged(prepare(steps), if stop { return steps } else { 9 })
+    drop packet
+    0
+}
+
+func score(value: Packet): i32 {
+    if value is Packet.empty { 0 } else { 30 }
+}
+
+func main(): i32 {
+    var steps = 0
+    let packet = Packet.pair(note(steps, 1), note(steps, 2))
+    let selected = score(packet)
+    let discarded = match take packet^ {
+        Packet.empty { 1 }
+        _ { 0 }
+    }
+    let failure = Packet.failed(error.new("test.active", "active enum payload"))
+    drop failure
+    if score(ARCHIVE) != 30 || score(Packet.empty) != 0 || interrupted(true) != 5 {
+        return 99
+    }
+    selected + steps + discarded
+}

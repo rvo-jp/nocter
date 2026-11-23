@@ -475,6 +475,7 @@ pub enum ExpressionKind {
     Boolean(bool),
     Unit,
     Aggregate {
+        enum_case: Option<u64>,
         fields: Box<[FieldValue]>,
     },
     Select {

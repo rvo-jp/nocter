@@ -1,4 +1,4 @@
-//! Check scalar enum coverage and construct one multiway branch over the selected carrier.
+//! Check enum coverage and construct one multiway branch over the selected carrier.
 use super::{Checker, Failure, Rule};
 use crate::value_access::{
     annotations::Annotation,
@@ -94,7 +94,7 @@ impl Checker<'_, '_> {
                 arms.fallback = Some(block);
                 continue;
             };
-            let (data, tag) = self.scalar_variant_pattern(pattern)?;
+            let (data, tag) = self.payloadless_variant_pattern(pattern)?;
             if arms.data.is_some_and(|owner| owner != data) {
                 return self.reject_message(
                     Rule::TypeMismatch,

@@ -558,7 +558,7 @@ fn evaluate(
             origin: ValueFunctionOrigin::Declaration(*declaration),
             invocation: nocter_model::ValueInvocation::Read,
         })),
-        ExpressionKind::Aggregate { fields } => {
+        ExpressionKind::Aggregate { fields, .. } => {
             let data = expression_data(query, id)?;
             let mut children = BTreeMap::new();
             for field in fields {

@@ -257,7 +257,10 @@ impl Context<'_, '_> {
                 resources::expression_payload(self.typed, id)?,
                 &mut self.steps,
             )?,
-            ExpressionKind::Aggregate { ref fields } => self.aggregate_ownership(id, fields)?,
+            ExpressionKind::Aggregate {
+                enum_case,
+                ref fields,
+            } => self.aggregate_ownership(id, enum_case, fields)?,
             ExpressionKind::Repeat { seed } => self.repeat_ownership(id, seed)?,
             ExpressionKind::Select {
                 source,
@@ -355,6 +358,7 @@ impl Context<'_, '_> {
     fn aggregate_ownership(
         &mut self,
         id: AccessExpressionId,
+        enum_case: Option<u64>,
         fields: &[crate::value_access::ir::FieldValue],
     ) -> Result<()> {
         let fields = fields
@@ -367,7 +371,7 @@ impl Context<'_, '_> {
             Holder::Expression(id),
             resources::expression_payload(self.typed, id)?,
             resources::Assembly {
-                tag: None,
+                tag: enum_case,
                 fields: &fields,
             },
             &mut self.steps,
@@ -780,7 +784,7 @@ impl Context<'_, '_> {
                 .kind
             {
                 ExpressionKind::AdaptFunction { source } => *source,
-                ExpressionKind::Aggregate { fields } => match fields.as_ref() {
+                ExpressionKind::Aggregate { fields, .. } => match fields.as_ref() {
                     [
                         crate::value_access::ir::FieldValue {
                             field: nocter_model::ValueField::Variant(true),

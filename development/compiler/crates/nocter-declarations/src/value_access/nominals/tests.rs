@@ -173,8 +173,10 @@ fn enum_payload_fields_and_records_share_nominal_publication() {
     let program = headers.snapshot();
     let schema = program.enumeration(event).unwrap();
     assert!(schema.has_payload() && schema.copyable());
-    assert!(program.record(envelope).unwrap().copyable());
-    assert!(!program.owned_payload_supported(schema.data()));
+    let envelope = program.record(envelope).unwrap();
+    assert!(envelope.copyable());
+    assert!(program.owned_payload_supported(schema.data()));
+    assert!(program.owned_payload_supported(envelope.data()));
     let &[empty, number, compound] = schema.variants() else {
         panic!("declaration-order variants");
     };

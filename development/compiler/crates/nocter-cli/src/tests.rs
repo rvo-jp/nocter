@@ -1067,6 +1067,38 @@ fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_payload_enums_use_checked_construction_and_tag_dispatch() {
+    let tree = TempTree::new("payload-enums");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/payload-enums"),
+        &package,
+    );
+    let run = execute_invocation(invocation(
+        ["run", "--offline"],
+        &package,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| format!("{:?}", error.kind()))
+        )
+    });
+    let InvocationOutcome::Run(executed) = run else {
+        panic!("expected native process execution")
+    };
+    assert_eq!(executed.status().code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

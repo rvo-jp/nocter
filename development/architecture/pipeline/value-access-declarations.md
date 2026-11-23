@@ -152,10 +152,12 @@ validates its ordered fields before retiring the prepared owners. The native ope
 fields at their declared offsets and commits the tag after those writes. The same receipt supplies
 the case and prepared values to the evaluator.
 
-A scalar enum constructor produces the owning nominal value with an empty payload list. Native
-lowering materializes standalone scalar tags as immediates and uses the same scalar layout for
-nested constant data and statics. The source execution path currently materializes scalar enum
-values.
+Ordinary source constructs closed nongeneric enums through the original variant's visibility and
+field schema. Positional arguments use owning value supply from left to right. If a later argument
+exits early, the staged values are cleaned up as ordinary temporaries. The constructor commits only
+when all fields are ready. A payloadless case in a mixed enum uses the tagged layout with an empty
+payload. Native lowering materializes standalone scalar enum tags as immediates and uses the scalar
+layout for nested constant data and statics.
 
 A scalar [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
 variant through the same declaration and audience. The checker requires the scrutinee's exact

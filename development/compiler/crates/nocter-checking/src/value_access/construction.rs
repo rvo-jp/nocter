@@ -10,6 +10,7 @@ use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
 mod absence;
 mod arrays;
+mod enum_values;
 
 impl Checker<'_, '_> {
     /// A component contract constrains a supplied witness rather than replacing its identity.
@@ -147,6 +148,7 @@ impl Checker<'_, '_> {
             node,
             value_type(data, Mode::Own).with_continuation(continues),
             ExpressionKind::Aggregate {
+                enum_case: None,
                 fields: fields.into(),
             },
         )
@@ -216,6 +218,7 @@ impl Checker<'_, '_> {
             node,
             value_type(data, Mode::Own).with_continuation(continues),
             ExpressionKind::Aggregate {
+                enum_case: None,
                 fields: fields.into_boxed_slice(),
             },
         )

@@ -547,7 +547,7 @@ impl Builder<'_> {
             } => {
                 return self.call(id, entry, *target, arguments);
             }
-            ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
+            ExpressionKind::Aggregate { fields, .. } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
             ExpressionKind::Repeat { seed } => self.expression(*seed, entry)?,
             ExpressionKind::EnumCondition { source, .. }

@@ -50,6 +50,7 @@ impl Checker<'_, '_> {
             node,
             value_type(data, Mode::Own),
             ExpressionKind::Aggregate {
+                enum_case: None,
                 fields: Box::new([]),
             },
         )
@@ -82,6 +83,7 @@ impl Checker<'_, '_> {
                 node,
                 value_type(data, Mode::Own).with_continuation(self.ty(source).may_complete()),
                 ExpressionKind::Aggregate {
+                    enum_case: None,
                     fields: vec![FieldValue {
                         field: ValueField::Variant(true),
                         value: source,
@@ -366,6 +368,7 @@ impl Checker<'_, '_> {
             node,
             value_type(data, Mode::Own).with_continuation(self.ty(error).may_complete()),
             ExpressionKind::Aggregate {
+                enum_case: None,
                 fields: vec![FieldValue {
                     field: ValueField::Variant(false),
                     value: error,

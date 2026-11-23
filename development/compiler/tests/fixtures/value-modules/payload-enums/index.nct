@@ -1,0 +1,12 @@
+#package: { name: "payload-enums", version: "2.0.0" }
+#executable: { name: "payload-enums" }
+see ./main.nct
+
+enum Packet {
+    empty
+    pair(first: i32, second: i32)
+    failed(reason: error)
+    staged(reason: error, marker: i32)
+}
+
+func main(): i32

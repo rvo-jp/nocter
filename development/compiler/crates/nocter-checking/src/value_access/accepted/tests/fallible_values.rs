@@ -15,7 +15,8 @@ fn fallible_sources_forward_construct_success_and_lower_failure_to_ordinary_retu
             .expressions()
             .iter()
             .filter_map(|(_, value)| {
-                let crate::value_access::ExpressionKind::Aggregate { fields } = &value.kind else {
+                let crate::value_access::ExpressionKind::Aggregate { fields, .. } = &value.kind
+                else {
                     return None;
                 };
                 matches!(

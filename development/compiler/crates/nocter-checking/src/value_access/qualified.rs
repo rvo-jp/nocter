@@ -3,7 +3,7 @@ use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{
     BehaviorOwner, DeclarationId, Namespace, QualifiedNameError,
 };
-use nocter_model::{AccessCodeId, Symbol, TypeId};
+use nocter_model::{AccessCodeId, Symbol, TypeId, VariantId};
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken, TokenKind};
 
 pub(super) struct QualifiedSelection {
@@ -12,12 +12,18 @@ pub(super) struct QualifiedSelection {
     pub node: NodeId,
     pub members: Vec<SyntaxToken>,
 }
+#[derive(Clone, Copy)]
+pub(super) struct EnumVariant {
+    pub data: TypeId,
+    pub variant: VariantId,
+    pub tag: u64,
+}
 impl Checker<'_, '_> {
     pub(super) fn enum_variant(
         &self,
         owner: BehaviorOwner,
         member: SyntaxToken,
-    ) -> Result<Option<(TypeId, u64)>, Failure> {
+    ) -> Result<Option<EnumVariant>, Failure> {
         let BehaviorOwner::Nominal(nominal) = owner else {
             return Ok(None);
         };
@@ -36,9 +42,6 @@ impl Checker<'_, '_> {
         if !variant.accessible {
             return self.reject(Rule::InaccessibleName, member);
         }
-        if schema.has_payload() {
-            return self.reject(Rule::UnsupportedData, member);
-        }
         let position = self
             .program()
             .variants()
@@ -46,7 +49,38 @@ impl Checker<'_, '_> {
             .ok_or(Failure::InconsistentSyntax)?
             .position();
         let tag = u64::try_from(position).map_err(|_| Failure::InconsistentSyntax)?;
-        Ok(Some((data, tag)))
+        Ok(Some(EnumVariant {
+            data,
+            variant: variant.id,
+            tag,
+        }))
+    }
+
+    pub(super) fn qualified_enum_variant(
+        &self,
+        node: NodeId,
+    ) -> Result<Option<(SyntaxToken, EnumVariant)>, Failure> {
+        let node = self.unwrap(node)?;
+        if self.kind(node)? != NodeKind::PostfixExpression {
+            return Ok(None);
+        }
+        let children = self.children(node);
+        let [base, suffix] = children.as_slice() else {
+            return Ok(None);
+        };
+        if self.kind(*suffix)? != NodeKind::MemberSuffix {
+            return Ok(None);
+        }
+        let member = self.member_token(*suffix)?;
+        if member.kind() != TokenKind::Identifier {
+            return Ok(None);
+        }
+        let Some(owner) = self.constructor_owner(*base)? else {
+            return Ok(None);
+        };
+        Ok(self
+            .enum_variant(owner, member)?
+            .map(|variant| (member, variant)))
     }
 
     fn path_symbols(&self, path: &[SyntaxToken]) -> Result<Vec<Option<Symbol>>, Failure> {

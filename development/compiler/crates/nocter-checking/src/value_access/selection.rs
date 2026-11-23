@@ -233,21 +233,8 @@ impl Checker<'_, '_> {
         projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        if let [base, suffix] = self.children(node).as_slice()
-            && self.kind(*suffix)? == NodeKind::MemberSuffix
-        {
-            let member = self.member_token(*suffix)?;
-            if member.kind() == nocter_syntax::TokenKind::Identifier
-                && let Some(owner) = self.constructor_owner(*base)?
-                && let Some((data, tag)) = self.enum_variant(owner, member)?
-            {
-                let value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Enum {
-                    tag,
-                    fields: Box::new([]),
-                }])
-                .map_err(|_| Failure::InconsistentSyntax)?;
-                return self.constant_value(node, data, &value);
-            }
+        if let Some((member, variant)) = self.qualified_enum_variant(node)? {
+            return self.enum_value(node, member, variant, None, reachable);
         }
         if self.first_array_index(node)?.is_some() {
             return self.postfix_value(node, projection, reachable);

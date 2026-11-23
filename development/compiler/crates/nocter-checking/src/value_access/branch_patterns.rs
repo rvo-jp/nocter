@@ -26,7 +26,7 @@ impl Checker<'_, '_> {
             self.require_data(condition, boolean, source_node)?;
             return Ok(condition);
         };
-        let (data, tag) = self.scalar_variant_pattern(pattern)?;
+        let (data, tag) = self.payloadless_variant_pattern(pattern)?;
         let (source, operation) = self.pattern_input(node, Some(data), reachable)?;
         self.emit(
             node,
@@ -39,7 +39,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn scalar_variant_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
+    fn payloadless_variant_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
         let path = direct_token_iter(self.syntax().tree(), pattern)
             .filter(|token| token.kind() == TokenKind::Identifier)
             .collect::<Vec<_>>();
@@ -51,7 +51,7 @@ impl Checker<'_, '_> {
             .map(|owner| self.enum_variant(owner, member))
             .transpose()?
             .flatten();
-        let Some((data, tag)) = variant else {
+        let Some(super::qualified::EnumVariant { data, variant, tag }) = variant else {
             return self.reject_message(
                 Rule::UnknownName,
                 member,
@@ -63,6 +63,15 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         };
+        if self
+            .program()
+            .variant_components(data, variant)
+            .ok_or(Failure::InconsistentSyntax)?
+            .next()
+            .is_some()
+        {
+            return self.reject(Rule::UnsupportedData, member);
+        }
         if let Ok(payload) = self.direct(pattern, NodeKind::EnumPatternPayload) {
             return self.reject_message(
                 Rule::TypeMismatch,
