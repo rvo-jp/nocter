@@ -2,11 +2,25 @@ see ./index.nct
 use ./rank
 use std/error as errors
 
+const func change_index(edit index: usize): usize {
+    let former = index
+    index = 1
+    former
+}
+
+const func compare_saved_indices(): bool {
+    let values = [rank.Rank.create(42), rank.Rank.create(0)]
+    var index: usize = 0
+    values[index] <= values[change_index(index)] && index == 1
+}
+
 const func compute(): i32 {
     let left = rank.Priority.create(40)
     let right = rank.Rank.create(42)
     let unordered = rank.Rank.create(0)
-    if left < right && right > left && left != right && !(unordered == unordered) {
+    let inclusive = left <= right && right >= left && right <= right
+    let incomparable = !(unordered <= unordered) && !(unordered >= unordered)
+    if left < right && right > left && inclusive && incomparable && compare_saved_indices() {
         right.number()
     } else {
         10
@@ -31,6 +45,13 @@ impl Held {
     operator (self < other: Self): bool {
         self.cause.has_code("right") && other.cause.has_code("left")
     }
+
+    operator (self == other: Self): bool {
+        if self.cause.has_code("left") && other.cause.has_code("right") {
+            let _ = 1 / 0
+        }
+        self.cause.has_code("first") && other.cause.has_code("second")
+    }
 }
 
 func main(): i32 {
@@ -41,18 +62,25 @@ func main(): i32 {
     var original: rank.Priority? = rank.Priority.create(ANSWER)
     let existing = rank.Rank.create(42)
     if !(original! == existing) { return 2 }
+    if !(original! <= existing) || !compare_saved_indices() { return 11 }
     if (original!).number() != 42 || existing.number() != 42 { return 3 }
+    original = rank.Priority.create(42)
     let transferred = rank.Rank.create(7)
     if transferred^ != rank.Rank.create(7) { return 4 }
     let ordered = [rank.Rank.create(42), rank.Rank.create(1)]
     if !(ordered[0]^ > ordered[1]^) { return 7 }
     let left = Held { cause: error.new("left", "first") }
     let right = Held { cause: error.new("right", "second") }
-    if !(left^ > right^) { return 8 }
+    if !(left^ >= right^) { return 8 }
+    let first = Held { cause: error.new("first", "first") }
+    let second = Held { cause: error.new("second", "second") }
+    if !(first^ >= second^) { return 9 }
+    log = 0
+    if !(prepare(log, 1) <= prepare(log, 1)) || log != 11 { return 10 }
 
     let reserved = rank.Rank.create(42)
     loop {
-        let _ = reserved^ > if log == 21 { break } else { rank.Rank.create(7) }
+        let _ = reserved^ >= if log == 11 { break } else { rank.Rank.create(7) }
         return 5
     }
     reserved.number()

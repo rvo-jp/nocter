@@ -757,7 +757,23 @@ impl Builder<'_, '_> {
                 self.types.get_instance(self.program, data.clone())?,
             ));
         }
-        let mut place = match &argument.action {
+        let (id, index, action) = match argument.action {
+            ArgumentAction::ReuseRead { call, index }
+                if argument.operation == ValueInputOperation::Read && !environment =>
+            {
+                let original = self
+                    .query
+                    .typed()
+                    .body()
+                    .call_arguments(call)
+                    .filter(|arguments| arguments.retains_reads())
+                    .and_then(|arguments| arguments.get(index))
+                    .ok_or(INVALID)?;
+                (call, index, &original.action)
+            }
+            _ => (id, index, &argument.action),
+        };
+        let mut place = match action {
             ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
                 self.referent(*place)?
             }
@@ -767,7 +783,8 @@ impl Builder<'_, '_> {
             | ArgumentAction::TakeValue => {
                 plan::Place::root(self.holder(Holder::Temporary { call: id, index })?)
             }
-            ArgumentAction::PendingValue(_)
+            ArgumentAction::ReuseRead { .. }
+            | ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
             | ArgumentAction::Interrupted => return Err(INVALID),
         };

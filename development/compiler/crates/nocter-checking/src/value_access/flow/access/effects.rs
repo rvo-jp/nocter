@@ -6,12 +6,14 @@ use super::super::{IntegrityError, Location, Operation, cancelled_slots};
 use super::{
     AccessRule, Creation, Liveness, Region, RetentionKind, Root, Violation,
     liveness::Carrier,
-    state::{Key, Node, Prepared, Value, World},
+    state::{Key, Node, Prepared, PreparedSource, Value, World},
 };
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, Referent, SelectionAction,
 };
-use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
+use nocter_model::{
+    AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode, ValueInputOperation,
+};
 
 pub(super) enum Failure {
     Integrity,
@@ -134,8 +136,9 @@ pub(super) fn apply(
 }
 impl Context<'_, '_> {
     fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
-        let _ = self.commit_preparations(call)?;
+        let prepared = self.commit_preparations(call)?;
         self.commit_inputs(call)?;
+        self.retain_read_pair(call, prepared)?;
         let before = self.steps.len();
         let operation_state = self.world.resources.condition();
         self.receive_result(call)?;
@@ -464,14 +467,14 @@ impl Context<'_, '_> {
                         }
                         .into());
                     }
-                    Prepared::Reserved {
+                    PreparedSource::Reserved {
                         region,
                         actor,
                         permission: mode,
                         at: self.at,
                     }
                 } else {
-                    Prepared::Value(Value::without_referent(mode))
+                    PreparedSource::Value(Value::without_referent(mode))
                 }
             }
             ArgumentAction::CopyPlace(place) => {
@@ -479,16 +482,26 @@ impl Context<'_, '_> {
                     self.world
                         .check(&region, actor, Mode::Read, self.at, self.live)?;
                 }
-                Prepared::Value(Value::without_referent(Mode::Own))
+                PreparedSource::Value(Value::without_referent(Mode::Own))
             }
-            ArgumentAction::AccessOwnedValue => Prepared::Reserved {
+            ArgumentAction::AccessOwnedValue => PreparedSource::Reserved {
                 region: Root::Temporary { call, index }.region(),
                 actor: None,
                 permission: argument.operation.access_mode(),
                 at: self.at,
             },
-            ArgumentAction::TakeValue => Prepared::Value(self.world.value(argument.value)?),
-            ArgumentAction::PendingValue(_)
+            ArgumentAction::ReuseRead { call, index }
+                if argument.operation == ValueInputOperation::Read =>
+            {
+                self.world
+                    .prepared
+                    .get(&(call, index))
+                    .and_then(Prepared::reuse_read)
+                    .ok_or(Failure::Integrity)?
+            }
+            ArgumentAction::TakeValue => PreparedSource::Value(self.world.value(argument.value)?),
+            ArgumentAction::ReuseRead { .. }
+            | ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
             | ArgumentAction::Interrupted => {
                 return Err(Failure::Integrity);
@@ -497,7 +510,7 @@ impl Context<'_, '_> {
         if self
             .world
             .prepared
-            .insert((call, index), prepared)
+            .insert((call, index), Prepared::pending(prepared))
             .is_some()
         {
             return Err(Failure::Integrity);

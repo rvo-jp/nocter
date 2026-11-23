@@ -104,6 +104,7 @@ fn prepared_use(
         | ArgumentAction::ReserveUpdate(place)
         | ArgumentAction::ReserveTransfer { place, .. }
         | ArgumentAction::CopyPlace(place) => referent_carrier(typed, place)?,
+        ArgumentAction::ReuseRead { call, index } => Carrier::Argument { call, index },
         _ => Carrier::Expression(arg.value),
     };
     Ok((carrier, argument_updates(arg)))

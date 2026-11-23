@@ -79,6 +79,7 @@ pub(super) fn actual_writes(
             | ArgumentAction::CopyPlace(_) => {}
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
+            | ArgumentAction::ReuseRead { .. }
             | ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
             | ArgumentAction::Interrupted => return Err(INVALID),

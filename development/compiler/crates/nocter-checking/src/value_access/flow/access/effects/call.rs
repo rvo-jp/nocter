@@ -1,6 +1,6 @@
 use super::super::liveness::Carrier;
-use super::super::state::{Prepared, Value};
-use super::super::{AccessRule, Creation, RetainedAccess, RetentionKind, Violation};
+use super::super::state::{Prepared, PreparedSource, Value};
+use super::super::{AccessRule, Creation, RetainedAccess, RetentionKind, Root, Violation};
 use super::{Context, Failure, Result};
 use crate::value_access::{ArgumentAction, ExpressionKind, Referent};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
@@ -39,17 +39,62 @@ impl Context<'_, '_> {
         }
         Ok(prepared)
     }
+    pub(super) fn retain_read_pair(
+        &mut self,
+        call: AccessExpressionId,
+        prepared: Vec<Prepared>,
+    ) -> Result<()> {
+        let arguments = self
+            .typed
+            .body()
+            .call_arguments(call)
+            .ok_or(Failure::Integrity)?;
+        if !arguments.retains_reads() {
+            return Ok(());
+        }
+        if prepared.len() != arguments.len() {
+            return Err(Failure::Integrity);
+        }
+        for (index, (input, prepared)) in arguments.iter().zip(prepared).enumerate() {
+            let access = match input.action {
+                ArgumentAction::ReserveRead(_) => prepared,
+                ArgumentAction::ReserveTransfer { .. } | ArgumentAction::AccessOwnedValue => {
+                    let holder =
+                        crate::value_access::flow::resources::Holder::Temporary { call, index };
+                    if !self.world.resources.contains(holder) {
+                        return Err(Failure::Integrity);
+                    }
+                    Prepared::pending(PreparedSource::Reserved {
+                        region: (Root::Temporary { call, index }).region(),
+                        actor: None,
+                        permission: Mode::Read,
+                        at: self.at,
+                    })
+                }
+                _ => return Err(Failure::Integrity),
+            };
+            if self
+                .world
+                .prepared
+                .insert((call, index), access.retain_read()?)
+                .is_some()
+            {
+                return Err(Failure::Integrity);
+            }
+        }
+        Ok(())
+    }
     fn check_bundle(&self, call: AccessExpressionId, prepared: &[Prepared]) -> Result<()> {
         let mut caps = Vec::new();
         for value in prepared {
-            caps.push(match value {
-                Prepared::Reserved {
+            caps.push(match &value.source {
+                PreparedSource::Reserved {
                     region,
                     actor,
                     permission,
                     ..
                 } => Some((region.clone(), *actor, *permission)),
-                Prepared::Value(value) => self
+                PreparedSource::Value(value) => self
                     .base_value(*value)?
                     .map(|(region, actor)| (region, actor, value.mode)),
             });
@@ -62,9 +107,9 @@ impl Context<'_, '_> {
                         && (*mode != Mode::Read || *other_mode != Mode::Read)
                         && !self.disjoint_prefix_arguments(call, index, other)?
                     {
-                        let created = match &prepared[other] {
-                            Prepared::Reserved { at, .. } => Creation::Action(*at),
-                            Prepared::Value(value) => {
+                        let created = match &prepared[other].source {
+                            PreparedSource::Reserved { at, .. } => Creation::Action(*at),
+                            PreparedSource::Value(value) => {
                                 self.world
                                     .nodes
                                     .get(&value.access.ok_or(Failure::Integrity)?)

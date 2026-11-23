@@ -377,9 +377,11 @@ fn v2_nominal_comparison_navigation_uses_the_selected_operator_token() {
         .unwrap();
     for (occurrence, expected) in [
         ("== existing", "=="),
-        ("!= right", "=="),
+        ("!= rank.Rank", "=="),
         ("< right", "<"),
         ("> left", "<"),
+        ("<= existing", "<"),
+        (">= left", "<"),
     ] {
         let offset = ByteOffset::new(u32::try_from(text.find(occurrence).unwrap()).unwrap());
         for (result, file) in [

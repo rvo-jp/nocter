@@ -391,7 +391,9 @@ fn require_prepared_argument(
                 require_referent(typed, facts, state, place, location, violations)
             }
         }
-        ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => Ok(()),
+        ArgumentAction::AccessOwnedValue
+        | ArgumentAction::ReuseRead { .. }
+        | ArgumentAction::TakeValue => Ok(()),
         ArgumentAction::PendingValue(_)
         | ArgumentAction::Unproduced
         | ArgumentAction::Interrupted => Err(INVALID),

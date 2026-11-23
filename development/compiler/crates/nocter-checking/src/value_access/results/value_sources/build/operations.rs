@@ -51,9 +51,14 @@ impl Builder<'_> {
                 else {
                     return Err(INVALID);
                 };
-                let source =
-                    self.value(point, arguments.get(argument).ok_or(INVALID)?.value, state)?;
-                match &arguments.get(argument).ok_or(INVALID)?.action {
+                let input = arguments.get(argument).ok_or(INVALID)?;
+                let source = match input.action {
+                    ArgumentAction::ReuseRead { call, index } => {
+                        self.read(point, Slot::Argument { call, index }, state)
+                    }
+                    _ => self.value(point, input.value, state)?,
+                };
+                match &input.action {
                     ArgumentAction::ReserveRead(target)
                     | ArgumentAction::ReserveUpdate(target)
                     | ArgumentAction::ReserveTransfer { place: target, .. }
@@ -139,6 +144,12 @@ impl Builder<'_> {
         self.reserved_input_roots(point, arguments, state, |index, value| {
             values[index] = value;
         })?;
+        if arguments.retains_reads() {
+            // Subsequent calls receive these committed sources through the original slots.
+            for (index, &source) in values.iter().enumerate() {
+                self.define(Slot::Argument { call, index }, source, state)?;
+            }
+        }
         let callee = if *kind == CallKind::Value {
             *values.first().ok_or(INVALID)?
         } else {

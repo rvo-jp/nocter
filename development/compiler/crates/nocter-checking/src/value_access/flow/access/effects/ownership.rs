@@ -2,7 +2,11 @@ use super::super::super::{
     Operation, cancelled_slots,
     resources::{self, ActivationAccess, ActivationAccessSource, ActivationInput, Holder},
 };
-use super::super::{AccessRule, Violation, liveness::Carrier, state::Prepared};
+use super::super::{
+    AccessRule, Violation,
+    liveness::Carrier,
+    state::{Prepared, PreparedSource},
+};
 use super::{Context, Failure, Result};
 use crate::value_access::{
     Argument, ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
@@ -581,6 +585,7 @@ impl Context<'_, '_> {
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer { .. }
+            | ArgumentAction::ReuseRead { .. }
             | ArgumentAction::AccessOwnedValue => {}
             ArgumentAction::PendingValue(_)
             | ArgumentAction::Unproduced
@@ -643,9 +648,9 @@ impl Context<'_, '_> {
         data: nocter_model::TypeId,
         prepared: &Prepared,
     ) -> Result<ActivationAccess> {
-        let Prepared::Reserved {
+        let PreparedSource::Reserved {
             region, permission, ..
-        } = prepared
+        } = &prepared.source
         else {
             return Err(Failure::Integrity);
         };

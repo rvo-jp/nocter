@@ -423,6 +423,7 @@ impl Builder<'_> {
             ArgumentAction::ReserveRead(_)
             | ArgumentAction::ReserveUpdate(_)
             | ArgumentAction::ReserveTransfer { .. }
+            | ArgumentAction::ReuseRead { .. }
             | ArgumentAction::AccessOwnedValue
             | ArgumentAction::TakeValue => Ok(None),
             ArgumentAction::PendingValue(_)

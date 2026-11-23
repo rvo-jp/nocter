@@ -30,7 +30,7 @@ pub(super) struct Node {
     pub created: Creation,
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) enum Prepared {
+pub(super) enum PreparedSource {
     Reserved {
         region: Region,
         actor: Option<Key>,
@@ -38,6 +38,33 @@ pub(super) enum Prepared {
         at: Location,
     },
     Value(Value),
+}
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) struct Prepared {
+    pub source: PreparedSource,
+    committed_read: bool,
+}
+impl Prepared {
+    pub(super) const fn pending(source: PreparedSource) -> Self {
+        Self {
+            source,
+            committed_read: false,
+        }
+    }
+    pub(super) fn retain_read(mut self) -> Result<Self, IntegrityError> {
+        let mode = match self.source {
+            PreparedSource::Reserved { permission, .. } => permission,
+            PreparedSource::Value(value) => value.mode,
+        };
+        if self.committed_read || mode != Mode::Read {
+            return Err(INVALID);
+        }
+        self.committed_read = true;
+        Ok(self)
+    }
+    pub(super) fn reuse_read(&self) -> Option<PreparedSource> {
+        self.committed_read.then(|| self.source.clone())
+    }
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct World {
@@ -60,9 +87,9 @@ impl World {
             .chain(
                 self.prepared
                     .values()
-                    .filter_map(|prepared| match prepared {
-                        Prepared::Reserved { region, .. } => Some(region.clone()),
-                        Prepared::Value(_) => None,
+                    .filter_map(|prepared| match &prepared.source {
+                        PreparedSource::Reserved { region, .. } => Some(region.clone()),
+                        PreparedSource::Value(_) => None,
                     }),
             )
             .collect()
@@ -166,7 +193,7 @@ impl World {
         for (&(call, index), prepared) in &mut self.prepared {
             let demand = live.and_then(|live| live.get(&Carrier::Argument { call, index }));
             if demand.is_some_and(|demand| demand.uses.is_empty())
-                && let Prepared::Value(value) = prepared
+                && let PreparedSource::Value(value) = &mut prepared.source
             {
                 value.access = None;
             }
@@ -177,12 +204,12 @@ impl World {
             .filter_map(|value| value.access)
             .collect::<BTreeSet<_>>();
         for prepared in self.prepared.values() {
-            match prepared {
-                Prepared::Reserved {
+            match &prepared.source {
+                PreparedSource::Reserved {
                     actor, permission, ..
                 } if *permission != Mode::Read => retained.extend(actor),
-                Prepared::Reserved { .. } => {}
-                Prepared::Value(value) => retained.extend(value.access),
+                PreparedSource::Reserved { .. } => {}
+                PreparedSource::Value(value) => retained.extend(value.access),
             }
         }
         self.retain_tags(&mut retained)?;
@@ -202,9 +229,9 @@ impl World {
                 .and_then(|live| live.get(&Carrier::Argument { call, index }))
                 .is_some_and(|demand| !demand.updates.is_empty())
             {
-                match prepared {
-                    Prepared::Reserved { actor, .. } => updating.extend(actor),
-                    Prepared::Value(value) => updating.extend(value.access),
+                match &prepared.source {
+                    PreparedSource::Reserved { actor, .. } => updating.extend(actor),
+                    PreparedSource::Value(value) => updating.extend(value.access),
                 }
             }
         }
@@ -245,7 +272,7 @@ impl World {
         // A pending I request needs read authority and identity protection, not an otherwise
         // dead U intermediary. Reparent the reservation without activating an input early.
         for prepared in self.prepared.values_mut() {
-            if let Prepared::Reserved { actor, .. } = prepared {
+            if let PreparedSource::Reserved { actor, .. } = &mut prepared.source {
                 while let Some(key) = *actor {
                     if retained.contains(&key) {
                         break;
@@ -263,9 +290,9 @@ impl World {
         roots.extend(
             self.prepared
                 .values()
-                .filter_map(|prepared| match prepared {
-                    Prepared::Reserved { actor, .. } => *actor,
-                    Prepared::Value(_) => None,
+                .filter_map(|prepared| match &prepared.source {
+                    PreparedSource::Reserved { actor, .. } => *actor,
+                    PreparedSource::Value(_) => None,
                 }),
         );
         let mut visited = BTreeSet::new();
@@ -302,9 +329,9 @@ impl World {
             }
         }
         for (&(call, index), prepared) in &self.prepared {
-            let actor = match prepared {
-                Prepared::Reserved { actor, .. } => *actor,
-                Prepared::Value(value) => value.access,
+            let actor = match &prepared.source {
+                PreparedSource::Reserved { actor, .. } => *actor,
+                PreparedSource::Value(value) => value.access,
             };
             if actor == Some(key)
                 && let Some(at) = live
@@ -437,12 +464,12 @@ impl World {
             if Some(call) == except {
                 continue;
             }
-            if let Prepared::Reserved {
+            if let PreparedSource::Reserved {
                 region: reserved,
                 permission,
                 at,
                 ..
-            } = prepared
+            } = &prepared.source
                 && reserved.overlaps(region)
             {
                 return Err(Violation {

@@ -646,7 +646,7 @@ impl Builder<'_> {
                     crate::value_access::Referent::Place(_) => Some(point),
                     crate::value_access::Referent::Evaluated(id) => self.expression(id, point)?,
                 },
-                ArgumentAction::Unproduced => Some(point),
+                ArgumentAction::Unproduced | ArgumentAction::ReuseRead { .. } => Some(point),
                 _ => self.expression(argument.value, point)?,
             };
             if let Some(point) = current {

@@ -213,6 +213,11 @@ pub enum ArgumentAction {
     },
     /// Lend read/update access to a produced value; its caller retains cleanup responsibility.
     AccessOwnedValue,
+    /// Lend the same read channel after the preceding call committed in this evaluation.
+    ReuseRead {
+        call: AccessExpressionId,
+        index: usize,
+    },
     /// Snapshot a selected place at this input preparation, without a retained access.
     CopyPlace(Referent),
     /// Intermediate direct supply; cannot enter initialization or accepted products.
@@ -245,19 +250,37 @@ pub struct Argument {
 pub struct CallArguments {
     formal: Box<[Argument]>,
     reverse_preparation: bool,
+    retain_reads: bool,
 }
 impl CallArguments {
     pub(super) fn in_order(formal: impl Into<Box<[Argument]>>) -> Self {
         Self {
             formal: formal.into(),
             reverse_preparation: false,
+            retain_reads: false,
         }
     }
     pub(super) fn reverse_pair([left, right]: [Argument; 2]) -> Self {
         Self {
             formal: Box::new([right, left]),
             reverse_preparation: true,
+            retain_reads: false,
         }
+    }
+    pub(super) fn retain_read_pair(&mut self) -> bool {
+        if self.formal.len() != 2
+            || self
+                .formal
+                .iter()
+                .any(|arg| arg.operation != ValueInputOperation::Read)
+        {
+            return false;
+        }
+        self.retain_reads = true;
+        true
+    }
+    pub(super) const fn retains_reads(&self) -> bool {
+        self.retain_reads
     }
     pub(super) fn preparation_order(
         &self,

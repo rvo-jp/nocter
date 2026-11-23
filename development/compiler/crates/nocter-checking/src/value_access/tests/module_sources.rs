@@ -57,11 +57,28 @@ fn module_source_coordinator_executes_each_header_supplier_before_accepting_ordi
 
 #[test]
 fn reversed_comparison_commits_and_cleans_error_temporaries_in_written_order() {
+    comparison_cleanup(">", &[1, 0]);
+    comparison_cleanup(">=", &[1, 0, 0, 1]);
+}
+
+fn comparison_cleanup(operator: &str, preparation: &[usize]) {
     use crate::value_access::flow::{
         Location, Operation,
         resources::{Disposal, Holder, Step},
     };
 
+    let implementation = "see ./index.nct\n\
+        struct Ticket { rank: i32\ncause: error }\n\
+        impl Ticket {\n\
+            operator (self < other: Self): bool { self.rank < other.rank }\n\
+            operator (self == other: Self): bool { self.rank == other.rank }\n\
+        }\n\
+        func run(take a: error, take b: error): bool {\n\
+            let left = Ticket { rank: 2, cause: a^ }\n\
+            let right = Ticket { rank: 1, cause: b^ }\n\
+            left^ COMPARISON right^\n\
+        }"
+    .replace("COMPARISON", operator);
     let fixture = Fixture::new(
         &[
             (
@@ -69,18 +86,7 @@ fn reversed_comparison_commits_and_cleans_error_temporaries_in_written_order() {
                 Root,
                 "see ./body.nct\nfunc run(take a: error, take b: error): bool",
             ),
-            (
-                "/app/body.nct",
-                Implementation,
-                "see ./index.nct\n\
-                 struct Ticket { rank: i32\ncause: error }\n\
-                 impl Ticket { operator (self < other: Self): bool { self.rank < other.rank } }\n\
-                 func run(take a: error, take b: error): bool {\n\
-                     let left = Ticket { rank: 2, cause: a^ }\n\
-                     let right = Ticket { rank: 1, cause: b^ }\n\
-                     left^ > right^\n\
-                 }",
-            ),
+            ("/app/body.nct", Implementation, &implementation),
         ],
         &[(0, 0, 1), (1, 0, 0)],
     );
@@ -96,13 +102,14 @@ fn reversed_comparison_commits_and_cleans_error_temporaries_in_written_order() {
         .unwrap();
     let mut prepared = Vec::new();
     let mut committed = Vec::new();
-    let mut cleanup = Vec::new();
+    let mut normal_cleanup = false;
     for (point, block) in body.graph().points().iter() {
         for (action, event) in block.actions.iter().enumerate() {
             if let Operation::PrepareArgument { argument, .. } = event.operation {
                 prepared.push(argument);
             }
             for transition in body.access().resources().at(Location { point, action }) {
+                let mut disposed = Vec::new();
                 for step in transition.steps() {
                     match step {
                         Step::Move {
@@ -119,18 +126,22 @@ fn reversed_comparison_commits_and_cleans_error_temporaries_in_written_order() {
                         {
                             assert!(matches!(event.operation, Operation::EndEvaluation(_)));
                             assert_eq!(payload.disposal(), Disposal::Aggregate);
-                            cleanup.push(index);
+                            disposed.push(index);
                         }
                         _ => {}
                     }
+                }
+                if !disposed.is_empty() {
+                    assert_eq!(disposed, [0, 1]);
+                    normal_cleanup = true;
                 }
             }
         }
     }
     // The written left operand becomes formal other, while cleanup releases right then left.
-    assert_eq!(prepared, [1, 0]);
+    assert_eq!(prepared, preparation);
     assert_eq!(committed, [1, 0]);
-    assert_eq!(cleanup, [0, 1]);
+    assert!(normal_cleanup);
 }
 
 #[test]

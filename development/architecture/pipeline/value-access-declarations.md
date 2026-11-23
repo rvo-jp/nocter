@@ -73,15 +73,18 @@ If relevant headers remain unresolved, the ordinary dependency query can resolve
 and retry exact selection, retaining successful source evidence when an earlier candidate cycles.
 
 The two nominal [comparison entries](../../spec/language/comparisons.md#type-owned-entries)
-use the same attached declaration and call path. A pair of matching nominal operands selects
-one equality or strict entry. The `==`, `!=`, `<`, and `>` expressions prepare both operands in written order
-as reads, retaining guarded places and explicit transfers until the normal invocation commit.
-The call retains each argument's formal slot while preparation, cancellation, and cleanup
-follow the written operand order. This lets `>` supply the right operand as the strict receiver.
-The resulting call supports required evaluation and native execution. Inequality negates the
-equality answer without reevaluating either side. Definition and implementation navigation use
-the selected entry's actual operator token. Inclusive comparisons still need to retain both
-prepared inputs across their conditional second invocation.
+use the same attached declaration and call path. Matching nominal operands prepare in written
+order as reads, retaining guarded places and explicit transfers until the normal invocation
+commit. Preparation, cancellation, and cleanup retain that order when `>` and `>=` supply
+the right operand as the strict receiver. Inequality negates the equality answer.
+
+The inclusive expressions select both entries during checking. Ordinary short-circuit control
+invokes equality only after a false strict result, using the original left receiver and the
+committed read channels. Those channels keep the first invocation's references and caller-owned
+temporaries live through the second invocation. Required evaluation follows the original
+prepared places. Native lowering reuses their committed address slots. Both paths preserve
+operand effects, captured indices, and once-only disposal. Navigation follows the primary
+selected entry's operator token.
 
 ### Transparent Type Aliases
 

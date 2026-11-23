@@ -1277,6 +1277,7 @@ impl Builder<'_> {
                 ArgumentAction::ReserveTransfer { .. } | ArgumentAction::AccessOwnedValue => {
                     self.root(Holder::Temporary { call, index }, destination.data, false)?
                 }
+                ArgumentAction::ReuseRead { call, index } => self.argument(call, index)?,
                 _ => return Err(self.invalid()),
             };
             effects.push(Effect::BindAddress {

@@ -26,7 +26,7 @@ struct Callee {
 #[derive(Clone, Copy)]
 enum CalleeSource {
     Declared {
-        token: SyntaxToken,
+        token: Option<SyntaxToken>,
         receiver: Option<(NodeId, AccessExpressionId)>,
     },
     Value {
@@ -46,7 +46,10 @@ impl Callee {
                 origin: ValueFunctionOrigin::Declaration(target),
                 invocation: ValueInvocation::Read,
             },
-            source: CalleeSource::Declared { token, receiver },
+            source: CalleeSource::Declared {
+                token: Some(token),
+                receiver,
+            },
         }
     }
 }
@@ -510,7 +513,10 @@ impl Checker<'_, '_> {
                 arguments,
             },
         )?;
-        if let CalleeSource::Declared { token, .. } = selected.source {
+        if let CalleeSource::Declared {
+            token: Some(token), ..
+        } = selected.source
+        {
             let site = self.site(SyntaxOrigin::Token(token))?;
             self.origins.direct_calls.insert(call, site);
         }

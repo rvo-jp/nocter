@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify nominal inclusive comparisons through the existing short-circuit control and call
-pipeline. Retain the original read pair and backing across the conditional equality call.
-Verify incomparable operands, strict success that skips effectful equality, once-only operand
-evaluation, exact retirement, interruption, and both selected entries' const requirements.
+Qualify nested tuple value bindings through the adopted pattern grammar and one supplied
+aggregate. Form named leaves before retiring the ignored remainder. Share ordinary binding,
+transfer and cleanup across required evaluation and native execution. Qualify scoped read/edit
+patterns after a once-evaluated place projection can preserve disjoint ignored fields.
 
 ## Remaining Contextual Representation Qualification
 
@@ -688,6 +688,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify nominal `>` with written preparation, commit, cancellation and cleanup independent
   of the strict call's formal argument order. Verify left-to-right effects, two distinct owned
   error inputs, reverse-written cleanup, reserve conflicts, interrupted transfers and navigation.
+- [x] Qualify nominal `<=` and `>=` over the committed read pair and ordinary short-circuit
+  control. Verify both const requirements, incomparable pairs, a skipped trapping equality,
+  written receiver order, saved evaluated indices, interrupted preparation and once-only disposal.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
