@@ -82,13 +82,13 @@ fn standard_unicode_lookup_contract_crosses_native_tests() {
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+    let NativeTestTargetOutcome::Cases(cases) = compiled.targets()[0].outcome() else {
         panic!("standard Unicode tests failed native compilation")
     };
     assert_eq!(cases.len(), 2);
     let output = TempPackage::new();
     for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+        execute_native_test(case.image().unwrap(), &output.0, case.identity().name());
     }
 }
 
@@ -122,13 +122,13 @@ fn standard_cli_contract_crosses_native_tests() {
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+    let NativeTestTargetOutcome::Cases(cases) = compiled.targets()[0].outcome() else {
         panic!("standard CLI tests failed native compilation")
     };
     assert_eq!(cases.len(), 6);
     let output = TempPackage::new();
     for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+        execute_native_test(case.image().unwrap(), &output.0, case.identity().name());
     }
 }
 
@@ -172,12 +172,12 @@ fn standard_config_contract_crosses_native_tests() {
     let output = TempPackage::new();
     let mut case_count = 0;
     for target in compiled.targets() {
-        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+        let NativeTestTargetOutcome::Cases(cases) = target.outcome() else {
             panic!("standard configuration tests failed native compilation")
         };
         for case in cases {
             case_count += 1;
-            execute_config_test(case.image(), &output.0, case.identity().name());
+            execute_config_test(case.image().unwrap(), &output.0, case.identity().name());
         }
     }
     assert_eq!(case_count, 12);
@@ -838,12 +838,12 @@ fn standard_process_internal_contracts_cross_native_tests() {
     let output = TempPackage::new();
     let mut case_count = 0;
     for target in compiled.targets() {
-        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+        let NativeTestTargetOutcome::Cases(cases) = target.outcome() else {
             panic!("standard process tests failed native compilation")
         };
         for case in cases {
             case_count += 1;
-            execute_native_test(case.image(), &output.0, case.identity().name());
+            execute_native_test(case.image().unwrap(), &output.0, case.identity().name());
         }
     }
     assert_eq!(case_count, 14);

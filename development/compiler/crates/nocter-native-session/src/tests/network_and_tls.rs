@@ -39,12 +39,12 @@ fn standard_network_contract_crosses_native_tests() {
     let output = TempPackage::new();
     let mut case_count = 0;
     for target in compiled.targets() {
-        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+        let NativeTestTargetOutcome::Cases(cases) = target.outcome() else {
             panic!("standard network tests failed native compilation")
         };
         case_count += cases.len();
         for case in cases {
-            execute_native_test(case.image(), &output.0, case.identity().name());
+            execute_native_test(case.image().unwrap(), &output.0, case.identity().name());
         }
     }
     assert_eq!(case_count, 30);
@@ -80,7 +80,7 @@ fn standard_http_framing_contract_crosses_native_tests() {
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+    let NativeTestTargetOutcome::Cases(cases) = compiled.targets()[0].outcome() else {
         panic!(
             "standard HTTP framing tests failed native compilation: {:?}",
             compiled.targets()[0].outcome()
@@ -89,7 +89,7 @@ fn standard_http_framing_contract_crosses_native_tests() {
     assert_eq!(cases.len(), 62);
     let output = TempPackage::new();
     for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+        execute_native_test(case.image().unwrap(), &output.0, case.identity().name());
     }
 }
 

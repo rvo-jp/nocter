@@ -8,8 +8,8 @@ return a complete native artifact or typed failure.
 ## Contract
 
 The crate accepts either a query-backed released target request or a checked v2 package session
-and an executable selection. It orchestrates backend stage contracts and owns output bytes and native test execution
-support. The [process-image handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+and an executable or test selection. It orchestrates backend stage contracts and owns output bytes
+and native test compilation. The [process-image handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 defines which v2 entries reach native code. Source discovery, semantic analysis, backend rules,
 command-line policy and artifact publication belong to their respective stages.
 
@@ -50,3 +50,5 @@ command-line policy and artifact publication belong to their respective stages.
   session; it cannot repeat target lookup or combine separate target owners.
 - A backend integrity failure cannot be presented as a source-language diagnostic.
 - Partial native output is never returned as a successful artifact.
+- Each selected v2 test case retains its own image or lowering failure. A failure before case
+  lowering, such as an unavailable backend, retains the test target identity.

@@ -294,6 +294,54 @@ fn installed_v2_test_runs_only_authored_cases_in_source_order() {
     }
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_tests_keep_cases_after_a_native_layout_failure() {
+    let tree = TempTree::new("installed-value-test-layout");
+    let home = tree.value_access_installation();
+    execute_invocation(invocation(["init", "app"], &tree.0, &home, "arm64-darwin")).unwrap();
+    let app = tree.0.join("app");
+    fs::write(
+        app.join("tests/unit/cases.nct"),
+        "test before {}\n\
+         test oversized {\n\
+             let data: [i32; 18446744073709551615] = [1; 18446744073709551615]\n\
+             let _ = data[0]\n\
+         }\n\
+         test after {}\n",
+    )
+    .unwrap();
+    let outcome = execute_invocation(invocation(
+        ["test", "--offline", "--format", "json"],
+        &app,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert_eq!(outcome.exit_code(), 1);
+    let report = outcome.render_json_diagnostics().unwrap().unwrap();
+    assert!(report.contains("\"test\":\"oversized\""), "{report}");
+    let InvocationOutcome::Test(results) = outcome else {
+        panic!("expected native test report");
+    };
+    let [before, failed, after] = results.runs() else {
+        panic!("{report}");
+    };
+    assert_eq!(before.test_name(), Some("before"));
+    assert_eq!(before.outcome(), nocter_command::TestRunOutcome::Passed);
+    assert_eq!(failed.test_name(), Some("oversized"));
+    assert_eq!(
+        failed.outcome(),
+        nocter_command::TestRunOutcome::CompileFailed
+    );
+    let [diagnostic] = failed.diagnostics() else {
+        panic!("{report}");
+    };
+    assert!(diagnostic.message().contains("Layout("), "{report}");
+    assert_eq!(after.test_name(), Some("after"));
+    assert_eq!(after.outcome(), nocter_command::TestRunOutcome::Passed);
+}
+
 fn invocation(
     arguments: impl IntoIterator<Item = impl Into<OsString>>,
     directory: &Path,

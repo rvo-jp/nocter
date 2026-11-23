@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Keep native test compilation outcomes per selected v2 case. Preserve a later case's image when
-another case fails native lowering, report that failure with its original declaration identity,
-and verify ordering and isolation through the installed command.
+Bring adopted non-generic `impl` constructors and receiver methods through ordinary v2 source.
+Bind members to the exact nominal owner and pair complete public and implementation signatures.
+Use the existing access/call and native paths for `Self`, read, edit, and explicit retirement.
 
 ## Remaining Contextual Representation Qualification
 
@@ -762,7 +762,7 @@ not a language restriction derived from the current realization boundary.
   fixed `void!` root outside the callable namespace, select direct module cases in source order,
   and qualify exact `--case` selection, runtime error reporting and continuation, duplicate names,
   and rejection of calls to test declarations.
-- [ ] Preserve later cases within a v2 test target when native specialization or image lowering
+- [x] Preserve later cases within a v2 test target when native specialization or image lowering
   fails for one checked case. Retain the exact case identity in its compile-failure report.
 - [x] Generate profile-selected v2 executable and library starter packages. Qualify separate
   contracts and bodies, format/check/test and the native executable, and preserve atomic creation

@@ -6,8 +6,8 @@ use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_discovery::DiscoveryFailure;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_native_session::{
-    NativeTestCompileRequest, NativeTestSessionError, NativeTestTargetOutcome, TestCaseIdentity,
-    compile_native_tests, compile_value_access_tests,
+    NativeImageError, NativeTestCompileRequest, NativeTestSessionError, NativeTestTargetOutcome,
+    TestCaseIdentity, compile_native_tests, compile_value_access_tests,
 };
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_source::SourceMap;
@@ -382,28 +382,41 @@ fn run_test_outcome(
     working_directory: &Path,
 ) -> Vec<TestRunResult> {
     match outcome {
-        NativeTestTargetOutcome::Compiled(cases) => cases
+        NativeTestTargetOutcome::Cases(cases) => cases
             .into_iter()
             .map(|case| {
                 let (test, image) = case.into_parts();
-                run_test_case(target.clone(), test, &image, working_directory)
+                match image {
+                    Ok(image) => run_test_case(target.clone(), test, &image, working_directory),
+                    Err(error) => native_test_compile_failure(target, Some(test), &error),
+                }
             })
             .collect(),
-        NativeTestTargetOutcome::CompileFailed(error) => vec![TestRunResult {
-            target: target.clone(),
-            test: None,
-            outcome: TestRunOutcome::CompileFailed,
-            exit_code: None,
-            signal: None,
-            stdout: Box::new([]),
-            stderr: Box::new([]),
-            diagnostics: Box::new([TestRunDiagnostic::new(
-                DiagnosticCode::E0900,
-                error.to_string(),
-            )]),
-            source_diagnostics: Box::new([]),
-            sources: None,
-        }],
+        NativeTestTargetOutcome::CompileFailed(error) => {
+            vec![native_test_compile_failure(target, None, &error)]
+        }
+    }
+}
+
+fn native_test_compile_failure(
+    target: &TestRunTarget,
+    test: Option<TestCaseIdentity>,
+    error: &NativeImageError,
+) -> TestRunResult {
+    TestRunResult {
+        target: target.clone(),
+        test,
+        outcome: TestRunOutcome::CompileFailed,
+        exit_code: None,
+        signal: None,
+        stdout: Box::new([]),
+        stderr: Box::new([]),
+        diagnostics: Box::new([TestRunDiagnostic::new(
+            DiagnosticCode::E0900,
+            error.to_string(),
+        )]),
+        source_diagnostics: Box::new([]),
+        sources: None,
     }
 }
 

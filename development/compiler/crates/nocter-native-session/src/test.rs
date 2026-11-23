@@ -114,26 +114,26 @@ impl NativeTestCompileRequest {
     }
 }
 
-/// One complete native image paired with its semantic case identity.
+/// Native lowering for one semantic test case, including case-local failure.
 #[derive(Debug)]
-pub struct NativeTestImage {
+pub struct NativeTestCaseCompilation {
     identity: TestCaseIdentity,
-    image: NativeImage,
+    image: Result<NativeImage, NativeImageError>,
 }
 
-impl NativeTestImage {
+impl NativeTestCaseCompilation {
     #[must_use]
     pub const fn identity(&self) -> &TestCaseIdentity {
         &self.identity
     }
 
-    #[must_use]
-    pub const fn image(&self) -> &NativeImage {
-        &self.image
+    /// # Errors
+    /// Returns the native failure for this case if no image was produced.
+    pub const fn image(&self) -> Result<&NativeImage, &NativeImageError> {
+        self.image.as_ref()
     }
 
-    #[must_use]
-    pub fn into_parts(self) -> (TestCaseIdentity, NativeImage) {
+    pub fn into_parts(self) -> (TestCaseIdentity, Result<NativeImage, NativeImageError>) {
         (self.identity, self.image)
     }
 }
@@ -142,7 +142,7 @@ impl NativeTestImage {
 /// beside successful siblings instead of terminating the test-set compilation.
 #[derive(Debug)]
 pub enum NativeTestTargetOutcome {
-    Compiled(Box<[NativeTestImage]>),
+    Cases(Box<[NativeTestCaseCompilation]>),
     CompileFailed(NativeImageError),
 }
 
@@ -275,28 +275,23 @@ pub fn compile_value_access_tests(
             .into(),
             error => NativeTestSessionError::Integrity(error.to_string().into()),
         })?;
-    let images = tests
-        .cases()
-        .map(|(declaration, name)| {
-            let image = crate::value_access::lower_root_image(tests.target(), || {
-                nocter_target_program::value_access::InstanceProgram::prepare(
-                    tests.unit(),
-                    declaration,
-                )
-            })?;
-            Ok(NativeTestImage {
-                identity: TestCaseIdentity {
-                    declaration: TestDeclaration::ValueAccess(declaration),
-                    name: name.into(),
-                },
-                image,
-            })
-        })
-        .collect::<Result<Box<[_]>, NativeImageError>>();
-    Ok(match images {
-        Ok(images) => NativeTestTargetOutcome::Compiled(images),
-        Err(error) => NativeTestTargetOutcome::CompileFailed(error),
-    })
+    let mut cases = Vec::with_capacity(tests.cases().len());
+    for (declaration, name) in tests.cases() {
+        let image = crate::value_access::lower_root_image(tests.target(), || {
+            nocter_target_program::value_access::InstanceProgram::prepare(tests.unit(), declaration)
+        });
+        if let Err(error @ NativeImageError::Target(_)) = image {
+            return Ok(NativeTestTargetOutcome::CompileFailed(error));
+        }
+        cases.push(NativeTestCaseCompilation {
+            identity: TestCaseIdentity {
+                declaration: TestDeclaration::ValueAccess(declaration),
+                name: name.into(),
+            },
+            image,
+        });
+    }
+    Ok(NativeTestTargetOutcome::Cases(cases.into_boxed_slice()))
 }
 
 fn compile_test_target(
@@ -328,13 +323,16 @@ fn compile_test_target(
                 let image = NativeImage::from_macho(
                     MachOImage::build(test.program()).map_err(NativeImageError::Image)?,
                 );
-                Ok(NativeTestImage { identity, image })
+                Ok(NativeTestCaseCompilation {
+                    identity,
+                    image: Ok(image),
+                })
             })
             .collect::<Result<Vec<_>, NativeImageError>>()
             .map(Vec::into_boxed_slice)
     })();
     match result {
-        Ok(images) => NativeTestTargetOutcome::Compiled(images),
+        Ok(images) => NativeTestTargetOutcome::Cases(images),
         Err(error) => NativeTestTargetOutcome::CompileFailed(error),
     }
 }

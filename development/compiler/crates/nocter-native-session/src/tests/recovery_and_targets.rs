@@ -388,7 +388,7 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
             .targets()
             .iter()
             .map(|target| match target.outcome() {
-                NativeTestTargetOutcome::Compiled(cases) => cases
+                NativeTestTargetOutcome::Cases(cases) => cases
                     .iter()
                     .map(|case| case.identity().name())
                     .collect::<Vec<_>>(),
@@ -402,9 +402,12 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
     assert!(compiled.targets().iter().all(|target| {
         target.identity().package() == &package
             && match target.outcome() {
-                NativeTestTargetOutcome::Compiled(cases) => cases
-                    .iter()
-                    .all(|case| case.image().bytes().starts_with(&[0xcf, 0xfa, 0xed, 0xfe])),
+                NativeTestTargetOutcome::Cases(cases) => cases.iter().all(|case| {
+                    case.image()
+                        .unwrap()
+                        .bytes()
+                        .starts_with(&[0xcf, 0xfa, 0xed, 0xfe])
+                }),
                 NativeTestTargetOutcome::CompileFailed(_) => false,
             }
     }));
@@ -428,7 +431,7 @@ fn native_test_set_preserves_target_and_case_declaration_identity() {
     let target = compile_for_test(unit);
     let selected =
         compile_native_tests(NativeTestCompileRequest::case(target, "unit", "second")).unwrap();
-    let NativeTestTargetOutcome::Compiled(cases) = selected.targets()[0].outcome() else {
+    let NativeTestTargetOutcome::Cases(cases) = selected.targets()[0].outcome() else {
         panic!("selected case failed native compilation")
     };
     assert_eq!(cases.len(), 1);
