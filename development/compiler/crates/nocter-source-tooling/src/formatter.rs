@@ -357,6 +357,12 @@ fn needs_space(
     };
     let previous_kind = previous.kind();
     let current_kind = current.kind();
+    if current_kind == TokenKind::Keyword(Keyword::As)
+        && previous_kind == TokenKind::Punctuation(Punctuation::Slash)
+        && previous_parent == Some(NodeKind::ModulePath)
+    {
+        return true;
+    }
     if matches!(
         current_kind,
         TokenKind::StringText | TokenKind::StringEnd(_) | TokenKind::InterpolationEnd
@@ -665,6 +671,13 @@ mod tests {
             "func first(value: i32): i32 {\n    return value + 1\n}\n\nfunc second(): i32 {\n    return if true { 1 } else { 2 }\n}\n"
         );
         assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn separates_the_package_root_path_from_its_import_alias() {
+        for goal in [ParseGoal::SourceFile, ParseGoal::V2CoreUnit] {
+            assert_eq!(format_with_goal("use /as root\n", goal), "use / as root\n");
+        }
     }
 
     #[test]
