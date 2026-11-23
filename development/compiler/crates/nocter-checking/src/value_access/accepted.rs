@@ -230,6 +230,11 @@ impl Unit {
     ) -> Result<BTreeMap<CodeInstanceKey, DataInstanceKey>, DestructorFailure> {
         destruction::qualify_receiver(self, receiver, work)
     }
+    /// Anchor a target's rejected backing for a selected destructor to its retained sources.
+    #[must_use]
+    pub fn destructor_backing_failure(&self, frame: &CodeInstanceKey) -> Option<DestructorFailure> {
+        destruction::backing_failure(self, frame)
+    }
     /// The checked deferred body can run its admitted activation without suspension.
     #[must_use]
     pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {

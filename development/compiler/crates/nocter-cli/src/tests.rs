@@ -1167,6 +1167,8 @@ fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
             "captured_ticket = Ticket { state: 42 }",
             "captured_ticket = Ticket { state: 41 }",
         ),
+        ("Original { state: 40 }", "Original { state: 41 }"),
+        ("Replacement { state: 42 }", "Replacement { state: 41 }"),
     ] {
         assert!(source.contains(original));
         fs::write(&main, source.replace(original, replacement)).unwrap();
@@ -1200,7 +1202,7 @@ fn installed_v2_user_destructors_report_contextual_effects() {
     .unwrap();
     let diagnostics = rejected();
     assert!(
-        diagnostics.contains("different cleanup representation"),
+        diagnostics.contains("the completed receiver cannot use the original storage layout"),
         "{diagnostics}"
     );
 

@@ -199,7 +199,7 @@ pub struct InstanceProgram {
     unit: Arc<Unit>,
     root: AccessInstanceId,
     instances: Arena<AccessInstanceId, Instance>,
-    destructors: BTreeSet<AccessInstanceId>,
+    destructors: BTreeMap<AccessInstanceId, DataInstanceKey>,
 }
 impl InstanceProgram {
     /// Substitute already selected witness edges without source access or body rechecking.
@@ -235,9 +235,11 @@ impl InstanceProgram {
     pub const fn instances(&self) -> &Arena<AccessInstanceId, Instance> {
         &self.instances
     }
-    /// Hidden bodies selected by the qualified destruction contract.
-    pub fn destructors(&self) -> impl Iterator<Item = AccessInstanceId> + '_ {
-        self.destructors.iter().copied()
+    /// Hidden body instances and their verified completed receiver contracts.
+    pub fn destructors(&self) -> impl Iterator<Item = (AccessInstanceId, &DataInstanceKey)> {
+        self.destructors
+            .iter()
+            .map(|(&instance, data)| (instance, data))
     }
     /// Pair each instance with its original checked body. Selected operations remain unchanged.
     #[must_use]

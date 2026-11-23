@@ -72,6 +72,39 @@ func clean_second(marker: i32): void {
     if marker != 42 { let _ = 1 / 0 }
 }
 
+struct Original {
+    state: i32
+}
+
+impl Original {
+    drop {
+        if self.state != 40 { let _ = 1 / 0 }
+        self.state = 0
+    }
+}
+
+struct Replacement {
+    state: i32
+}
+
+impl Replacement {
+    drop {
+        if self.state != 42 { let _ = 1 / 0 }
+        self.state = 0
+    }
+}
+
+struct Refresh {
+    callback: func(): void
+}
+
+impl Refresh {
+    drop {
+        let new_state = Replacement { state: 42 }
+        self.callback = (new_state^;): void { let _ = new_state.state }
+    }
+}
+
 struct PendingTicket {
     state: i32
 }
@@ -133,6 +166,12 @@ func main(): i32 {
         marker: 36,
     }
     drop captured
+
+    let old_state = Original { state: 40 }
+    let refresh = Refresh {
+        callback: (old_state^;): void { let _ = old_state.state },
+    }
+    drop refresh
 
     let pending = delayed(PendingTicket { state: 42 })
     drop pending

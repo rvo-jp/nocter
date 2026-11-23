@@ -217,8 +217,8 @@ The concrete lifecycle selects executable destructor bodies from the representat
 retired payload, including owned callable environments and canceled activation inputs. For fields
 that depend on supplied callables, it qualifies the exact value before adding the body. Reached
 destructors and their invocation edges use the ordinary instance builder. Effect analysis and the
-concrete lifecycle both visit components of the checked completion contract. Each contextual
-receiver must preserve its cleanup representation through normal body completion.
+concrete lifecycle both visit components of the checked completion contract. This can select
+different callable and environment identities from those received by the destructor.
 The check uses the accepted bodies and their instance metadata. Rejected operations retain their
 body and operation identities until source locations are bound against the original source.
 Native command diagnostics report the rejected operation together with the destructor that requires it.
@@ -227,10 +227,11 @@ Effect analysis projects structural components through the shared declaration sc
 follows callable environments through their selected witness.
 The analysis follows the whole receiver through delegated edit inputs and rejects a replacement
 that would recursively retire that same value. Updates to its components remain ordinary edits.
-MIR associates the qualified body with its exact represented receiver. The native cleanup helper
-passes the complete receiver through the ordinary edit ABI, then retires its initialized fields
-in reverse declaration order after normal completion. Enum cleanup reads the active tag after
-the body and projects only that case.
+MIR associates each qualified body with its represented entry and completion views. It collects
+component cleanup dependencies from the completion view. Machine checks that both views share
+storage geometry. The native helper passes the complete entry through the ordinary edit ABI,
+then uses the completion view to retire initialized fields in reverse declaration order. Enum
+cleanup reads the active tag after the body and projects only that case.
 MIR closes ordinary invocation and destructor edges from the executable entry. Reached retirement
 schemas contribute the cleanup helpers and any anonymous bodies they call. Machine consumes that
 set alongside the already selected bodies and static objects.

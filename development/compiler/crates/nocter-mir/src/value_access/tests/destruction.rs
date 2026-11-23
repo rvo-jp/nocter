@@ -18,12 +18,13 @@ fn only_reached_retirement_contributes_executable_destructor_bodies() {
             "}",
         ),
     );
-    let (&receiver, &body) = program.destructors().first_key_value().unwrap();
+    let (&receiver, plan) = program.destructors().first_key_value().unwrap();
     assert_eq!(program.destructors().len(), 1);
     assert_eq!(program.bodies().len(), 2);
-    assert_ne!(program.root(), body);
+    assert_ne!(program.root(), plan.body);
+    assert_eq!(plan.completed, receiver);
     assert_eq!(
-        program.bodies()[&body].signature().explicit()[0].data,
+        program.bodies()[&plan.body].signature().explicit()[0].data,
         receiver
     );
     assert_eq!(program.cleanup().len(), 2);

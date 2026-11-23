@@ -1,5 +1,5 @@
 //! Close executable bodies through ordinary calls and the selected resource schedules.
-use super::{Body, Disposal, Effect, Failure};
+use super::{Body, Destructor, Disposal, Effect, Failure};
 use nocter_model::AccessInstanceId;
 use nocter_runtime_contract::{
     RuntimeDataId, RuntimeEnvironment, RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation,
@@ -15,7 +15,7 @@ pub(super) fn close(
     root: AccessInstanceId,
     bodies: &BTreeMap<AccessInstanceId, Body>,
     runtime: &RuntimeEnvironment,
-    destructors: &BTreeMap<RuntimeDataId, Option<AccessInstanceId>>,
+    destructors: &BTreeMap<RuntimeDataId, Option<Destructor>>,
 ) -> Result<Closed, Failure> {
     let mut pending = BTreeSet::from([root]);
     let mut reached = BTreeSet::new();
@@ -87,9 +87,27 @@ pub(super) fn close(
 #[derive(Debug)]
 struct InvalidSchema;
 
+pub(super) fn compatible_receivers(
+    runtime: &RuntimeEnvironment,
+    entry: RuntimeDataId,
+    completed: RuntimeDataId,
+) -> bool {
+    let shapes = runtime.type_representations();
+    matches!(
+        (shapes.get(entry), shapes.get(completed)),
+        (
+            Some(RuntimeTypeRepresentation::ValueAggregate { .. }),
+            Some(RuntimeTypeRepresentation::ValueAggregate { .. }),
+        ) | (
+            Some(RuntimeTypeRepresentation::ValueEnum { .. }),
+            Some(RuntimeTypeRepresentation::ValueEnum { .. }),
+        )
+    )
+}
+
 fn required(
     runtime: &RuntimeEnvironment,
-    destructors: &BTreeMap<RuntimeDataId, Option<AccessInstanceId>>,
+    destructors: &BTreeMap<RuntimeDataId, Option<Destructor>>,
     data: RuntimeDataId,
     cache: &mut BTreeMap<RuntimeDataId, bool>,
     mut on_destructor: impl FnMut(AccessInstanceId),
@@ -100,7 +118,15 @@ fn required(
         if cache.contains_key(&data) {
             continue;
         }
-        let children = match runtime.types().get(data) {
+        let authored = destructors
+            .get(&data)
+            .map(|plan| plan.ok_or(InvalidSchema))
+            .transpose()?;
+        let completed = authored.map_or(data, |plan| plan.completed);
+        if authored.is_some() && !compatible_receivers(runtime, data, completed) {
+            return Err(InvalidSchema);
+        }
+        let children = match runtime.types().get(completed) {
             Some(RuntimeType::Primitive(RuntimePrimitive::Error)) => {
                 cache.insert(data, true);
                 continue;
@@ -137,7 +163,7 @@ fn required(
                 }
                 children
             }
-            Some(RuntimeType::Aggregate) => match runtime.type_representations().get(data) {
+            Some(RuntimeType::Aggregate) => match runtime.type_representations().get(completed) {
                 Some(RuntimeTypeRepresentation::ScalarEnum { .. }) => Vec::new(),
                 Some(RuntimeTypeRepresentation::ValueAggregate { fields }) => {
                     fields.iter().map(|field| field.ty()).collect()
@@ -158,12 +184,8 @@ fn required(
             _ => return Err(InvalidSchema),
         };
         if expanded {
-            let authored = destructors
-                .get(&data)
-                .map(|body| body.ok_or(InvalidSchema))
-                .transpose()?;
-            if let Some(body) = authored {
-                on_destructor(body);
+            if let Some(plan) = authored {
+                on_destructor(plan.body);
             }
             let needed =
                 authored.is_some() || children.iter().any(|child| cache.get(child) == Some(&true));

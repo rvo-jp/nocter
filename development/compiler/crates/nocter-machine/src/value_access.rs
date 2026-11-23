@@ -14,6 +14,7 @@ pub fn lower(program: &mir::Program) -> Result<crate::MachineProgram, Executable
 pub enum ExecutableFailure {
     Layout(crate::MachineLayoutError),
     Abi(crate::MachineAbiError),
+    DestructorBacking(AccessInstanceId),
     InvalidBody(AccessInstanceId),
     InvalidRoot,
     DataLimit(nocter_runtime_contract::RuntimeDataId),

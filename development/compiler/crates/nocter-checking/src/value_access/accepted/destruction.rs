@@ -126,6 +126,26 @@ pub(super) fn qualify_receiver(
     Ok(proof.completions)
 }
 
+pub(super) fn backing_failure(unit: &Unit, frame: &CodeInstanceKey) -> Option<DestructorFailure> {
+    let ValueCode::Declaration(root) = frame.code() else {
+        return None;
+    };
+    if !matches!(
+        unit.program.codes().get(root)?.kind(),
+        CodeKind::Destructor(_)
+    ) {
+        return None;
+    }
+    Some(DestructorFailure {
+        root: Some(root),
+        failure: CheckFailure::at_entry(
+            frame.code(),
+            "the completed receiver cannot use the original storage layout",
+        ),
+        evidence: Arc::clone(&unit.result_evidence),
+    })
+}
+
 struct Proof<'a, 'work> {
     unit: &'a Unit,
     frames: BTreeSet<Frame>,
@@ -268,10 +288,9 @@ impl<'a, 'work> Proof<'a, 'work> {
             .unit
             .instantiate_completed_input_data(frame, receiver.local, self.work)
             .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)))?;
-        if !entry.has_same_representation(&self.unit.program, &completed) {
-            return Err(CheckFailure::at_entry(
-                code,
-                "the completed receiver has a different cleanup representation",
+        if completed.data() != entry.data() || completed.is_uninhabited() {
+            return Err(CheckFailure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
             ));
         }
         Ok(completed)

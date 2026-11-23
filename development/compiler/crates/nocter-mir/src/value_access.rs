@@ -494,13 +494,19 @@ pub struct Static {
     pub data: RuntimeDataId,
     pub value: nocter_model::FrozenData,
 }
+/// A qualified body and the stored view of its receiver on normal completion.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Destructor {
+    pub body: AccessInstanceId,
+    pub completed: RuntimeDataId,
+}
 /// Closed private MIR bodies and global data, without a released-program adapter.
 #[derive(Clone, Debug)]
 pub struct Program {
     statics: BTreeMap<nocter_model::ValueStatic, Static>,
     runtime: RuntimeEnvironment,
     bodies: BTreeMap<AccessInstanceId, Body>,
-    destructors: BTreeMap<RuntimeDataId, AccessInstanceId>,
+    destructors: BTreeMap<RuntimeDataId, Destructor>,
     cleanup: BTreeSet<RuntimeDataId>,
     root: AccessInstanceId,
 }
@@ -522,19 +528,38 @@ impl Program {
                 ))
             })
             .collect::<Result<_, Failure>>()?;
+        let instances = program.instance_program();
+        let declarations = instances.unit().program();
         let mut destructor_receivers: BTreeMap<_, _> = storage
-            .destructor_receivers(program.instance_program().unit().program())
+            .destructor_receivers(declarations)
             .map(|data| (data, None))
             .collect();
-        for id in program.instance_program().destructors() {
+        for (id, completed) in instances.destructors() {
             let body = bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
             let [receiver] = body.signature().explicit() else {
                 return Err(Failure::InvalidBody(id));
             };
+            if instances
+                .instances()
+                .get(id)
+                .and_then(|instance| instance.input(receiver.local))
+                .is_none_or(|input| input.data() != completed.data())
+            {
+                return Err(Failure::InvalidBody(id));
+            }
+            let completed = storage
+                .instance(declarations, completed)
+                .map_err(Failure::Storage)?;
             let destination = destructor_receivers
                 .get_mut(&receiver.data)
                 .ok_or(Failure::InvalidBody(id))?;
-            if destination.replace(id).is_some() {
+            if destination
+                .replace(Destructor {
+                    body: id,
+                    completed,
+                })
+                .is_some()
+            {
                 return Err(Failure::InvalidBody(id));
             }
         }
@@ -592,7 +617,7 @@ impl Program {
         &self.bodies
     }
     #[must_use]
-    pub const fn destructors(&self) -> &BTreeMap<RuntimeDataId, AccessInstanceId> {
+    pub const fn destructors(&self) -> &BTreeMap<RuntimeDataId, Destructor> {
         &self.destructors
     }
     /// Reached stored schemas whose retirement requires an executable helper.

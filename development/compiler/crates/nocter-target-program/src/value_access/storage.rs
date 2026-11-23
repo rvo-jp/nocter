@@ -134,6 +134,9 @@ pub fn prepare(
     for key in additional.into_iter().chain(failure_status(instances)?) {
         shapes.intern(key)?;
     }
+    for (_, completed) in instances.destructors() {
+        shapes.intern(completed.clone())?;
+    }
     shapes.finish(abi)
 }
 

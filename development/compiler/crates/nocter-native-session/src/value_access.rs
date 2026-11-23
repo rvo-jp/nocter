@@ -115,7 +115,16 @@ pub(super) fn lower_root_image(
     })?;
     let mir = nocter_mir::value_access::Program::lower(&lifecycle, abi)
         .map_err(ValueAccessLoweringError::Mir)?;
-    let machine =
-        nocter_machine::value_access::lower(&mir).map_err(ValueAccessLoweringError::Machine)?;
+    let instances = lifecycle.instance_program();
+    let machine = nocter_machine::value_access::lower(&mir).map_err(|error| {
+        if let nocter_machine::value_access::ExecutableFailure::DestructorBacking(id) = &error
+            && let Some(instance) = instances.instances().get(*id)
+            && let Some(failure) = instances.unit().destructor_backing_failure(instance.key())
+            && let Some(diagnostics) = analysis.value_access_destructor_diagnostics(&failure)
+        {
+            return ValueAccessLoweringError::Destruction(diagnostics);
+        }
+        ValueAccessLoweringError::Machine(error)
+    })?;
     image_from_machine(&machine)
 }

@@ -11,6 +11,7 @@ use nocter_checking::value_access::{
     flow::{Location, Operation, resources::Holder},
 };
 use nocter_constant_evaluation::state::WorkBudget;
+use nocter_declarations::value_access::DataInstanceKey;
 use nocter_model::{AccessCodeId, AccessExpressionId, AccessInstanceId, ArenaBuilder, ValueCode};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,7 +27,7 @@ pub(super) struct Builder {
     instances: ArenaBuilder<AccessInstanceId, Reservation>,
     keys: BTreeMap<InstanceKey, AccessInstanceId>,
     pending: Vec<AccessInstanceId>,
-    destructors: BTreeSet<AccessInstanceId>,
+    destructors: BTreeMap<AccessInstanceId, DataInstanceKey>,
 }
 impl Builder {
     pub(super) fn retain(program: &InstanceProgram) -> Self {
@@ -45,9 +46,22 @@ impl Builder {
         builder
     }
 
-    pub(super) fn add_destructor(&mut self, frame: InstanceKey) {
+    pub(super) fn add_destructor(
+        &mut self,
+        frame: InstanceKey,
+        completed: DataInstanceKey,
+    ) -> Result<(), Failure> {
         let id = self.intern(frame);
-        self.destructors.insert(id);
+        match self.destructors.entry(id) {
+            std::collections::btree_map::Entry::Occupied(entry) if *entry.get() != completed => {
+                Err(Failure::InvalidAcceptedUnit)
+            }
+            std::collections::btree_map::Entry::Occupied(_) => Ok(()),
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(completed);
+                Ok(())
+            }
+        }
     }
 
     pub(super) fn next(

@@ -38,7 +38,10 @@ pub(super) fn extend(
     let mut builder = Builder::retain(&instances);
     while !retired.new.is_empty() {
         for frame in std::mem::take(&mut retired.new) {
-            builder.add_destructor(frame);
+            let completed = retired.qualified.get(&frame).ok_or(INVALID)?.clone();
+            builder
+                .add_destructor(frame, completed)
+                .map_err(Failure::Body)?;
         }
         while let Some((id, instance)) = builder.next(unit, work).map_err(Failure::Body)? {
             let body = lower_body(unit, id, instance, work)?;

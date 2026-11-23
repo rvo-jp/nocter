@@ -22,7 +22,7 @@ struct Context<'a> {
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
-    destructors: BTreeMap<RuntimeDataId, AccessInstanceId>,
+    destructors: BTreeMap<RuntimeDataId, mir::Destructor>,
     transports: transport::Prepared,
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
@@ -43,6 +43,7 @@ fn prepare_layouts(program: &mir::Program) -> Result<MachineLayoutPlan, Failure>
                         .flat_map(|pair| [pair.before, pair.after]),
                 )
         })
+        .chain(program.destructors().values().map(|plan| plan.completed))
         .chain(
             program
                 .runtime()
@@ -54,6 +55,11 @@ fn prepare_layouts(program: &mir::Program) -> Result<MachineLayoutPlan, Failure>
         );
     let layouts =
         MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
+    for (&entry, plan) in program.destructors() {
+        if !layouts.has_same_geometry(entry, plan.completed) {
+            return Err(Failure::DestructorBacking(plan.body));
+        }
+    }
     for (&id, body) in program.bodies() {
         for pair in body.geometry() {
             let valid = match &pair.requirement {

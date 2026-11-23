@@ -40,7 +40,8 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         validate_body(program, id, body)?;
     }
     let mut pending = BTreeSet::from([program.root]);
-    for (&data, &id) in &program.destructors {
+    for (&data, destructor) in &program.destructors {
+        let id = destructor.body;
         let body = program.bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
         let signature = body.signature();
         let [receiver] = signature.explicit() else {
@@ -51,13 +52,7 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
             || receiver.operation != ValueInputOperation::Edit
             || signature.environment().is_some()
             || !program.cleanup.contains(&data)
-            || !matches!(
-                program.runtime.type_representations().get(data),
-                Some(
-                    RuntimeTypeRepresentation::ValueAggregate { .. }
-                        | RuntimeTypeRepresentation::ValueEnum { .. }
-                )
-            )
+            || !super::cleanup::compatible_receivers(&program.runtime, data, destructor.completed)
             || program.runtime.types().get(signature.result()) != Some(&RuntimeType::Unit)
         {
             return Err(Failure::InvalidBody(id));

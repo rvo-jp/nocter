@@ -11,27 +11,33 @@ use nocter_runtime_contract::RuntimeDataId;
 
 pub(crate) fn build(
     context: &Context<'_>,
-    data: RuntimeDataId,
+    entry: RuntimeDataId,
     owner: MachineFunctionId,
 ) -> Result<MachineFunction, Failure> {
     let mut builder = Builder::new(context, owner);
     let target = context.layouts.target();
     builder.stack.push(MachineStackObject::address(
-        data,
+        entry,
         target,
         MachineStackPurpose::Parameter { position: 0 },
     ));
     builder.parameters.push(MachineStackId::new(0));
-    let layout = context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
-    if let Some(body) = context.destructors.get(&data) {
-        let receiver = builder.cleanup_root(data)?;
-        let target = *context.functions.get(body).ok_or(Failure::InvalidRoot)?;
-        let abi = context.abis.get(body).ok_or(Failure::InvalidRoot)?;
+    let data = if let Some(plan) = context.destructors.get(&entry) {
+        let receiver = builder.cleanup_root(entry)?;
+        let target = *context
+            .functions
+            .get(&plan.body)
+            .ok_or(Failure::InvalidRoot)?;
+        let abi = context.abis.get(&plan.body).ok_or(Failure::InvalidRoot)?;
         let crate::MachineResultAbi::Value(result) = abi.result() else {
             return Err(Failure::InvalidRoot);
         };
-        invoke_cleanup(&mut builder, data, receiver, target, Some(result.ty()))?;
-    }
+        invoke_cleanup(&mut builder, entry, receiver, target, Some(result.ty()))?;
+        plan.completed
+    } else {
+        entry
+    };
+    let layout = context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
     match layout.kind() {
         MachineLayoutKind::ErrorHandle => {
             let place = builder.cleanup_root(data)?;
@@ -90,7 +96,7 @@ pub(crate) fn build(
         _ => return Err(Failure::InvalidRoot),
     }
     builder.terminate(MachineTerminator::Return(None))?;
-    let abi = crate::transport::address_signature(data, context.layouts).map_err(Failure::Abi)?;
+    let abi = crate::transport::address_signature(entry, context.layouts).map_err(Failure::Abi)?;
     builder.finish(MachineFunctionKind::Callable(abi), MachineBlockId::new(0))
 }
 fn cleanup_choice(

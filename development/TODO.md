@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry the receiver's normal completion representation into implicit component cleanup. Use the
-checked post-state for the effect proof and preserve the original address through verified layout.
+Preserve a selected compound input domain when its declared type also has a closed representation.
+Verify the entry channel and the retained components after an ordinary field update.
 
 ## Remaining Contextual Representation Qualification
 
@@ -789,9 +789,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Permit component transfers with complete restoration on every reached cleanup path.
   Diagnose live partial owners at retirement, including nested owners, replacement and early
   return. Run a restored owner through its ordinary native cleanup.
-- [ ] Extend destructor effect and cleanup qualification to receivers whose completed cleanup
-  representation changes, and to remaining target backing and release contracts. Qualify effects
-  fixed by the contextual definition before a concrete retirement when the source evidence allows.
+- [ ] Extend destructor effect and cleanup qualification to receivers whose completed storage
+  geometry changes, and to remaining target backing and release contracts. Qualify effects fixed
+  by the contextual definition before a concrete retirement when the source evidence allows.
 - [x] Close executable destructor bodies from reached retirement schemas, including completed
   adapter environments and local-future cancellation. Remove unused destructor bodies and their
   dependencies from executable MIR. Qualify zero-size receivers and cancellation without drive.
@@ -809,6 +809,9 @@ not a language restriction derived from the current realization boundary.
   bodies and their private dependencies before constructing MIR.
 - [x] Retain one checked completion contract for each qualified destructor frame. Use its
   components for effect checking and concrete instance closure.
+- [x] Use the completed receiver view in native component cleanup when storage geometry is
+  preserved. Verify cleanup of the old and new owned closure environments and report an
+  incompatible layout at the authored destructor.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

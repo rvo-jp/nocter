@@ -2,6 +2,7 @@
 use super::*;
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+    RuntimeValueFieldRepresentation,
 };
 
 fn required(
@@ -26,10 +27,14 @@ fn runtime(entries: impl IntoIterator<Item = (RuntimeDataId, RuntimeType)>) -> R
 }
 
 #[test]
-fn reached_destructor_receivers_require_their_qualified_body() {
-    let [receiver, array] = [0, 1].map(RuntimeDataId::Instance);
+fn reached_destructors_require_qualified_bodies_and_use_completed_components() {
+    let [receiver, array, completed, error] = [0, 1, 2, 3].map(RuntimeDataId::Instance);
     let mut types = RuntimeTypeTableBuilder::new();
     types.insert(receiver, RuntimeType::Aggregate).unwrap();
+    types.insert(completed, RuntimeType::Aggregate).unwrap();
+    types
+        .insert(error, RuntimeType::Primitive(RuntimePrimitive::Error))
+        .unwrap();
     types
         .insert(
             array,
@@ -42,12 +47,23 @@ fn reached_destructor_receivers_require_their_qualified_body() {
     let runtime = RuntimeEnvironment::new(
         types.finish().unwrap(),
         RuntimeTypeRepresentationTable::new(
-            [(
-                receiver,
-                RuntimeTypeRepresentation::ValueAggregate {
-                    fields: Box::new([]),
-                },
-            )]
+            [
+                (
+                    receiver,
+                    RuntimeTypeRepresentation::ValueAggregate {
+                        fields: Box::new([]),
+                    },
+                ),
+                (
+                    completed,
+                    RuntimeTypeRepresentation::ValueAggregate {
+                        fields: Box::new([RuntimeValueFieldRepresentation::new(
+                            nocter_model::ValueField::Tuple(0),
+                            error,
+                        )]),
+                    },
+                ),
+            ]
             .into(),
         ),
         RuntimeAbiIdentity::Arm64DarwinV1,
@@ -72,7 +88,11 @@ fn reached_destructor_receivers_require_their_qualified_body() {
     assert!(
         super::required(
             &runtime,
-            &[(receiver, Some(body))].into(),
+            &[
+                (receiver, Some(Destructor { body, completed })),
+                (completed, None)
+            ]
+            .into(),
             array,
             &mut cache,
             |entry| reached.push(entry)
@@ -80,7 +100,10 @@ fn reached_destructor_receivers_require_their_qualified_body() {
         .unwrap()
     );
     assert_eq!(reached, [body]);
-    assert_eq!(cache, BTreeMap::from([(receiver, true), (array, true)]));
+    assert_eq!(
+        cache,
+        BTreeMap::from([(receiver, true), (array, true), (error, true)])
+    );
 }
 
 #[test]
