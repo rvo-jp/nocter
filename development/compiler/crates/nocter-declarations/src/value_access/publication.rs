@@ -285,6 +285,22 @@ impl HeaderPublication {
                 if !violations.is_empty() {
                     return Err(HeaderFailure::Rejected(violations));
                 }
+                if let Some(CodeKind::Destructor(owner)) = reservation
+                    .definition
+                    .as_ref()
+                    .map(|definition| definition.kind)
+                {
+                    let Some(nominal) = self.nominals.get(owner) else {
+                        return Ok(HeaderStep::Require(Box::new([owner.into()])));
+                    };
+                    if nominal.copyable() {
+                        return Err(HeaderFailure::Rejected(vec![DeclarationViolation {
+                            declaration: id.into(),
+                            position: super::HeaderPosition::Name,
+                            rule: DeclarationRule::DestructorOnCopy,
+                        }]));
+                    }
+                }
                 self.publish_code(id);
             }
         }

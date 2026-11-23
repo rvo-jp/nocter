@@ -8,6 +8,7 @@ use nocter_model::{
 };
 
 mod callable_components;
+mod destructors;
 mod nested_headers;
 mod reserved_layout;
 mod result_components;

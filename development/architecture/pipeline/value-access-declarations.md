@@ -192,6 +192,13 @@ transferred carrier, the missing paths retain the case identity. Cleanup visits 
 in reverse declaration order and skips transferred leaves within nested tuples. A frontier
 spanning several cases fails validation.
 
+### User Destructor Headers
+
+The declaration authority reserves one anonymous destructor per nominal family. Its implicit
+input is a complete `edit self` receiver of that family, and its result is unit. The header
+publishes only after the nominal schema establishes its effective Copy policy. A Copy family
+cannot publish a destructor. The declaration has no source name or function witness.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

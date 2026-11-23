@@ -296,6 +296,10 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
             DiagnosticCode::E0291,
             "copy struct requires Copy evidence for every field",
         ),
+        R::DestructorOnCopy => (
+            DiagnosticCode::E0291,
+            "a Copy type cannot declare a destructor",
+        ),
         R::MissingDefinition
         | R::UnknownSymbol
         | R::UnknownRecordType { .. }

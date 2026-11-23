@@ -127,6 +127,7 @@ pub enum DeclarationRule {
     QualifiedDataName { error: QualifiedNameError },
     RecursivePayload { through: NominalTypeId },
     NonCopyField,
+    DestructorOnCopy,
     RepeatedFailure,
     RecursiveAlias,
     UnsupportedAliasTarget,
@@ -155,6 +156,8 @@ pub enum CodeKind {
     Primitive,
     /// A package test body selected by a test plan and absent from source lookup.
     Test(Symbol),
+    /// The nominal family's implicit lifecycle body, outside the callable namespace.
+    Destructor(NominalTypeId),
     ConstantInitializer,
     StaticInitializer,
     TypeExpression(TypeExpressionSource),
@@ -178,7 +181,7 @@ impl CodeKind {
     pub const fn compile_time(self) -> CompileTimeGuarantee {
         match self {
             Self::Function(capability) => capability,
-            Self::DeferredFunction | Self::Primitive | Self::Test(_) => {
+            Self::DeferredFunction | Self::Primitive | Self::Test(_) | Self::Destructor(_) => {
                 CompileTimeGuarantee::RuntimeOnly
             }
             Self::ConstantInitializer | Self::StaticInitializer | Self::TypeExpression(_) => {
@@ -520,6 +523,13 @@ impl Program {
     pub fn codes(&self) -> &SparseArena<AccessCodeId, Code> {
         &self.codes
     }
+    /// The family's published destructor declaration. Body and cleanup admission are separate.
+    #[must_use]
+    pub fn destructor(&self, owner: NominalTypeId) -> Option<AccessCodeId> {
+        self.codes
+            .iter()
+            .find_map(|(id, code)| (code.kind() == CodeKind::Destructor(owner)).then_some(id))
+    }
     #[must_use]
     pub fn parameters(&self) -> &SparseArena<AccessParameterId, Parameter> {
         &self.parameters
@@ -609,6 +619,10 @@ impl Program {
         }
         match code.kind() {
             CodeKind::Test(name) => self.symbols.spelling(name).map(str::to_owned),
+            CodeKind::Destructor(owner) => Some(format!(
+                "drop for {}",
+                self.declaration_label(owner.into())?
+            )),
             CodeKind::TypeExpression(source) => Some(format!(
                 "type expression in {}",
                 self.declaration_label(source.declaration)?
@@ -862,6 +876,48 @@ impl Reservations {
                 kind: CodeKind::Test(name),
                 parameters: Box::new([]),
                 result_data: test_result(),
+            }),
+        }))
+    }
+    /// Reserve the one anonymous lifecycle body of a nominal family in its behavior scope.
+    /// The input is implicit complete `edit self` and the result is unit.
+    ///
+    /// # Errors
+    /// Rejects an unknown receiver spelling, a mismatched scope or a second destructor.
+    pub fn reserve_destructor(
+        &mut self,
+        scope: ScopeId,
+        owner: NominalTypeId,
+    ) -> Result<AccessCodeId, DefinitionError> {
+        if self.scopes.behavior_owners.get(&scope) != Some(&BehaviorOwner::Nominal(owner)) {
+            return Err(DefinitionError::UnknownId);
+        }
+        let receiver = self.symbols.get("self").ok_or(DefinitionError::UnknownId)?;
+        let kind = CodeKind::Destructor(owner);
+        if self.codes.iter().any(|(_, code)| {
+            code.definition
+                .as_ref()
+                .is_some_and(|definition| definition.kind == kind)
+        }) {
+            return Err(DefinitionError::AlreadyDefined);
+        }
+        let parameter = self.parameters.insert(ParameterSlot {
+            owner: self.codes.next_id(),
+            position: 0,
+        });
+        Ok(self.codes.insert(Reservation {
+            scope,
+            name: None,
+            unqualified: false,
+            parameters: Box::new([parameter]),
+            definition: Some(Definition {
+                kind,
+                parameters: Box::new([ParameterDefinition {
+                    binding: ParameterBinding::Name(receiver),
+                    data: ValueDefinition::Data(DataReference::Nominal(owner)),
+                    operation: ValueInputOperation::Edit,
+                }]),
+                result_data: ValueDefinition::Data(BuiltinType::Void.into()),
             }),
         }))
     }
@@ -1150,7 +1206,7 @@ fn validate_definition(
     };
     let anonymous = matches!(
         definition.kind,
-        CodeKind::TypeExpression(_) | CodeKind::Test(_)
+        CodeKind::TypeExpression(_) | CodeKind::Test(_) | CodeKind::Destructor(_)
     );
     if reservation.name.is_none() != anonymous
         || (matches!(definition.kind, CodeKind::TypeExpression(_))
