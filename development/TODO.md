@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify edit and take input in scalar enum if-is. Select contextual prefixes before type
-checking and preserve ordinary name expressions. Check update authority, transfer before both
-branches, and cleanup of the received carrier before entering the selected branch.
+Qualify scalar enum match with exact nominal coverage and original source visibility. Inspect
+one evaluated carrier, preserving the selected access operation, and route the tag through a
+single dispatch in required and native execution.
 
 ## Remaining Contextual Representation Qualification
 
@@ -718,9 +718,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify read-mode scalar enum if-is through source and execution. Check ordinal collisions
   across distinct nominal types, original variant audiences, once-evaluated scrutinees, nested
   scalar cleanup and installed formatting.
-- [ ] Qualify scalar enum if-is with contextual edit/take. Keep joint calls and indices, verify
+- [x] Qualify scalar enum if-is with contextual edit/take. Keep joint calls and indices, verify
   update authority and caller-owned temporaries, and retire the acquired take carrier before the
   selected branch. Check both Copy snapshots and marked transfers, including a false test.
+- [ ] Qualify scalar enum match with the common pattern input and variant identity. Check
+  complete accessible coverage or final discard, per-branch cleanup, once-evaluated source,
+  exact result joins, and tag dispatch through required and native execution.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

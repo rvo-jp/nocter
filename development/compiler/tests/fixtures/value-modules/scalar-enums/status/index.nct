@@ -13,4 +13,5 @@ copy enum Token
 
 const func in_progress(): Status
 func secret(): Secret
+func secret_score(take value: Secret): i32
 func token(): Token

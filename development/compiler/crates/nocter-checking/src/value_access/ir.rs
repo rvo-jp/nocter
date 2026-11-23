@@ -464,6 +464,7 @@ pub enum ExpressionKind {
     EnumCondition {
         source: AccessExpressionId,
         tag: u64,
+        operation: ValueInputOperation,
     },
     /// Require the primary branch before forwarding this owned carrier to payload selection.
     RequirePrimary {

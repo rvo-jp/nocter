@@ -352,8 +352,17 @@ impl Context<'_, '_> {
                 }
                 Ok(Value::without_referent(Mode::Own))
             }
-            ExpressionKind::EnumCondition { source, .. } => {
-                self.read(self.world.value(source)?)?;
+            ExpressionKind::EnumCondition {
+                source, operation, ..
+            } => {
+                let value = self.world.value(source)?;
+                if operation == nocter_model::ValueInputOperation::Edit
+                    && let Some((region, actor)) = self.base_value(value)?
+                {
+                    self.write(&region, actor, Mode::Update, None)?;
+                } else {
+                    self.read(value)?;
+                }
                 Ok(Value::without_referent(Mode::Own))
             }
             ExpressionKind::RequirePrimary { source } => {

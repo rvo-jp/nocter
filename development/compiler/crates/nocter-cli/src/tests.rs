@@ -1027,6 +1027,12 @@ fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
             "is status.Status.active(payload)",
             "a payloadless enum pattern has no bindings",
         ),
+        ("var writable", "let writable", "E0387"),
+        (
+            "drop copy_of_token",
+            "if copy_of_status is status.Status.active { return 96 }\n    drop copy_of_token",
+            "complete initialized value",
+        ),
         ("hidden^, token", "hidden, token", "E0371"),
     ] {
         assert!(original.contains(before));

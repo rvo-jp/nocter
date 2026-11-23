@@ -661,16 +661,16 @@ fn text(syntax: BoundSyntax<'_>, token: SyntaxToken) -> &str {
     syntax.text_at(token.range()).expect("bound token text")
 }
 
-/// Decode the operation node of one complete future parameter, including an annotation input.
+/// Decode the selected operation node of a declaration, callable annotation, or enum condition.
 /// # Errors
 /// Rejects syntax inconsistent with the private goal; this does not resolve names or infer modes.
 pub fn input_operation(
     syntax: nocter_syntax::BoundSyntax<'_>,
-    parameter: nocter_syntax::NodeId,
+    input: nocter_syntax::NodeId,
 ) -> Result<nocter_model::ValueInputOperation, Failure> {
     use nocter_model::ValueInputOperation as Operation;
     use nocter_syntax::{ContextualSpelling, NodeKind, direct_node, first_direct_token};
-    let Some(operation) = direct_node(syntax.tree(), parameter, NodeKind::InputOperation) else {
+    let Some(operation) = direct_node(syntax.tree(), input, NodeKind::InputOperation) else {
         return Ok(Operation::Read);
     };
     let token = first_direct_token(syntax.tree(), operation).ok_or(Failure::InconsistentSyntax)?;

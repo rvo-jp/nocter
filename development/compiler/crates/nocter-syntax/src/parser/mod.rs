@@ -16,6 +16,7 @@ mod tests;
 mod types;
 
 use nocter_source::{SourceFile, Span, TextRange};
+use std::collections::BTreeSet;
 
 use crate::tree::{Event, build_tree, missing};
 use crate::{
@@ -130,6 +131,7 @@ struct Parser<'source> {
     nesting: u16,
     split: Option<SyntaxToken>,
     value_names: bool,
+    unmarked_conditions: BTreeSet<(usize, u16)>,
 }
 
 impl<'source> Parser<'source> {
@@ -145,6 +147,7 @@ impl<'source> Parser<'source> {
             nesting: 0,
             split: None,
             value_names: false,
+            unmarked_conditions: BTreeSet::new(),
         }
     }
 

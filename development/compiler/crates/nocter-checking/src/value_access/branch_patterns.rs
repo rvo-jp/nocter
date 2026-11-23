@@ -2,9 +2,10 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{ExpressionKind, Projection, value_type},
+    ir::{Boundary, ExpressionKind, Projection, value_type},
 };
-use nocter_model::{AccessExpressionId, BuiltinType, ValueAccessMode as Mode};
+use nocter_declaration_lowering::access_declarations::input_operation;
+use nocter_model::{AccessExpressionId, BuiltinType, ValueAccessMode as Mode, ValueInputOperation};
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
 
 impl Checker<'_, '_> {
@@ -51,17 +52,34 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
-        let source = self.expression_with_type_hint(
+        let operation =
+            input_operation(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
+        let mut source = self.expression_with_type_hint(
             source_node,
             Some(data),
-            Some(Projection::input(Mode::Read)),
+            Some(Projection::input(operation.access_mode())),
             reachable,
         )?;
         self.require_data(source, data, source_node)?;
+        match operation {
+            ValueInputOperation::Take => {
+                source = self.boundary(source_node, source, Boundary::Value(data))?;
+            }
+            ValueInputOperation::Edit => {
+                if let Some(place) = self.expression_referent(source) {
+                    self.require_writable_referent(place, source_node, Rule::InvalidUpdate)?;
+                }
+            }
+            ValueInputOperation::Read => {}
+        }
         self.emit(
             node,
             value_type(boolean, Mode::Own).with_continuation(self.ty(source).may_complete()),
-            ExpressionKind::EnumCondition { source, tag },
+            ExpressionKind::EnumCondition {
+                source,
+                tag,
+                operation,
+            },
         )
     }
 }

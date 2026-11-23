@@ -290,6 +290,11 @@ impl Context<'_, '_> {
             ExpressionKind::Boundary {
                 source,
                 action: BoundaryAction::CopyPayload,
+            }
+            | ExpressionKind::EnumCondition {
+                source,
+                operation: ValueInputOperation::Take,
+                ..
             } => {
                 self.dispose_expression(source)?;
                 self.construct(id)?;

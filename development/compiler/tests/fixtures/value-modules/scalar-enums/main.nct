@@ -5,7 +5,11 @@ const CURRENT: status.Status = status.in_progress()
 static CATALOG: (status.State, status.State) = (CURRENT, status.State.idle)
 
 const func score(value: status.Status): i32 {
-    if value is status.State.active { 40 } else { 0 }
+    if take value is status.State.active {
+        if value is status.State.active { 40 } else { 93 }
+    } else {
+        0
+    }
 }
 
 const SCORE: i32 = score(CURRENT) + score(status.Status.idle)
@@ -18,15 +22,21 @@ func next_index(edit visits: i32): usize {
 func receive(take current: status.Status, take secret: status.Secret, take token: status.Token): i32 {
     let copy_of_status = current
     let copy_of_token = token
-    drop copy_of_status
+    if take copy_of_status^ is status.Status.idle { return 97 }
     drop copy_of_token
-    drop secret
+    let private_score = status.secret_score(secret^)
+    if edit [status.Status.active][0] is status.Status.idle { return 94 }
+    var writable = current
+    if edit writable is status.Status.active {
+        writable = status.Status.stopped
+    }
+    if writable is status.Status.active { return 95 }
     let values = [current, status.State.idle]
     var visits = 0
     if values[next_index(visits)] is status.Status.stopped {
         1
     } else if current is status.Status.active {
-        SCORE + visits + 1
+        SCORE + visits + 1 + private_score
     } else {
         2
     }

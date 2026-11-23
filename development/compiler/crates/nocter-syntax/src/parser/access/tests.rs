@@ -222,6 +222,58 @@ fn enum_condition_preserves_its_qualified_pattern_and_ordinary_else_if() {
     }
     super::super::snapshots::assert_token_projection(&parsed, "v2 enum condition");
 }
+
+#[test]
+fn enum_condition_selects_a_prefix_only_for_a_complete_separated_operand() {
+    use crate::direct_node;
+    for (input, marked) in [
+        ("edit (value) is Self.active", true),
+        ("take [value][0] is Status.active", true),
+        ("take - offset is Status.active", true),
+        ("take(value) is Status.active", false),
+        ("edit[index] is Status.active", false),
+        ("(take - offset) is Status.active", false),
+        ("take (value)", false),
+        ("take - offset", false),
+    ] {
+        let source = format!("func check(): bool {{ if {input} {{ true }} else {{ false }} }}");
+        let parsed = tree(&source, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{input}: {:?}", parsed.diagnostics());
+        let (condition, _) = parsed
+            .nodes()
+            .find(|(_, node)| node.kind() == NodeKind::IfCondition)
+            .unwrap();
+        assert_eq!(
+            direct_node(&parsed, condition, NodeKind::InputOperation).is_some(),
+            marked,
+            "{input}"
+        );
+        super::super::snapshots::assert_token_projection(&parsed, input);
+    }
+}
+
+#[test]
+fn nested_plain_conditions_with_contextual_names_keep_their_calls() {
+    let condition = (0..48).fold("true".to_owned(), |operand, _| {
+        format!("if edit ({operand}) {{ true }} else {{ false }}")
+    });
+    let source = format!("func check(): bool {{ {condition} }}");
+    let parsed = tree(&source, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::CallSuffix)
+            .count(),
+        48
+    );
+    assert!(
+        !parsed
+            .nodes()
+            .any(|(_, node)| node.kind() == NodeKind::InputOperation)
+    );
+}
+
 #[test]
 fn corpus_uses_the_production_goal_with_lossless_tokens_and_structural_snapshots() {
     let root = root();

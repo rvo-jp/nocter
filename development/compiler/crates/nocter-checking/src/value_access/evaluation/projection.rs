@@ -882,7 +882,7 @@ impl Builder<'_, '_> {
                 source: self.referent(source)?,
                 destination,
             },
-            ExpressionKind::EnumCondition { source, tag } => plan::Operation::EnumCondition {
+            ExpressionKind::EnumCondition { source, tag, .. } => plan::Operation::EnumCondition {
                 source: self.value(source)?,
                 tag,
                 destination,

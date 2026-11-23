@@ -128,7 +128,7 @@ impl Builder<'_> {
                     destination,
                 }
             }
-            ExpressionKind::EnumCondition { source, tag } => Operation::EnumCondition {
+            ExpressionKind::EnumCondition { source, tag, .. } => Operation::EnumCondition {
                 source: self.value(source)?,
                 tag,
                 destination,

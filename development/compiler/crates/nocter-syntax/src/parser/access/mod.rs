@@ -206,14 +206,19 @@ fn input_binding(parser: &mut Parser<'_>) {
 }
 
 fn input_operation(parser: &mut Parser<'_>, starts_input: impl FnOnce(TokenKind) -> bool) {
-    if (parser.at_contextual(ContextualSpelling::Edit)
-        || parser.at_contextual(ContextualSpelling::Take))
-        && starts_input(parser.nth_kind(1))
-    {
-        let operation = parser.start();
-        parser.bump();
-        parser.complete(operation, NodeKind::InputOperation);
+    if at_input_operation(parser) && starts_input(parser.nth_kind(1)) {
+        consume_input_operation(parser);
     }
+}
+
+fn at_input_operation(parser: &Parser<'_>) -> bool {
+    parser.at_contextual(ContextualSpelling::Edit) || parser.at_contextual(ContextualSpelling::Take)
+}
+
+fn consume_input_operation(parser: &mut Parser<'_>) {
+    let operation = parser.start();
+    parser.bump();
+    parser.complete(operation, NodeKind::InputOperation);
 }
 
 fn required_block(parser: &mut Parser<'_>) {

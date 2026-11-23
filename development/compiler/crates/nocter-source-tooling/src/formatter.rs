@@ -416,15 +416,17 @@ fn space_before_punctuation(
             !is_attached_left_parenthesis(parent) && !is_prefix_parent(previous_parent)
         }
         Punctuation::LeftBracket => {
-            matches!(
-                parent,
-                Some(NodeKind::LiteralShape | NodeKind::SequenceBody | NodeKind::MappingBody)
-            ) || parent != Some(NodeKind::IndexSuffix)
-                && matches!(
-                    previous,
-                    TokenKind::Punctuation(previous)
-                        if space_after_punctuation(previous, previous_parent)
+            previous_parent == Some(NodeKind::InputOperation)
+                || matches!(
+                    parent,
+                    Some(NodeKind::LiteralShape | NodeKind::SequenceBody | NodeKind::MappingBody)
                 )
+                || parent != Some(NodeKind::IndexSuffix)
+                    && matches!(
+                        previous,
+                        TokenKind::Punctuation(previous)
+                            if space_after_punctuation(previous, previous_parent)
+                    )
         }
         Punctuation::Dot if parent == Some(NodeKind::AssociatedTypeBinding) => true,
         Punctuation::Dot if parent == Some(NodeKind::SourceVisibilityPath) => {

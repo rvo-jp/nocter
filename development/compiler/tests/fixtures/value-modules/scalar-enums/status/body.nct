@@ -7,6 +7,16 @@ enum Secret {
 
 copy enum Token { issued }
 
+impl Secret {
+    method self.is_internal(): bool {
+        if self is Self.internal { true } else { false }
+    }
+}
+
 const func in_progress(): Status { Status.active }
 func secret(): Secret { Secret.internal }
+func secret_score(take value: Secret): i32 {
+    if !value.is_internal() { return 98 }
+    if take value^ is Secret.external { 99 } else { 0 }
+}
 func token(): Token { Token.issued }

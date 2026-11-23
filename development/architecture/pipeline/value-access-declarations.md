@@ -124,12 +124,13 @@ statics. The target selects the smallest supported unsigned width that fits the 
 That width belongs to the representation. Source numeric operations still use their own data
 contracts.
 
-An unmarked [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
+A scalar [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
 variant through the same declaration and audience. The checker requires the scrutinee's exact
-nominal type, evaluates it once and reads the resulting place or value. Required evaluation
-compares the typed ordinal. Native lowering reads the tag using the enum's physical width and
-feeds the comparison into ordinary Boolean control flow. The current scalar branch path covers
-read input and payloadless patterns.
+nominal type and evaluates it once. An edit input checks update authority during tag inspection.
+A take input uses the ordinary Copy or transfer boundary and retires the received carrier after
+inspection, before either branch. Required evaluation compares the typed ordinal. Native
+lowering reads the tag at the enum's physical width and feeds the comparison into ordinary
+Boolean control flow.
 
 ### Tuple Bindings
 

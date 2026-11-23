@@ -24,13 +24,13 @@ fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
                 concat!(
                     "see ./index.nct\n",
                     "const func choose(input: Status): Status {\n",
-                    "    if input is Status.idle {\n",
-                    "        Status.active\n",
-                    "    } else if input is Status.active {\n",
-                    "        Status.stopped\n",
-                    "    } else {\n",
-                    "        Status.idle\n",
+                    "    var selected = input\n",
+                    "    if edit selected is Status.idle {\n",
+                    "        selected = Status.active\n",
+                    "    } else if take selected is Status.active {\n",
+                    "        selected = Status.stopped\n",
                     "    }\n",
+                    "    selected\n",
                     "}\n",
                     "const ANSWER: (Status, Status) = (choose(Status.idle), choose(Status.active))",
                 ),
@@ -53,6 +53,67 @@ fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
         .map(|&id| &value.nodes()[id])
         .collect::<Vec<_>>();
     assert_eq!(tags, [&FrozenNode::EnumTag(1), &FrozenNode::EnumTag(2)]);
+    verify_enum_carrier_retirement(unit);
+}
+
+fn verify_enum_carrier_retirement(unit: &accepted::Unit) {
+    use crate::value_access::{
+        ExpressionKind,
+        flow::{
+            Location, Operation,
+            resources::{Holder, Step},
+        },
+    };
+    use nocter_model::ValueInputOperation;
+    let (query, condition, carrier) = unit
+        .bodies()
+        .find_map(|(_, query)| {
+            query
+                .typed()
+                .body()
+                .expressions()
+                .iter()
+                .find_map(|(id, expression)| {
+                    if let ExpressionKind::EnumCondition {
+                        source,
+                        operation: ValueInputOperation::Take,
+                        ..
+                    } = expression.kind
+                    {
+                        Some((query, id, Holder::Expression(source)))
+                    } else {
+                        None
+                    }
+                })
+        })
+        .expect("one checked take condition");
+    let location = query
+        .graph()
+        .points()
+        .iter()
+        .find_map(|(point, block)| {
+            block
+                .actions
+                .iter()
+                .position(|action| action.operation == Operation::Evaluate(condition))
+                .map(|action| Location { point, action })
+        })
+        .expect("the condition evaluates on a reachable path");
+    let retirement =
+        |step: &Step| matches!(step, Step::Dispose { source, .. } if source.holder() == carrier);
+    let mut transitions = query.access().resources().at(location).peekable();
+    assert!(transitions.peek().is_some());
+    for transition in transitions {
+        assert!(!transition.before_steps().iter().any(retirement));
+        assert_eq!(
+            transition
+                .after_steps()
+                .iter()
+                .filter(|step| retirement(step))
+                .count(),
+            1
+        );
+    }
 }
 
 fn counts(body_increment: u64) -> Fixture {
