@@ -28,7 +28,7 @@ fn fixture(reverse: bool) -> (Program, AccessCodeId, [AccessCodeId; 2]) {
                 data: DataReference::Tuple(TupleData::new(
                     callable(),
                     DataReference::Array {
-                        element: Box::new(callable()),
+                        element: std::sync::Arc::new(callable()),
                         length: 2,
                     },
                     [],
@@ -120,7 +120,7 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
         let recipe = DataReference::Tuple(TupleData::new(
             callable(),
             DataReference::Array {
-                element: Box::new(callable()),
+                element: std::sync::Arc::new(callable()),
                 length: 2,
             },
             [],
@@ -250,7 +250,7 @@ fn callable_component_signatures_validate_their_data_before_publication() {
                     name: symbols.get("value").unwrap(),
                     operation: nocter_model::ValueInputOperation::Take,
                     data: DataReference::Array {
-                        element: Box::new(invalid),
+                        element: std::sync::Arc::new(invalid),
                         length: 0,
                     }
                     .into(),

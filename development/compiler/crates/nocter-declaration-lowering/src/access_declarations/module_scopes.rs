@@ -118,6 +118,7 @@ impl ModuleSourceBinding<'_> {
 pub(super) enum ParsedHeader {
     Code(Header),
     Record(RecordHeader),
+    Alias(headers::AliasHeader),
     Test {
         name: SyntaxToken,
         declaration: nocter_syntax::NodeId,
@@ -360,6 +361,7 @@ impl<'syntax> ScopedModuleSources<'syntax> {
                 &self.binding.fields,
                 &program,
                 &self.binding.catalog.parsed,
+                &self.binding.declaration_scopes,
             )
             .map_err(ModuleSourcesFailure::Access)?;
         Ok(ModuleContext {
@@ -566,6 +568,7 @@ fn project_namespace(
 ) -> ModuleSourcesFailure {
     let mut codes = BTreeMap::new();
     let mut records = BTreeMap::new();
+    let mut aliases = BTreeMap::new();
     for (id, header) in parsed {
         if paired.contracts.representative(*id) != *id {
             continue;
@@ -577,6 +580,9 @@ fn project_namespace(
             (Some(DeclarationId::Record(id)), ParsedHeader::Record(header)) => {
                 records.insert(id, Arc::clone(&header.source));
             }
+            (Some(DeclarationId::Alias(id)), ParsedHeader::Alias(header)) => {
+                aliases.insert(id, header.source);
+            }
             _ => {}
         }
     }
@@ -587,7 +593,7 @@ fn project_namespace(
         .map(crate::SurfaceSource::syntax)
         .collect::<Vec<_>>();
     ModuleSourcesFailure::Access(projection::project_violations_in(
-        &trees, &codes, &records, violations,
+        &trees, &codes, &records, &aliases, violations,
     ))
 }
 fn field_positions(
@@ -701,6 +707,13 @@ fn collect_headers(
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
+                SurfaceDeclarationKind::TypeAlias => {
+                    syntax(paired, declaration.source()).and_then(|s| {
+                        headers::alias(s, declaration.node())
+                            .map(ParsedHeader::Alias)
+                            .map_err(ModuleSourcesFailure::Access)
+                    })
+                }
                 SurfaceDeclarationKind::Test => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         let name = declaration.name().ok_or_else(integrity)?;
@@ -741,6 +754,7 @@ fn reserve_canonical(
         let (record, name) = match header {
             ParsedHeader::Code(header) => (false, Some(header.name)),
             ParsedHeader::Record(header) => (true, Some(header.source.name)),
+            ParsedHeader::Alias(header) => (false, Some(header.source.name)),
             ParsedHeader::Test { .. } => (false, None),
         };
         ordered.push((
@@ -785,6 +799,12 @@ fn reserve_canonical(
                 .map(DeclarationId::Code)
             }
             ParsedHeader::Record(_) => return Err(integrity()),
+            ParsedHeader::Alias(_) => reservations
+                .reserve_alias(
+                    scopes[declaration.source().index()],
+                    name.ok_or_else(integrity)?,
+                )
+                .map(DeclarationId::Alias),
             ParsedHeader::Test { name, .. } => {
                 let module = paired.inventory.sources()[declaration.source().index()].module();
                 let spelling = symbol(paired, declaration.source(), *name)?;

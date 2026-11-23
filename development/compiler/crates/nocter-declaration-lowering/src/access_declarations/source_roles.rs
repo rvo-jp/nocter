@@ -90,7 +90,7 @@ pub fn validate_source_role(
             .ok_or(Failure::InconsistentSyntax)?
             .kind();
         let violation = match kind {
-            NodeKind::PrimitiveTypeDeclaration => None,
+            NodeKind::PrimitiveTypeDeclaration | NodeKind::TypeAliasDeclaration => None,
             NodeKind::TestDeclaration => declaration_body(syntax.tree(), declaration)
                 .filter(|_| root)
                 .map(|body| (SourceRoleRule::BodyInContract, body)),

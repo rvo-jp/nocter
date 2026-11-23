@@ -15,7 +15,7 @@ fn headers() -> (HeaderPublication, AccessCodeId, AccessCodeId, NominalTypeId) {
             [FieldDefinition {
                 name: symbols.get("values").unwrap(),
                 data: DataReference::Array {
-                    element: Box::new(BuiltinType::I32.into()),
+                    element: std::sync::Arc::new(BuiltinType::I32.into()),
                     length: 4,
                 },
             }],

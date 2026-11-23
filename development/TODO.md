@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind transparent type aliases through the existing type lookup, header dependency and type
-identity authorities. Qualify ordinary source, required type expressions, effective audiences
-and conversion targets without manufacturing a new data identity or behavior owner.
+Carry exported signature audiences through every selected type-path binding. Qualify a
+restricted selected name, a restricted namespace alias and a restriction reached through an
+intermediate re-export using the ordinary namespace authority.
 
 ## Remaining Contextual Representation Qualification
 
@@ -676,8 +676,11 @@ not a language restriction derived from the current realization boundary.
   single evaluation, access and retirement, outcome layers and selected callable identity.
 - [x] Qualify nongeneric source-owned `coerce` with closed, exact data targets. Verify complete
   header pairing, audiences, duplicate normalized targets, read/edit/take preparation, actual
-  guarded receiver mutation, failure and const execution. Origin relations, callable/future
-  targets and alias declarations remain open.
+  guarded receiver mutation, failure and const execution. Origin relations and callable/future
+  targets remain open.
+- [x] Bind nongeneric aliases for data through the canonical type namespace and required header
+  queries. Verify exact normalized conversion targets, nominal constructor lookup, original Copy
+  policy, target and alias declaration audiences, cyclic aliases, and shared shape folding.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
@@ -924,6 +927,10 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Qualify the audience of each authored type-path binding in an exported signature. A
+  narrowed `use` or namespace qualifier can select public data while its own name has a
+  narrower audience. Check the elected path in the same namespace authority as ordinary lookup.
 
 - [x] Resolve same-shape conversion-header dependencies through the current required-value query.
   A length computation can depend on a different fixed-array conversion of the same owner.

@@ -552,6 +552,9 @@ impl<'a, 's> Checker<'a, 's> {
         }
         let scope = self.scope_at(token)?;
         if namespace == Namespace::Type {
+            if let Some(alias) = self.program().type_alias_named_in(scope, spelling) {
+                self.require_declaration(alias.into(), token)?;
+            }
             if let Some(BehaviorOwner::Record(record)) =
                 self.program().type_owner_named_in(scope, spelling)
             {

@@ -115,6 +115,7 @@ fn bindings_into_one_scope_reject_distinct_identities_before_missing_type_defini
             match first {
                 DeclarationId::Code(first) => DeclarationRule::DuplicateValue { first },
                 DeclarationId::Record(first) => DeclarationRule::DuplicateRecord { first },
+                first @ DeclarationId::Alias(_) => DeclarationRule::DuplicateTypeName { first },
             }
         );
     }

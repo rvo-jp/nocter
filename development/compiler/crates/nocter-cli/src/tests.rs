@@ -412,6 +412,103 @@ fn installed_v2_print_delivers_exact_text_and_reports_output_failure() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_aliases_preserve_identity_visibility_and_required_data() {
+    let tree = TempTree::new("alias-declarations");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/type-aliases"),
+        &package,
+    );
+    let execute = |args| execute_invocation(invocation(args, &package, &home, "arm64-darwin"));
+    let render = |error: InvocationError| {
+        if let Some(diagnostic) = error.render_source_diagnostics().unwrap() {
+            return diagnostic;
+        }
+        if let InvocationErrorKind::Run(run) = error.kind()
+            && let nocter_command::RunCommandExecutionError::Analysis(failure) = run.as_ref()
+            && let nocter_command::CommandAnalysisError::Compilation(compilation) = failure.error()
+        {
+            return format!("{:?}", compilation.primary());
+        }
+        error.to_string()
+    };
+    let outcome =
+        execute(vec!["run", "--offline"]).unwrap_or_else(|error| panic!("{}", render(error)));
+    let InvocationOutcome::Run(executed) = outcome else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let source = package.join("main.nct");
+    let program = fs::read_to_string(&source).unwrap();
+    let reject = |expected| {
+        let diagnostic = render(execute(vec!["check", "--offline"]).unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    };
+    for (old, new, expected) in [
+        (
+            "type NodeIdentity = Chain",
+            "type NodeIdentity = [NodeIdentity; 0]",
+            "recursively depends",
+        ),
+        (
+            "const BASE: catalog.Number",
+            "const BASE: catalog.Hidden",
+            "E0412",
+        ),
+        (
+            "type NodeIdentity = Chain",
+            "type Chain = i32",
+            "duplicate type declaration",
+        ),
+        (
+            "type NodeIdentity = Chain",
+            "type NodeIdentity = Unknown",
+            "E0290",
+        ),
+    ] {
+        fs::write(&source, program.replace(old, new)).unwrap();
+        reject(expected);
+    }
+    fs::write(
+        &source,
+        format!("{program}\ntype Failure = error\ncopy struct Wrapper {{ cause: Failure }}\n"),
+    )
+    .unwrap();
+    reject("copy struct requires Copy evidence");
+    fs::write(&source, &program).unwrap();
+
+    let implementation = package.join("catalog/body.nct");
+    let body = fs::read_to_string(&implementation).unwrap();
+    fs::write(
+        &implementation,
+        format!("{body}\nimpl View {{ method self.misplaced(): i32 {{ 0 }} }}\n"),
+    )
+    .unwrap();
+    reject("E0231");
+    fs::write(
+        &implementation,
+        format!("{body}\nimpl Point {{ coerce self as i32 {{ self.value }} }}\n"),
+    )
+    .unwrap();
+    reject("same target data");
+    fs::write(
+        &implementation,
+        format!("{body}\nstruct Secret {{ value: i32 }}\n"),
+    )
+    .unwrap();
+    let contract = package.join("catalog/index.nct");
+    let header = fs::read_to_string(&contract).unwrap();
+    fs::write(&contract, format!("{header}\ntype Leaked = Secret\n")).unwrap();
+    reject("E0244");
+    fs::write(&contract, format!("{header}\ntype Leaked = Hidden\n")).unwrap();
+    reject("E0244");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
     let tree = TempTree::new("coercions");
     let home = tree.value_access_installation();

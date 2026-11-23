@@ -1,7 +1,10 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
 use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
-use nocter_model::{BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeId, TypeKind};
-use std::collections::BTreeMap;
+use nocter_model::{
+    BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeAliasId, TypeId, TypeKind,
+};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 mod header_values;
 mod uninhabited;
 
@@ -25,24 +28,84 @@ pub struct Component {
 }
 
 /// A construction-time type reference, resolved once before metadata is published.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum DataReference {
     Builtin(BuiltinType),
     Record(NominalTypeId),
     /// A callable constraint inside an input descriptor, never an erased function pointer.
     Function(Box<super::FunctionDefinition>),
-    Fallible(Box<DataReference>),
-    Future(Box<DataReference>),
+    Fallible(Arc<DataReference>),
+    Future(Arc<DataReference>),
     Optional {
-        payload: Box<DataReference>,
+        payload: Arc<DataReference>,
         layers: std::num::NonZeroUsize,
     },
     Tuple(TupleData),
     Array {
-        element: Box<DataReference>,
+        element: Arc<DataReference>,
         length: u64,
     },
 }
+
+impl PartialEq for DataReference {
+    fn eq(&self, other: &Self) -> bool {
+        let mut pending = vec![(self, other)];
+        let mut seen = HashSet::new();
+        while let Some((left, right)) = pending.pop() {
+            if std::ptr::eq(left, right)
+                || (left.shares_children()
+                    && right.shares_children()
+                    && !seen.insert((std::ptr::from_ref(left), std::ptr::from_ref(right))))
+            {
+                continue;
+            }
+            match (left, right) {
+                (Self::Builtin(a), Self::Builtin(b)) if a == b => {}
+                (Self::Record(a), Self::Record(b)) if a == b => {}
+                (Self::Fallible(a), Self::Fallible(b)) | (Self::Future(a), Self::Future(b)) => {
+                    pending.push((a, b));
+                }
+                (
+                    Self::Optional {
+                        payload: a,
+                        layers: left,
+                    },
+                    Self::Optional {
+                        payload: b,
+                        layers: right,
+                    },
+                ) if left == right => pending.push((a, b)),
+                (
+                    Self::Array {
+                        element: a,
+                        length: left,
+                    },
+                    Self::Array {
+                        element: b,
+                        length: right,
+                    },
+                ) if left == right => pending.push((a, b)),
+                (Self::Tuple(a), Self::Tuple(b)) if a.0.len() == b.0.len() => {
+                    pending.extend(a.0.iter().zip(b.0.iter()));
+                }
+                (Self::Function(a), Self::Function(b))
+                    if a.invocation == b.invocation && a.inputs.len() == b.inputs.len() =>
+                {
+                    for ((left, a), (right, b)) in a.inputs.iter().zip(b.inputs.iter()) {
+                        if left != right {
+                            return false;
+                        }
+                        pending.push((a, b));
+                    }
+                    pending.push((&a.result, &b.result));
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+}
+impl Eq for DataReference {}
 
 /// A homogeneous closed array descriptor; cardinality never expands its element schema.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,7 +129,7 @@ impl ArraySchema {
 }
 /// A structural data reference with the same minimum arity as semantic tuple types.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TupleData(Box<[DataReference]>);
+pub struct TupleData(Arc<[DataReference]>);
 impl TupleData {
     #[must_use]
     pub fn new(
@@ -84,9 +147,44 @@ impl TupleData {
     }
 }
 impl DataReference {
+    fn shares_children(&self) -> bool {
+        match self {
+            Self::Tuple(fields) => Arc::strong_count(&fields.0) > 1,
+            Self::Optional { payload, .. }
+            | Self::Fallible(payload)
+            | Self::Future(payload)
+            | Self::Array {
+                element: payload, ..
+            } => Arc::strong_count(payload) > 1,
+            Self::Builtin(_) | Self::Record(_) | Self::Function(_) => false,
+        }
+    }
+
+    /// Combine adjacent optional layers into the canonical raw header shape.
+    #[must_use]
+    pub fn optional(payload: Self, layers: std::num::NonZeroUsize) -> Option<Self> {
+        match payload {
+            Self::Optional {
+                payload,
+                layers: inner,
+            } => Some(Self::Optional {
+                payload,
+                layers: std::num::NonZeroUsize::new(layers.get().checked_add(inner.get())?)?,
+            }),
+            payload => Some(Self::Optional {
+                payload: Arc::new(payload),
+                layers,
+            }),
+        }
+    }
+
     pub(super) fn has_repeated_failure(&self) -> bool {
         let mut pending = vec![(self, false)];
+        let mut seen = HashSet::new();
         while let Some((data, failure)) = pending.pop() {
+            if data.shares_children() && !seen.insert((std::ptr::from_ref(data), failure)) {
+                continue;
+            }
             match data {
                 Self::Fallible(payload) => {
                     if failure {
@@ -117,7 +215,11 @@ impl DataReference {
     }
     fn visit(&self, payload_only: bool, mut visit: impl FnMut(&Self)) {
         let mut pending = vec![self];
+        let mut seen = HashSet::new();
         while let Some(data) = pending.pop() {
+            if data.shares_children() && !seen.insert(std::ptr::from_ref(data)) {
+                continue;
+            }
             match data {
                 Self::Tuple(fields) => pending.extend(fields.as_slice().iter().rev()),
                 Self::Optional { payload, .. } => pending.push(payload),
@@ -211,10 +313,27 @@ impl Program {
     }
     #[must_use]
     pub fn type_identity_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
-        match self.type_owner_named_in(scope, spelling)? {
-            BehaviorOwner::Builtin(data) => self.data_type(data),
-            BehaviorOwner::Record(id) => self.record_type_identity(id),
+        match data_reference(&self.symbols, &self.namespace, scope, spelling) {
+            Some(DataReference::Builtin(data)) => self.data_type(data),
+            Some(DataReference::Record(id)) => self.record_type_identity(id),
+            _ => self
+                .alias(self.type_alias_named_in(scope, spelling)?)
+                .map(super::TypeAlias::data),
         }
+    }
+    /// Resolve an ordinary alias name before asking whether the alias header is ready.
+    #[must_use]
+    pub fn type_alias_named_in(
+        &self,
+        scope: super::ScopeId,
+        spelling: &str,
+    ) -> Option<TypeAliasId> {
+        alias_named_in(
+            &self.namespace,
+            scope,
+            self.symbols.get(spelling)?,
+            spelling,
+        )
     }
     /// Resolve a named type or the owner denoted by `Self` in the current behavior scope.
     #[must_use]
@@ -223,16 +342,14 @@ impl Program {
         scope: super::ScopeId,
         spelling: &str,
     ) -> Option<BehaviorOwner> {
-        match data_reference(&self.symbols, &self.namespace, scope, spelling)? {
-            DataReference::Builtin(data) => Some(BehaviorOwner::Builtin(data)),
-            DataReference::Record(id) => Some(BehaviorOwner::Record(id)),
-            DataReference::Tuple(_)
-            | DataReference::Function(_)
-            | DataReference::Array { .. }
-            | DataReference::Optional { .. }
-            | DataReference::Future(_)
-            | DataReference::Fallible(_) => None,
-        }
+        self.behavior_owner(self.type_identity_named_in(scope, spelling)?)
+    }
+    /// Select the owner of additional behavior through normalized data identity.
+    #[must_use]
+    pub fn behavior_owner(&self, data: TypeId) -> Option<BehaviorOwner> {
+        self.data_kind(data)
+            .map(BehaviorOwner::Builtin)
+            .or_else(|| self.record_identity(data).map(BehaviorOwner::Record))
     }
     /// Resolve a closed header name without requiring payload or function readiness.
     /// # Errors
@@ -242,7 +359,39 @@ impl Program {
         scope: super::ScopeId,
         name: nocter_model::Symbol,
     ) -> Result<DataReference, super::DeclarationRule> {
-        resolve_data_name(&self.symbols, &self.namespace, scope, name)
+        resolve_ready_alias(
+            resolve_data_name(&self.symbols, &self.namespace, scope, name),
+            |id| self.alias(id),
+        )
+    }
+    #[must_use]
+    pub fn alias(&self, alias: nocter_model::TypeAliasId) -> Option<&super::TypeAlias> {
+        self.aliases.get(alias)
+    }
+    /// Select type data without requiring the representation of an ordinary nominal declaration.
+    #[must_use]
+    pub fn type_declaration_identity(&self, declaration: DeclarationId) -> Option<TypeId> {
+        match declaration {
+            DeclarationId::Record(record) => self.record_type_identity(record),
+            DeclarationId::Alias(alias) => self.alias(alias).map(super::TypeAlias::data),
+            DeclarationId::Code(_) => None,
+        }
+    }
+    /// Resolve a selected ordinary type declaration through its ready source meaning.
+    /// # Errors
+    /// Reports an unresolved alias so a source header can request it before normalization.
+    pub fn data_reference_for(
+        &self,
+        declaration: DeclarationId,
+    ) -> Result<Option<DataReference>, super::DeclarationRule> {
+        match declaration {
+            DeclarationId::Record(record) => Ok(Some(DataReference::Record(record))),
+            DeclarationId::Alias(alias) => self
+                .alias(alias)
+                .map(|target| Some(target.reference().clone()))
+                .ok_or(super::DeclarationRule::UnreadyAlias { alias }),
+            DeclarationId::Code(_) => Ok(None),
+        }
     }
     /// Find an existing structural identity without interning, publishing or granting payload proof.
     /// Uses the publication owner's data-reference fold; a missing constructor returns no identity.
@@ -511,8 +660,39 @@ pub(super) fn resolve_data_name(
     let spelling = symbols
         .spelling(name)
         .ok_or(super::DeclarationRule::UnknownSymbol)?;
-    data_reference(symbols, namespace, scope, spelling)
-        .ok_or(super::DeclarationRule::UnknownDataName { name })
+    data_reference(symbols, namespace, scope, spelling).ok_or_else(|| {
+        alias_named_in(namespace, scope, name, spelling)
+            .map_or(super::DeclarationRule::UnknownDataName { name }, |alias| {
+                super::DeclarationRule::UnreadyAlias { alias }
+            })
+    })
+}
+
+pub(super) fn resolve_ready_alias<'a>(
+    result: Result<DataReference, super::DeclarationRule>,
+    lookup: impl FnOnce(TypeAliasId) -> Option<&'a super::TypeAlias>,
+) -> Result<DataReference, super::DeclarationRule> {
+    match result {
+        Err(rule @ super::DeclarationRule::UnreadyAlias { alias }) => lookup(alias)
+            .map(|target| target.reference().clone())
+            .ok_or(rule),
+        other => other,
+    }
+}
+
+fn alias_named_in(
+    namespace: &super::namespace::Names,
+    scope: super::ScopeId,
+    name: nocter_model::Symbol,
+    spelling: &str,
+) -> Option<TypeAliasId> {
+    if spelling == "Self" {
+        return None;
+    }
+    let DeclarationId::Alias(alias) = namespace.get(scope, super::Namespace::Type, name)? else {
+        return None;
+    };
+    Some(alias)
 }
 
 pub(super) fn data_reference(
@@ -535,7 +715,7 @@ pub(super) fn data_reference(
     }
     match namespace.get(scope, super::Namespace::Type, symbols.get(spelling)?)? {
         DeclarationId::Record(id) => Some(DataReference::Record(id)),
-        DeclarationId::Code(_) => None,
+        DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
     }
 }
 /// The same structural fold supplies publication and read-only identity reconciliation.
@@ -583,9 +763,16 @@ fn resolve_reference_scoped(
     in_signature: bool,
     mut construct: impl FnMut(ReferenceNode) -> Option<TypeId>,
 ) -> Option<TypeId> {
-    let mut pending = vec![(data, false, in_signature)];
+    let mut pending = vec![(data, None, in_signature)];
     let mut resolved = Vec::new();
-    while let Some((data, expanded, in_signature)) = pending.pop() {
+    let mut shared = HashMap::new();
+    let mut callable_occurrences = 0_usize;
+    while let Some((data, entered_with, in_signature)) = pending.pop() {
+        let key = data.shares_children().then(|| std::ptr::from_ref(data));
+        if let Some(id) = key.and_then(|key| shared.get(&key).copied()) {
+            resolved.push(id);
+            continue;
+        }
         let data = match data {
             DataReference::Builtin(data) => {
                 construct(ReferenceNode::Data(TypeKind::Builtin(*data)))?
@@ -594,20 +781,21 @@ fn resolve_reference_scoped(
                 construct(ReferenceNode::Data(super::records::nominal_key(*id)))?
             }
             DataReference::Function(contract) => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
-                    pending.push((&contract.result, false, true));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
+                    pending.push((&contract.result, None, true));
                     pending.extend(
                         contract
                             .inputs
                             .iter()
                             .rev()
-                            .map(|(_, data)| (data, false, true)),
+                            .map(|(_, data)| (data, None, true)),
                     );
                     continue;
                 }
                 let result = resolved.pop().expect("resolved callable result");
                 let inputs = resolved.split_off(resolved.len() - contract.inputs.len());
+                callable_occurrences = callable_occurrences.checked_add(1)?;
                 construct(ReferenceNode::Function {
                     in_signature,
                     contract: super::FunctionConstraint {
@@ -625,9 +813,9 @@ fn resolve_reference_scoped(
                 })?
             }
             DataReference::Fallible(payload) => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
-                    pending.push((payload, false, in_signature));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
+                    pending.push((payload, None, in_signature));
                     continue;
                 }
                 construct(ReferenceNode::Data(TypeKind::Fallible(
@@ -635,9 +823,9 @@ fn resolve_reference_scoped(
                 )))?
             }
             DataReference::Future(output) => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
-                    pending.push((output, false, in_signature));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
+                    pending.push((output, None, in_signature));
                     continue;
                 }
                 construct(ReferenceNode::Data(TypeKind::Future(
@@ -645,9 +833,9 @@ fn resolve_reference_scoped(
                 )))?
             }
             DataReference::Optional { payload, layers } => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
-                    pending.push((payload, false, in_signature));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
+                    pending.push((payload, None, in_signature));
                     continue;
                 }
                 let mut payload = resolved.pop().expect("resolved optional payload");
@@ -657,9 +845,9 @@ fn resolve_reference_scoped(
                 payload
             }
             DataReference::Array { element, length } => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
-                    pending.push((element, false, in_signature));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
+                    pending.push((element, None, in_signature));
                     continue;
                 }
                 let element = resolved.pop().expect("resolved array element");
@@ -669,14 +857,14 @@ fn resolve_reference_scoped(
                 }))?
             }
             DataReference::Tuple(fields) => {
-                if !expanded {
-                    pending.push((data, true, in_signature));
+                if entered_with.is_none() {
+                    pending.push((data, Some(callable_occurrences), in_signature));
                     pending.extend(
                         fields
                             .as_slice()
                             .iter()
                             .rev()
-                            .map(|field| (field, false, in_signature)),
+                            .map(|field| (field, None, in_signature)),
                     );
                     continue;
                 }
@@ -690,6 +878,12 @@ fn resolve_reference_scoped(
                 )))?
             }
         };
+        // Each callable occurrence creates its own contract or witness ordinal.
+        if let Some(key) = key
+            && entered_with == Some(callable_occurrences)
+        {
+            shared.insert(key, data);
+        }
         resolved.push(data);
     }
     resolved.pop()

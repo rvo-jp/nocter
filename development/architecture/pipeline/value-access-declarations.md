@@ -72,6 +72,19 @@ identity, including outcome and fixed-array data.
 If relevant headers remain unresolved, the ordinary dependency query can resolve one candidate
 and retry exact selection, retaining successful source evidence when an earlier candidate cycles.
 
+### Transparent Type Aliases
+
+A nongeneric alias reserves a name in the existing type namespace. Its header resolves the
+target in its physical scope and publishes the same `TypeId` as the target. Array lengths
+use the ordinary required-value query and are reconciled against the cached declaration
+authority. A nominal target identity can resolve before the target's representation is ready.
+Alias declarations attach no additional behavior or payload permissions. Imports, visibility,
+constructor lookup and conversion selection use the resolved identity and the existing contracts.
+
+Header projection shares nested alias schemas and reuses structural fold results without
+merging distinct callable occurrences. The current alias target domain covers named data,
+tuples, fixed arrays and outcomes.
+
 ### Structural Record Literals
 
 A [structural grant](../../spec/language/type-behavior.md#structural-literal-grants) closes the

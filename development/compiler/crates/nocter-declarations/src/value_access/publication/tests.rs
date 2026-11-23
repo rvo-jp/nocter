@@ -25,7 +25,7 @@ fn deferred_output_and_immediate_future_result_share_data_without_sharing_execut
     let forward = reservations.reserve(symbols.get("forward").unwrap(), 0);
     let nested = reservations.reserve(symbols.get("nested").unwrap(), 0);
     let mut builder = reservations.finish().unwrap();
-    let future = DataReference::Future(Box::new(BuiltinType::I32.into()));
+    let future = DataReference::Future(std::sync::Arc::new(BuiltinType::I32.into()));
     builder
         .define(producer, CodeKind::DeferredFunction, [], BuiltinType::I32)
         .unwrap();

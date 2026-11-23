@@ -7,10 +7,73 @@ mod uninhabited;
 
 fn array(element: DataReference, length: u64) -> DataReference {
     DataReference::Array {
-        element: Box::new(element),
+        element: std::sync::Arc::new(element),
         length,
     }
 }
+
+#[test]
+fn shared_alias_shapes_compare_and_publish_without_expanding_tuple_paths() {
+    const DEPTH: usize = 48;
+    let nested = |leaf: BuiltinType| {
+        (0..DEPTH).fold(DataReference::from(leaf), |data, _| {
+            DataReference::Tuple(TupleData::new(data.clone(), data, []))
+        })
+    };
+    let left = nested(BuiltinType::I32);
+    let right = nested(BuiltinType::I32);
+    assert!(left == right);
+    assert!(left != nested(BuiltinType::U32));
+    assert!(!left.has_repeated_failure());
+    let mut leaves = 0;
+    left.visit_leaves(|_| leaves += 1);
+    assert!(leaves < DEPTH * 4);
+
+    let store = nocter_model::TypeAuthority::new();
+    let mut writer = store.transaction();
+    let mut operations = 0;
+    let mut resolve = |reference| {
+        resolve_reference(reference, |node| {
+            let ReferenceNode::Data(kind) = node else {
+                panic!("plain data")
+            };
+            operations += 1;
+            writer.intern(kind).ok()
+        })
+        .unwrap()
+    };
+    assert_eq!(resolve(&left), resolve(&right));
+    assert!(operations < DEPTH * 8);
+}
+
+#[test]
+fn shared_reference_folding_keeps_every_callable_occurrence() {
+    let callback = DataReference::Function(Box::new(crate::value_access::FunctionDefinition {
+        invocation: nocter_model::ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: BuiltinType::Void.into(),
+    }));
+    let pair = DataReference::Tuple(TupleData::new(callback.clone(), callback, []));
+    let shape = DataReference::Tuple(TupleData::new(pair.clone(), pair, []));
+    let store = nocter_model::TypeAuthority::new();
+    let mut writer = store.transaction();
+    let mut callable_order = Vec::new();
+    assert!(
+        resolve_reference(&shape, |node| match node {
+            ReferenceNode::Data(kind) => writer.intern(kind).ok(),
+            ReferenceNode::Function {
+                contract,
+                in_signature,
+            } => {
+                callable_order.push(in_signature);
+                Some(contract.result)
+            }
+        })
+        .is_some()
+    );
+    assert_eq!(callable_order, [false; 4]);
+}
+
 #[test]
 fn zero_array_breaks_self_containment_without_granting_copy_to_its_element() {
     for copy in [false, true] {
@@ -451,7 +514,7 @@ fn symbolic_projection_uses_the_same_shapes_and_cannot_authorize_an_empty_array(
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [],
                 DataReference::Array {
-                    element: Box::new(DataReference::Tuple(TupleData::new(
+                    element: std::sync::Arc::new(DataReference::Tuple(TupleData::new(
                         BuiltinType::I32.into(),
                         BuiltinType::Bool.into(),
                         [],
@@ -498,7 +561,7 @@ fn symbolic_projection_uses_the_same_shapes_and_cannot_authorize_an_empty_array(
 }
 
 fn fallible(payload: DataReference) -> DataReference {
-    DataReference::Fallible(Box::new(payload))
+    DataReference::Fallible(std::sync::Arc::new(payload))
 }
 #[test]
 fn fallible_components_use_one_error_payload_and_cannot_acquire_copy() {
@@ -564,7 +627,7 @@ fn fallible_components_use_one_error_payload_and_cannot_acquire_copy() {
 fn repeated_failure_is_invalid_even_inside_zero_length_metadata() {
     let repeated = || {
         fallible(DataReference::Optional {
-            payload: Box::new(fallible(BuiltinType::I32.into())),
+            payload: std::sync::Arc::new(fallible(BuiltinType::I32.into())),
             layers: 2.try_into().unwrap(),
         })
     };

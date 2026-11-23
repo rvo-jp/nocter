@@ -1,17 +1,18 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
     CodeSource, Failure, TypeSyntax,
-    headers::{Header, RecordHeader},
+    headers::{AliasHeader, Header, RecordHeader},
     source::Sources,
     text,
 };
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
-    HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId, TupleData,
-    ValueDefinition,
+    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
+    FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
+    TupleData, ValueDefinition,
 };
 use nocter_model::{
-    AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, ValueInputOperation,
+    AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, TypeAliasId,
+    ValueInputOperation,
 };
 use nocter_syntax::{BoundSyntax, SyntaxToken};
 use std::collections::BTreeMap;
@@ -57,17 +58,26 @@ pub(super) struct Projection<T> {
     pub definition: Option<T>,
     pub progress: Progress,
 }
+impl<T> Projection<T> {
+    pub fn map<U>(self, map: impl FnOnce(T) -> U) -> Projection<U> {
+        Projection {
+            definition: self.definition.map(map),
+            progress: self.progress,
+        }
+    }
+}
+#[derive(Default)]
 pub(super) struct Progress {
     pub violations: Vec<DeclarationViolation>,
     pub missing: Vec<AccessCodeId>,
+    pub missing_aliases: Vec<TypeAliasId>,
 }
 struct Definitions<'a, 's, 'v> {
     program: &'a Program,
     scope: HeaderScope<'s>,
     sources: &'a Sources,
     values: &'a mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
-    violations: Vec<DeclarationViolation>,
-    missing: Vec<AccessCodeId>,
+    progress: Progress,
 }
 pub(super) fn define<'v>(
     publication: &mut HeaderPublication,
@@ -118,6 +128,7 @@ pub(super) fn define<'v>(
             }
             Ok(projected.progress)
         }
+        DeclarationId::Alias(_) => Err(Failure::InconsistentSyntax),
     }
 }
 pub(super) fn project_code<'v>(
@@ -134,16 +145,12 @@ pub(super) fn project_code<'v>(
         scope,
         sources,
         values,
-        violations: Vec::new(),
-        missing: Vec::new(),
+        progress: Progress::default(),
     };
     let definition = definitions.function(id, header, source)?;
     Ok(Projection {
         definition,
-        progress: Progress {
-            violations: definitions.violations,
-            missing: definitions.missing,
-        },
+        progress: definitions.progress,
     })
 }
 pub(super) fn project_record<'v>(
@@ -159,16 +166,33 @@ pub(super) fn project_record<'v>(
         scope,
         sources,
         values,
-        violations: Vec::new(),
-        missing: Vec::new(),
+        progress: Progress::default(),
     };
     let definition = definitions.record(id, header)?;
     Ok(Projection {
         definition,
-        progress: Progress {
-            violations: definitions.violations,
-            missing: definitions.missing,
-        },
+        progress: definitions.progress,
+    })
+}
+pub(super) fn project_alias<'v>(
+    program: &Program,
+    scope: HeaderScope<'_>,
+    alias: TypeAliasId,
+    header: &AliasHeader,
+    sources: &Sources,
+    values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
+) -> Result<Projection<DataReference>, Failure> {
+    let mut definitions = Definitions {
+        program,
+        scope,
+        sources,
+        values,
+        progress: Progress::default(),
+    };
+    let definition = definitions.data_type(&header.target, alias.into(), HeaderPosition::Result)?;
+    Ok(Projection {
+        definition,
+        progress: definitions.progress,
     })
 }
 impl Definitions<'_, '_, '_> {
@@ -186,13 +210,27 @@ impl Definitions<'_, '_, '_> {
         declaration: DeclarationId,
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
-        match self
+        let resolved = self
             .program
             .resolve_data_in(self.scope.lookup, self.symbol(token)?)
-        {
-            Ok(data) => Ok(Some(data)),
+            .map(Some);
+        self.selected_data(declaration, position, resolved)
+    }
+    fn selected_data(
+        &mut self,
+        declaration: DeclarationId,
+        position: HeaderPosition,
+        resolved: Result<Option<DataReference>, DeclarationRule>,
+    ) -> Result<Option<DataReference>, Failure> {
+        match resolved {
+            Ok(Some(data)) => Ok(Some(data)),
+            Ok(None) => Err(Failure::InconsistentSyntax),
+            Err(DeclarationRule::UnreadyAlias { alias }) => {
+                self.progress.missing_aliases.push(alias);
+                Ok(None)
+            }
             Err(rule) => {
-                self.violations.push(DeclarationViolation {
+                self.progress.violations.push(DeclarationViolation {
                     declaration,
                     position,
                     rule,
@@ -212,25 +250,16 @@ impl Definitions<'_, '_, '_> {
                 .iter()
                 .map(|&token| self.symbol(token).map(Some))
                 .collect::<Result<Vec<_>, _>>()?;
-            return match self.program.declaration_path_in(
-                self.scope.lookup,
-                nocter_declarations::value_access::Namespace::Type,
-                &names,
-            ) {
-                Ok(DeclarationId::Record(record)) => Ok(Some(DataReference::Record(record))),
-                Ok(DeclarationId::Code(_)) => Err(Failure::InconsistentSyntax),
-                Err(error) => {
-                    self.violations.push(DeclarationViolation {
-                        declaration: owner,
-                        position,
-                        rule:
-                            nocter_declarations::value_access::DeclarationRule::QualifiedDataName {
-                                error,
-                            },
-                    });
-                    Ok(None)
-                }
-            };
+            let resolved = self
+                .program
+                .declaration_path_in(
+                    self.scope.lookup,
+                    nocter_declarations::value_access::Namespace::Type,
+                    &names,
+                )
+                .map_err(|error| DeclarationRule::QualifiedDataName { error })
+                .and_then(|target| self.program.data_reference_for(target));
+            return self.selected_data(owner, position, resolved);
         };
         self.data(*token, owner, position)
     }
@@ -265,16 +294,16 @@ impl Definitions<'_, '_, '_> {
             TypeSyntax::Named(path) => self.data_path(path, owner, position),
             TypeSyntax::Future { output, .. } => Ok(self
                 .data_type(output, owner, position)?
-                .map(|output| DataReference::Future(Box::new(output)))),
-            TypeSyntax::Optional { payload, layers } => Ok(self
+                .map(|output| DataReference::Future(std::sync::Arc::new(output)))),
+            TypeSyntax::Optional { payload, layers } => self
                 .data_type(payload, owner, position)?
-                .map(|payload| DataReference::Optional {
-                    payload: Box::new(payload),
-                    layers: *layers,
-                })),
+                .map(|payload| {
+                    DataReference::optional(payload, *layers).ok_or(Failure::InconsistentSyntax)
+                })
+                .transpose(),
             TypeSyntax::Fallible { payload, .. } => Ok(self
                 .data_type(payload, owner, position)?
-                .map(|payload| DataReference::Fallible(Box::new(payload)))),
+                .map(|payload| DataReference::Fallible(std::sync::Arc::new(payload)))),
             TypeSyntax::Array { element, length } => {
                 nocter_source_index::SourceOrigin::from_node(self.scope.syntax.tree(), *length)
                     .map_err(|_| Failure::InconsistentSyntax)?;
@@ -284,7 +313,7 @@ impl Definitions<'_, '_, '_> {
                     .expression(*length)
                     .ok_or(Failure::InconsistentSyntax)?;
                 let Some(value) = (self.values)(code) else {
-                    self.missing.push(code);
+                    self.progress.missing.push(code);
                     return Ok(None);
                 };
                 let FrozenNode::Scalar(ConstantValue::Integer(length)) = value.node() else {
@@ -292,7 +321,7 @@ impl Definitions<'_, '_, '_> {
                 };
                 let length = u64::try_from(*length).map_err(|_| Failure::InconsistentSyntax)?;
                 Ok(element.map(|element| DataReference::Array {
-                    element: Box::new(element),
+                    element: std::sync::Arc::new(element),
                     length,
                 }))
             }
@@ -369,7 +398,7 @@ impl Definitions<'_, '_, '_> {
             .iter()
             .map(|token| self.symbol(*token))
             .collect::<Result<Vec<_>, _>>()?;
-        self.violations.extend(
+        self.progress.violations.extend(
             self.program
                 .parameter_name_violations_in(self.scope.lookup, id, names.iter().copied())
                 .map_err(|_| Failure::InconsistentSyntax)?,

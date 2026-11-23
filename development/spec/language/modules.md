@@ -102,6 +102,7 @@ publish a private declaration. No executable body or value initializer may occur
 | Public function, method, construction, literal, coercion or operator | Complete bodyless contract | Matched complete header and body |
 | Public struct | Nominal/Copy contract and selected visible fields; a structural grant closes the schema | Complete representation when the root does not close it |
 | Public enum | Complete braced variant schema, or an opaque nominal/Copy header | Complete representation only for an opaque root |
+| Public type alias | Complete alias declaration with its target type | Private alias declarations |
 | Public interface | Associated types, required signatures, explicit default signatures | Matched default bodies only |
 | Public type's conformance | Interface application and associated bindings | Matching implementation bindings, where needed |
 | Public constant/static | Name and data type, no initializer | One matching value definition |

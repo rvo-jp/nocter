@@ -1,0 +1,15 @@
+see ./body.nct
+
+type Number = i32
+type Pair = [Number; WIDTH]
+type View = Point
+
+#visibility: "./"
+type Hidden = Number
+
+const WIDTH: usize
+struct Point
+impl Point {
+    const func create(value: Number): Self
+    const coerce self as Number
+}

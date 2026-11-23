@@ -1,7 +1,8 @@
 //! An annotation constrains data or a static callable witness; it never erases the witness.
 use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{
-    FunctionConstraint, FunctionMismatch, FunctionPattern, FunctionPatternMismatch, Namespace,
+    DeclarationId, FunctionConstraint, FunctionMismatch, FunctionPattern, FunctionPatternMismatch,
+    Namespace,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueInvocation};
 use nocter_syntax::{ContextualSpelling, Keyword, NodeId, SyntaxToken};
@@ -34,15 +35,17 @@ impl Checker<'_, '_> {
         token: SyntaxToken,
         metadata_only: bool,
     ) -> Result<TypeId, Failure> {
+        let scope = self.scope_at(token)?;
+        let spelling = self.text(token)?;
         if !metadata_only {
             self.require_header(Namespace::Type, token)?;
+        } else if let Some(alias) = self.program().type_alias_named_in(scope, spelling) {
+            self.require_declaration(alias.into(), token)?;
         }
-        let scope = self.scope_at(token)?;
         let data = if metadata_only {
-            self.program()
-                .type_identity_named_in(scope, self.text(token)?)
+            self.program().type_identity_named_in(scope, spelling)
         } else {
-            self.program().type_named_in(scope, self.text(token)?)
+            self.program().type_named_in(scope, spelling)
         };
         data.map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
@@ -55,18 +58,21 @@ impl Checker<'_, '_> {
             return self.annotation_data_token(*token, metadata_only);
         }
         let declaration = self.declaration_path(Namespace::Type, path)?;
-        let nocter_declarations::value_access::DeclarationId::Record(record) = declaration else {
-            return Err(Failure::InconsistentSyntax);
-        };
-        if !metadata_only {
-            self.require_declaration(
-                declaration,
-                *path.last().ok_or(Failure::InconsistentSyntax)?,
-            )?;
+        let token = *path.last().ok_or(Failure::InconsistentSyntax)?;
+        if !metadata_only || matches!(declaration, DeclarationId::Alias(_)) {
+            self.require_declaration(declaration, token)?;
         }
-        self.program()
-            .record_type_identity(record)
-            .ok_or(Failure::InconsistentSyntax)
+        let data = self
+            .program()
+            .type_declaration_identity(declaration)
+            .ok_or(Failure::InconsistentSyntax)?;
+        if !metadata_only
+            && matches!(declaration, DeclarationId::Alias(_))
+            && let Some(record) = self.program().record_identity(data)
+        {
+            self.require_declaration(record.into(), token)?;
+        }
+        Ok(data)
     }
     fn annotation_data(
         &mut self,

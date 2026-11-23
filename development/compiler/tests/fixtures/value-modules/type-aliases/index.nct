@@ -1,0 +1,5 @@
+#package: { name: "aliases", version: "2.0.0" }
+#executable: { name: "aliases" }
+see ./main.nct
+
+func main(): i32

@@ -2,12 +2,14 @@
 use super::{ModuleAudience, ModuleAudiences, VisibilityDiagnostic, VisibilityRule};
 use crate::access_declarations::{Failure, module_scopes::ParsedHeader};
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
-use nocter_declarations::value_access::{AggregateForm, DeclarationId, PayloadSchema, Program};
+use nocter_declarations::value_access::{
+    AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, ScopeId,
+};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessFieldId, NominalTypeId, TypeId};
+use nocter_model::{AccessFieldId, TypeId};
 use nocter_source_index::SourceOrigin;
-use nocter_syntax::{BoundSyntax, NodeId, NodeKind, direct_node};
-use std::collections::{BTreeMap, BTreeSet};
+use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxOrigin, direct_node};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 impl ModuleAudiences {
     pub fn verify_signatures(
@@ -17,25 +19,28 @@ impl ModuleAudiences {
         fields: &[Option<AccessFieldId>],
         program: &Program,
         headers: &BTreeMap<SurfaceDeclarationId, ParsedHeader>,
+        scopes: &[ScopeId],
     ) -> Result<(), Failure> {
-        let exported_records = surface
+        let exported_types = surface
             .declarations()
             .iter()
             .enumerate()
             .filter_map(|(index, _)| {
                 let raw = SurfaceDeclarationId::from_index(index);
                 let audience = self.declaration(raw)?;
-                let DeclarationId::Record(record) = declarations[index]? else {
+                let declaration @ (DeclarationId::Record(_) | DeclarationId::Alias(_)) =
+                    declarations[index]?
+                else {
                     return None;
                 };
-                Some((record, (raw, audience)))
+                Some((declaration, (raw, audience)))
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<HashMap<_, _>>();
         let checking = Signatures {
             surface,
             declarations,
             program,
-            exported_records,
+            exported_types,
         };
         for (index, declaration) in surface.declarations().iter().enumerate() {
             let raw = SurfaceDeclarationId::from_index(index);
@@ -65,9 +70,21 @@ impl ModuleAudiences {
                             .parameters()
                             .get(parameter)
                             .ok_or(Failure::InconsistentSyntax)?;
-                        checking.check(audience, syntax, source.ty, parameter.data())?;
+                        checking.check(
+                            audience,
+                            syntax,
+                            scopes[index],
+                            source.ty,
+                            parameter.data(),
+                        )?;
                     }
-                    checking.check(audience, syntax, header.result_syntax, code.result())?;
+                    checking.check(
+                        audience,
+                        syntax,
+                        scopes[index],
+                        header.result_syntax,
+                        code.result(),
+                    )?;
                 }
                 None if declaration.kind() == SurfaceDeclarationKind::Field => {
                     let id = fields[index].ok_or(Failure::InconsistentSyntax)?;
@@ -77,9 +94,22 @@ impl ModuleAudiences {
                         .ok_or(Failure::InconsistentSyntax)?;
                     let ty = direct_node(tree, declaration.node(), NodeKind::Type)
                         .ok_or(Failure::InconsistentSyntax)?;
-                    checking.check(audience, syntax, ty, field.data())?;
+                    checking.check(audience, syntax, scopes[index], ty, field.data())?;
                 }
                 Some(DeclarationId::Record(_)) => {}
+                Some(DeclarationId::Alias(id)) => {
+                    let Some(ParsedHeader::Alias(header)) = headers.get(&raw) else {
+                        return Err(Failure::InconsistentSyntax);
+                    };
+                    let alias = program.alias(id).ok_or(Failure::InconsistentSyntax)?;
+                    checking.check(
+                        audience,
+                        syntax,
+                        scopes[index],
+                        header.source.ty,
+                        alias.data(),
+                    )?;
+                }
                 None if matches!(
                     declaration.kind(),
                     SurfaceDeclarationKind::TypeBehavior
@@ -96,16 +126,18 @@ struct Signatures<'a, 'syntax> {
     surface: &'a DeclarationSurface<'syntax>,
     declarations: &'a [Option<DeclarationId>],
     program: &'a Program,
-    exported_records: BTreeMap<NominalTypeId, (SurfaceDeclarationId, &'a ModuleAudience)>,
+    exported_types: HashMap<DeclarationId, (SurfaceDeclarationId, &'a ModuleAudience)>,
 }
 impl Signatures<'_, '_> {
     fn check(
         &self,
         audience: &ModuleAudience,
         syntax: BoundSyntax<'_>,
+        scope: ScopeId,
         primary: NodeId,
         data: TypeId,
     ) -> Result<(), Failure> {
+        self.check_alias_names(audience, syntax, scope, primary)?;
         let mut seen = BTreeSet::new();
         let mut pending = vec![data];
         while let Some(data) = pending.pop() {
@@ -113,12 +145,8 @@ impl Signatures<'_, '_> {
                 continue;
             }
             if let Some(record) = self.program.record_identity(data) {
-                if self
-                    .exported_records
-                    .get(&record)
-                    .is_none_or(|(_, target)| !audience.is_within(target))
-                {
-                    return self.reject(syntax, primary, record);
+                if !self.visible_to(audience, record.into()) {
+                    return self.reject(syntax, SyntaxOrigin::Node(primary), record.into());
                 }
                 // Representation fields do not become part of the outward nominal contract.
                 continue;
@@ -153,26 +181,72 @@ impl Signatures<'_, '_> {
         }
         Ok(())
     }
+    fn check_alias_names(
+        &self,
+        audience: &ModuleAudience,
+        syntax: BoundSyntax<'_>,
+        scope: ScopeId,
+        root: NodeId,
+    ) -> Result<(), Failure> {
+        if syntax
+            .tree()
+            .node(root)
+            .is_none_or(|node| node.kind() != NodeKind::Type)
+        {
+            return Ok(());
+        }
+        let source = crate::access_declarations::project_type_syntax(syntax, root)?;
+        for path in source.named_paths() {
+            if let [token] = path
+                && syntax.text_at(token.range()) == Some("Self")
+            {
+                continue;
+            }
+            let names = path
+                .iter()
+                .map(|name| {
+                    syntax
+                        .text_at(name.range())
+                        .and_then(|name| self.program.symbols().get(name))
+                })
+                .collect::<Vec<_>>();
+            if let Ok(alias @ DeclarationId::Alias(_)) =
+                self.program
+                    .declaration_path_in(scope, Namespace::Type, &names)
+                && !self.visible_to(audience, alias)
+            {
+                let name = *path.last().ok_or(Failure::InconsistentSyntax)?;
+                return self.reject(syntax, SyntaxOrigin::Token(name), alias);
+            }
+        }
+        Ok(())
+    }
+    fn visible_to(&self, audience: &ModuleAudience, target: DeclarationId) -> bool {
+        self.exported_types
+            .get(&target)
+            .is_some_and(|(_, target)| audience.is_within(target))
+    }
     fn reject(
         &self,
         syntax: BoundSyntax<'_>,
-        primary: NodeId,
-        target: NominalTypeId,
+        primary: SyntaxOrigin,
+        target: DeclarationId,
     ) -> Result<(), Failure> {
-        let raw = match self.exported_records.get(&target) {
+        let raw = match self.exported_types.get(&target) {
             Some((raw, _)) => *raw,
             None => self
                 .declarations
                 .iter()
-                .position(|id| *id == Some(DeclarationId::Record(target)))
+                .position(|id| *id == Some(target))
                 .map(SurfaceDeclarationId::from_index)
                 .ok_or(Failure::InconsistentSyntax)?,
         };
         let declaration = self.surface.declarations()[raw.index()];
         let tree = self.surface.sources()[declaration.source().index()].syntax();
         let token = declaration.name().ok_or(Failure::InconsistentSyntax)?;
-        let primary = SourceOrigin::from_node(syntax.tree(), primary)
-            .map_err(|_| Failure::InconsistentSyntax)?;
+        let primary =
+            crate::diagnostic::origin_from_syntax(std::iter::once(syntax.tree()), primary)
+                .ok_or(Failure::InconsistentSyntax)?;
         let related =
             SourceOrigin::from_token(tree, token).map_err(|_| Failure::InconsistentSyntax)?;
         Err(Failure::Visibility(Box::new(VisibilityDiagnostic {

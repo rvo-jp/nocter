@@ -211,7 +211,7 @@ fn fallible_program(data: nocter_declarations::value_access::DataReference) -> (
             false,
             [FieldDefinition {
                 name: symbols.get("value").unwrap(),
-                data: DataReference::Fallible(Box::new(data)),
+                data: DataReference::Fallible(std::sync::Arc::new(data)),
             }],
         )
         .unwrap();

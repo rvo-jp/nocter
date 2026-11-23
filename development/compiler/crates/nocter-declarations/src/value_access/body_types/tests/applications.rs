@@ -25,7 +25,7 @@ fn result_ordinal_gaps_cannot_change_an_existing_calls_template_set() {
         result: BuiltinType::I32.into(),
     }));
     let empty = DataReference::Array {
-        element: Box::new(leaf.clone()),
+        element: std::sync::Arc::new(leaf.clone()),
         length: 0,
     };
     for (id, a, b) in [(before, empty.clone(), leaf.clone()), (after, leaf, empty)] {

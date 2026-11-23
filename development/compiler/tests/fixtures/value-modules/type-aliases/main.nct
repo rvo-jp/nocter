@@ -1,0 +1,17 @@
+see ./index.nct
+use ./catalog
+use ./catalog.Pair as Samples
+
+type NodeIdentity = Chain
+copy struct Chain { tail: [NodeIdentity; 0] }
+
+const BASE: catalog.Number = catalog.View.create(21) as catalog.Number
+const DATA: Samples = [BASE; 2]
+
+func main(): i32 {
+    let empty = Chain { tail: [] }
+    drop empty
+    let point: catalog.View = catalog.View.create(DATA[0] + DATA[1])
+    let converted = point as catalog.Number
+    converted as i32
+}

@@ -40,6 +40,7 @@ pub struct HeaderPublication {
     parameters: SparseArenaBuilder<AccessParameterId, Parameter>,
     types: TypeAuthority,
     records: records::Publication,
+    aliases: SparseArenaBuilder<nocter_model::TypeAliasId, super::TypeAlias>,
 }
 impl HeaderPublication {
     /// All reserved code identities; missing contracts grant no body-checking admission.
@@ -58,6 +59,7 @@ impl HeaderPublication {
         Self {
             codes: SparseArenaBuilder::new(definitions.codes.len()),
             parameters: SparseArenaBuilder::new(definitions.parameters.len()),
+            aliases: SparseArenaBuilder::new(definitions.aliases.len()),
             definitions,
             types,
             records,
@@ -73,6 +75,7 @@ impl HeaderPublication {
             && self.definitions.namespace.as_ref() == retained.namespace.as_ref()
             && self.definitions.codes.len() == retained.codes.len()
             && self.definitions.parameters.len() == retained.parameters.len()
+            && self.definitions.aliases.len() == retained.aliases.len()
             && self.definitions.codes.iter().all(|(id, slot)| {
                 retained.codes.get(id).is_some_and(|code| {
                     code.name == slot.name && code.parameters == slot.parameters
@@ -94,6 +97,9 @@ impl HeaderPublication {
         match id.into() {
             DeclarationId::Code(id) => Some(self.definitions.codes.get(id)?.definition.is_some()),
             DeclarationId::Record(id) => self.definitions.records.is_defined(id),
+            DeclarationId::Alias(id) => {
+                Some(self.definitions.aliases.get(id)?.definition.is_some())
+            }
         }
     }
     /// Reserved input slots, without typed parameter contracts.
@@ -115,7 +121,7 @@ impl HeaderPublication {
     /// # Errors
     /// Reports unknown data names without publishing an incomplete schema.
     pub fn resolve_data(&self, name: Symbol) -> Result<super::DataReference, DeclarationRule> {
-        self.definitions.resolve_data(name)
+        self.resolve_data_in(super::ScopeId::ROOT, name)
     }
     /// Resolve a leaf in an explicit declaration scope through the same closed name authority.
     /// # Errors
@@ -125,7 +131,9 @@ impl HeaderPublication {
         scope: super::ScopeId,
         name: Symbol,
     ) -> Result<super::DataReference, DeclarationRule> {
-        self.definitions.resolve_data_in(scope, name)
+        super::data::resolve_ready_alias(self.definitions.resolve_data_in(scope, name), |id| {
+            self.aliases.get(id)
+        })
     }
     /// Load one define-once raw callable, preserving all reserved slots and ready views.
     /// # Errors
@@ -150,6 +158,25 @@ impl HeaderPublication {
     ) -> Result<(), crate::DefinitionError> {
         self.definitions.define_record(id, copy, fields)
     }
+    /// Load one alias target, preserving the original closed name and data domains.
+    /// # Errors
+    /// Rejects foreign or already-defined aliases.
+    pub fn define_alias(
+        &mut self,
+        id: nocter_model::TypeAliasId,
+        target: super::DataReference,
+    ) -> Result<(), crate::DefinitionError> {
+        let alias = self
+            .definitions
+            .aliases
+            .get_mut(id)
+            .ok_or(crate::DefinitionError::UnknownId)?;
+        if alias.definition.is_some() {
+            return Err(crate::DefinitionError::AlreadyDefined);
+        }
+        alias.definition = Some(target);
+        Ok(())
+    }
     /// Normalize one contract and its record dependencies, retaining all older ready views.
     /// # Errors
     /// Reports invalid payload/Copy contracts or an identity outside this closed domain.
@@ -166,11 +193,18 @@ impl HeaderPublication {
     /// Classify an exact active record cycle at its closing field, without source lookup.
     #[must_use]
     pub fn reject_cycle(&self, path: &[DeclarationId]) -> HeaderFailure {
+        if let Some(&declaration) = path.iter().find(|id| matches!(id, DeclarationId::Alias(_))) {
+            return HeaderFailure::Rejected(vec![DeclarationViolation {
+                declaration,
+                position: super::HeaderPosition::Result,
+                rule: DeclarationRule::RecursiveAlias,
+            }]);
+        }
         let records = path
             .iter()
             .map(|id| match id {
                 DeclarationId::Record(id) => Some(*id),
-                DeclarationId::Code(_) => None,
+                DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
             })
             .collect::<Option<Vec<_>>>();
         records
@@ -186,6 +220,19 @@ impl HeaderPublication {
     /// Panics only if validated internal metadata loses integrity.
     pub fn advance(&mut self, id: impl Into<DeclarationId>) -> Result<HeaderStep, HeaderFailure> {
         match id.into() {
+            DeclarationId::Alias(id) => {
+                if self.aliases.get(id).is_none() {
+                    let alias = self
+                        .definitions
+                        .aliases
+                        .get(id)
+                        .ok_or(HeaderFailure::UnknownId)?;
+                    let target = alias.publish(id, &self.definitions.records, &mut self.types)?;
+                    self.aliases
+                        .insert(id, target)
+                        .map_err(|_| HeaderFailure::Inconsistent)?;
+                }
+            }
             DeclarationId::Record(id) => {
                 if self.records.get(id).is_some() {
                     return Ok(HeaderStep::Ready);
@@ -339,12 +386,17 @@ impl HeaderPublication {
             parameters: self.parameters.snapshot(),
             namespace: self.definitions.namespace.clone(),
             records: self.records.snapshot(),
+            aliases: self.aliases.snapshot(),
         }
     }
     /// Publish all remaining contracts in canonical declaration order.
     /// # Errors
     /// Reports the first invalid prerequisite, without publishing its dependents.
     pub fn finish(mut self) -> Result<Program, HeaderFailure> {
+        let aliases: Vec<_> = self.definitions.aliases.iter().map(|(id, _)| id).collect();
+        for id in aliases {
+            self.publish(id)?;
+        }
         let records: Vec<_> = self
             .definitions
             .records

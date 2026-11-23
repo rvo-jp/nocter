@@ -4,15 +4,19 @@ use crate::access_declarations::{
     CodeSource, HeaderProgress,
     definitions::{self, HeaderScope, Projection},
     projection,
+    source::Sources,
 };
 use crate::{DeclarationContractError, SurfaceDeclarationId};
-use nocter_declarations::value_access::{DeclarationId, HeaderFailure, HeaderStep};
+use nocter_declarations::value_access::{
+    DataReference, DeclarationId, HeaderFailure, HeaderStep, Program,
+};
 use nocter_model::{AccessCodeId, FrozenData};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 enum Definition {
     Code(definitions::CodeDefinition),
     Record(definitions::RecordDefinition),
+    Alias(DataReference),
 }
 impl ScopedModuleSources<'_> {
     /// Advance one header using all of its physical contract/definition occurrences.
@@ -35,6 +39,7 @@ impl ScopedModuleSources<'_> {
             let program = self.program();
             let mut projected = BTreeMap::new();
             let mut missing = Vec::new();
+            let mut missing_aliases = BTreeSet::new();
             for (raw, header) in occurrences {
                 let physical = self.binding.paired.inventory.declarations()[raw.index()];
                 let scope = HeaderScope {
@@ -44,39 +49,14 @@ impl ScopedModuleSources<'_> {
                 let Projection {
                     definition,
                     progress,
-                } = match (required, header) {
-                    (DeclarationId::Code(code), ParsedHeader::Code(header)) => {
-                        definitions::project_code(
-                            &program,
-                            scope,
-                            code,
-                            &definitions::Recipe::from(header.clone()),
-                            &CodeSource::from_header(header),
-                            &self.binding.catalog.sources,
-                            &mut value,
-                        )
-                        .map(|p| Projection {
-                            definition: p.definition.map(Definition::Code),
-                            progress: p.progress,
-                        })
-                    }
-                    (DeclarationId::Record(record), ParsedHeader::Record(header)) => {
-                        definitions::project_record(
-                            &program,
-                            scope,
-                            record,
-                            header,
-                            &self.binding.catalog.sources,
-                            &mut value,
-                        )
-                        .map(|p| Projection {
-                            definition: p.definition.map(Definition::Record),
-                            progress: p.progress,
-                        })
-                    }
-                    _ => return Err(integrity()),
-                }
-                .map_err(ModuleSourcesFailure::Access)?;
+                } = project_occurrence(
+                    &program,
+                    required,
+                    header,
+                    scope,
+                    &self.binding.catalog.sources,
+                    &mut value,
+                )?;
                 if !progress.violations.is_empty() {
                     return Err(self.project_header_failure(
                         HeaderFailure::Rejected(progress.violations),
@@ -84,6 +64,7 @@ impl ScopedModuleSources<'_> {
                     ));
                 }
                 missing.extend(progress.missing);
+                missing_aliases.extend(progress.missing_aliases);
                 if let Some(definition) = definition {
                     if physical.kind() == crate::SurfaceDeclarationKind::ConstructionFunction {
                         let (Definition::Code(code), ParsedHeader::Code(header)) =
@@ -100,6 +81,14 @@ impl ScopedModuleSources<'_> {
                     }
                     projected.insert(*raw, definition);
                 }
+            }
+            if !missing_aliases.is_empty() {
+                return Ok(HeaderProgress::RequireHeaders(
+                    missing_aliases
+                        .into_iter()
+                        .map(DeclarationId::Alias)
+                        .collect(),
+                ));
             }
             if !missing.is_empty() {
                 missing.sort_unstable();
@@ -161,6 +150,9 @@ impl ScopedModuleSources<'_> {
             (DeclarationId::Record(id), Definition::Record(definition)) => self
                 .headers
                 .define_record(id, definition.copy, definition.fields),
+            (DeclarationId::Alias(id), Definition::Alias(target)) => {
+                self.headers.define_alias(id, target)
+            }
             _ => return Err(integrity()),
         }
         .map_err(|_| integrity())
@@ -264,6 +256,7 @@ impl ScopedModuleSources<'_> {
                 (Some(DeclarationId::Record(id)), ParsedHeader::Record(header)) => {
                     records.insert(id, header.source.clone());
                 }
+                (Some(DeclarationId::Alias(_)), ParsedHeader::Alias(_)) => {}
                 _ => return integrity(),
             }
         }
@@ -276,7 +269,43 @@ impl ScopedModuleSources<'_> {
             .map(crate::SurfaceSource::syntax)
             .collect::<Vec<_>>();
         ModuleSourcesFailure::Access(projection::project_violations_in(
-            &trees, &codes, &records, violations,
+            &trees,
+            &codes,
+            &records,
+            &self.binding.catalog.sources.aliases,
+            violations,
         ))
     }
+}
+
+fn project_occurrence<'value>(
+    program: &Program,
+    required: DeclarationId,
+    header: &ParsedHeader,
+    scope: HeaderScope<'_>,
+    sources: &Sources,
+    value: &mut dyn FnMut(AccessCodeId) -> Option<&'value FrozenData>,
+) -> Result<Projection<Definition>, ModuleSourcesFailure> {
+    match (required, header) {
+        (DeclarationId::Code(code), ParsedHeader::Code(header)) => definitions::project_code(
+            program,
+            scope,
+            code,
+            &definitions::Recipe::from(header.clone()),
+            &CodeSource::from_header(header),
+            sources,
+            value,
+        )
+        .map(|p| p.map(Definition::Code)),
+        (DeclarationId::Record(record), ParsedHeader::Record(header)) => {
+            definitions::project_record(program, scope, record, header, sources, value)
+                .map(|p| p.map(Definition::Record))
+        }
+        (DeclarationId::Alias(alias), ParsedHeader::Alias(header)) => {
+            definitions::project_alias(program, scope, alias, header, sources, value)
+                .map(|p| p.map(Definition::Alias))
+        }
+        _ => return Err(integrity()),
+    }
+    .map_err(ModuleSourcesFailure::Access)
 }

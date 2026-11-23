@@ -30,6 +30,26 @@ impl Context<'_> {
                     (DeclarationId::Record(id), ParsedHeader::Record(header)) => {
                         self.verify_record_header(id, header, scope, &mut values)?;
                     }
+                    (DeclarationId::Alias(id), ParsedHeader::Alias(header)) => {
+                        let actual = complete(
+                            definitions::project_alias(
+                                self.program(),
+                                scope,
+                                id,
+                                header,
+                                &self.sources,
+                                &mut values,
+                            )
+                            .map_err(|_| SourceMismatch::InconsistentSyntax)?,
+                        )?;
+                        let alias = self
+                            .program()
+                            .alias(id)
+                            .ok_or(SourceMismatch::InconsistentSyntax)?;
+                        if self.program().existing_data_reference(&actual) != Some(alias.data()) {
+                            return Err(SourceMismatch::InconsistentSyntax);
+                        }
+                    }
                     (DeclarationId::Code(_), ParsedHeader::Test { .. }) => {}
                     _ => return Err(SourceMismatch::InconsistentSyntax),
                 }
@@ -129,7 +149,10 @@ impl Context<'_> {
     }
 }
 fn complete<T>(projection: Projection<T>) -> Result<T, SourceMismatch> {
-    if !projection.progress.missing.is_empty() || !projection.progress.violations.is_empty() {
+    if !projection.progress.missing.is_empty()
+        || !projection.progress.missing_aliases.is_empty()
+        || !projection.progress.violations.is_empty()
+    {
         return Err(SourceMismatch::InconsistentSyntax);
     }
     projection

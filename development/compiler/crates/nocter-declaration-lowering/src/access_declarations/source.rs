@@ -1,7 +1,7 @@
 //! Exact source evidence shared by declaration and checking consumers, without evaluation.
 use super::Context;
 use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
-use nocter_model::{AccessCodeId, NominalTypeId, ValueCodeRoot, ValueExpression};
+use nocter_model::{AccessCodeId, NominalTypeId, TypeAliasId, ValueCodeRoot, ValueExpression};
 use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, NodeId, SyntaxOrigin, SyntaxToken};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
@@ -17,12 +17,21 @@ pub(super) use recipes::Recipes;
 pub(super) struct Sources {
     pub codes: Arc<BTreeMap<AccessCodeId, CodeSource>>,
     pub records: Arc<BTreeMap<NominalTypeId, Arc<RecordSource>>>,
+    pub aliases: Arc<BTreeMap<TypeAliasId, AliasSource>>,
     expressions: Arc<BTreeMap<NodeId, AccessCodeId>>,
 }
 impl Sources {
     pub(super) fn new(
         codes: BTreeMap<AccessCodeId, CodeSource>,
         records: BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    ) -> Result<Self, super::Failure> {
+        Self::with_aliases(codes, records, BTreeMap::new())
+    }
+
+    pub(super) fn with_aliases(
+        codes: BTreeMap<AccessCodeId, CodeSource>,
+        records: BTreeMap<NominalTypeId, Arc<RecordSource>>,
+        aliases: BTreeMap<TypeAliasId, AliasSource>,
     ) -> Result<Self, super::Failure> {
         let mut expressions = BTreeMap::new();
         for (&id, source) in &codes {
@@ -35,6 +44,7 @@ impl Sources {
         Ok(Self {
             codes: Arc::new(codes),
             records: Arc::new(records),
+            aliases: Arc::new(aliases),
             expressions: Arc::new(expressions),
         })
     }
@@ -64,6 +74,11 @@ pub(super) struct FieldSource {
 pub(super) struct RecordSource {
     pub name: SyntaxToken,
     pub fields: Box<[FieldSource]>,
+}
+#[derive(Clone, Copy, Debug)]
+pub(super) struct AliasSource {
+    pub name: SyntaxToken,
+    pub ty: NodeId,
 }
 
 #[derive(Clone, Debug)]
@@ -400,6 +415,7 @@ fn header<'source>(
     let Some(SyntaxOrigin::Node(node)) = header_origin(
         &context.sources.codes,
         &context.sources.records,
+        &context.sources.aliases,
         declaration,
         position,
         true,
@@ -414,6 +430,7 @@ fn header<'source>(
 pub(super) fn header_origin(
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    aliases: &BTreeMap<TypeAliasId, AliasSource>,
     declaration: DeclarationId,
     position: HeaderPosition,
     typed: bool,
@@ -438,6 +455,14 @@ pub(super) fn header_origin(
                 HeaderPosition::Field(i) if typed => SyntaxOrigin::Node(s.fields.get(i)?.ty),
                 HeaderPosition::Field(i) => SyntaxOrigin::Token(s.fields.get(i)?.name),
                 _ => return None,
+            }
+        }
+        DeclarationId::Alias(id) => {
+            let alias = aliases.get(&id)?;
+            match position {
+                HeaderPosition::Name => SyntaxOrigin::Token(alias.name),
+                HeaderPosition::Result => SyntaxOrigin::Node(alias.ty),
+                HeaderPosition::Parameter(_) | HeaderPosition::Field(_) => return None,
             }
         }
     })

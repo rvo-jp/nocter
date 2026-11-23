@@ -64,22 +64,31 @@ impl TypeSyntax {
         }
     }
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
-        match self {
-            Self::Named(path) => path.to_vec(),
-            Self::Callable(contract) => contract
-                .inputs
-                .iter()
-                .flat_map(|(_, ty)| ty.tokens())
-                .chain(contract.result.tokens())
-                .collect(),
-            Self::Optional { payload, .. }
-            | Self::Fallible { payload, .. }
-            | Self::Future {
-                output: payload, ..
-            } => payload.tokens(),
-            Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
-            Self::Array { element, .. } => element.tokens(),
+        self.named_paths().into_iter().flatten().copied().collect()
+    }
+
+    pub(super) fn named_paths(&self) -> Vec<&[SyntaxToken]> {
+        let mut pending = vec![self];
+        let mut names = Vec::new();
+        while let Some(ty) = pending.pop() {
+            match ty {
+                Self::Named(path) => names.push(path.as_ref()),
+                Self::Callable(contract) => {
+                    pending.push(&contract.result);
+                    pending.extend(contract.inputs.iter().rev().map(|(_, ty)| ty));
+                }
+                Self::Optional { payload, .. }
+                | Self::Fallible { payload, .. }
+                | Self::Future {
+                    output: payload, ..
+                }
+                | Self::Array {
+                    element: payload, ..
+                } => pending.push(payload),
+                Self::Tuple(fields) => pending.extend(fields.iter().rev()),
+            }
         }
+        names
     }
 }
 /// Project a complete source type without name resolution, representation or callable evidence.

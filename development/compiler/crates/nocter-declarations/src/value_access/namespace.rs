@@ -5,6 +5,7 @@ use super::{
 };
 use nocter_model::{
     AccessCodeId, ArenaBuilder, BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable,
+    TypeAliasId,
 };
 use std::{collections::BTreeMap, sync::Arc};
 mod lexical;
@@ -202,6 +203,7 @@ pub(super) fn close(
     symbols: &SymbolTable,
     codes: &ArenaBuilder<AccessCodeId, Reservation>,
     records: &records::Builder,
+    aliases: &ArenaBuilder<TypeAliasId, super::aliases::Slot>,
     scopes: Scopes,
     violations: &mut Vec<DeclarationViolation>,
 ) -> Names {
@@ -232,12 +234,23 @@ pub(super) fn close(
                 },
             )
         }))
+        .chain(aliases.iter().map(|(id, alias)| {
+            (
+                alias.scope,
+                alias.name,
+                Binding {
+                    declaration: DeclarationId::Alias(id),
+                    canonical: true,
+                    audience: None,
+                },
+            )
+        }))
         .chain(scopes.bindings.iter().cloned());
     for (scope, name, binding) in names {
         let declaration = binding.declaration;
         let kind = match declaration {
             DeclarationId::Code(_) => Namespace::Value,
-            DeclarationId::Record(_) => Namespace::Type,
+            DeclarationId::Record(_) | DeclarationId::Alias(_) => Namespace::Type,
         };
         let rule = match symbols.spelling(name) {
             None => Some(DeclarationRule::UnknownSymbol),
@@ -265,6 +278,9 @@ pub(super) fn close(
                         }
                         (DeclarationId::Record(_), DeclarationId::Record(first)) => {
                             DeclarationRule::DuplicateRecord { first }
+                        }
+                        (DeclarationId::Alias(_) | DeclarationId::Record(_), first) => {
+                            DeclarationRule::DuplicateTypeName { first }
                         }
                         _ => unreachable!("namespace key matches its declaration role"),
                     })

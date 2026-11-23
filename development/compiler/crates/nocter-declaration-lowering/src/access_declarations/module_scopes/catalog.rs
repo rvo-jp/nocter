@@ -19,6 +19,18 @@ pub(super) struct CodeOwner {
     pub source: SurfaceSourceId,
     pub lookup: ScopeId,
 }
+impl CodeOwner {
+    fn for_header(
+        paired: &PairedModuleSources<'_>,
+        scopes: &[ScopeId],
+        id: SurfaceDeclarationId,
+    ) -> Self {
+        Self {
+            source: paired.inventory.declarations()[id.index()].source(),
+            lookup: scopes[id.index()],
+        }
+    }
+}
 impl Catalog {
     pub fn reserve(
         paired: &PairedModuleSources<'_>,
@@ -30,15 +42,12 @@ impl Catalog {
     ) -> Result<Self, ModuleSourcesFailure> {
         let mut codes = BTreeMap::new();
         let mut records = BTreeMap::new();
+        let mut aliases = BTreeMap::new();
         let mut owners = BTreeMap::new();
         // Complete definitions provide executable roots. Primitive declarations retain a header
         // source and physical scope, but never acquire a fabricated body.
         for (raw, header) in &parsed {
-            let physical = paired.inventory.declarations()[raw.index()];
-            let owner = CodeOwner {
-                source: physical.source(),
-                lookup: declaration_scopes[raw.index()],
-            };
+            let owner = CodeOwner::for_header(paired, declaration_scopes, *raw);
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             match (semantic, header) {
                 (DeclarationId::Code(code), header) => {
@@ -61,19 +70,22 @@ impl Catalog {
                         return Err(integrity());
                     }
                 }
+                (DeclarationId::Alias(alias), ParsedHeader::Alias(header))
+                    if aliases.insert(alias, header.source).is_some() =>
+                {
+                    return Err(integrity());
+                }
                 _ => {}
             }
         }
         for (raw, header) in &parsed {
-            let physical = paired.inventory.declarations()[raw.index()];
-            let owner = CodeOwner {
-                source: physical.source(),
-                lookup: declaration_scopes[raw.index()],
-            };
+            let owner = CodeOwner::for_header(paired, declaration_scopes, *raw);
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             let mut register = |position,
-                                lengths: Vec<nocter_syntax::NodeId>|
+                                ty: &crate::access_declarations::TypeSyntax|
              -> Result<(), ModuleSourcesFailure> {
+                let mut lengths = Vec::new();
+                ty.length_expressions(&mut lengths);
                 for body in lengths {
                     let id = reservations
                         .reserve_type_expression_in(
@@ -93,13 +105,12 @@ impl Catalog {
                 ParsedHeader::Test { .. } => {}
                 ParsedHeader::Code(header) => {
                     for (index, parameter) in header.parameters.iter().enumerate() {
-                        let mut lengths = Vec::new();
-                        parameter.data.length_expressions(&mut lengths);
-                        register(HeaderPosition::Parameter(index), lengths)?;
+                        register(HeaderPosition::Parameter(index), &parameter.data)?;
                     }
-                    let mut lengths = Vec::new();
-                    header.result_data.length_expressions(&mut lengths);
-                    register(HeaderPosition::Result, lengths)?;
+                    register(HeaderPosition::Result, &header.result_data)?;
+                }
+                ParsedHeader::Alias(header) => {
+                    register(HeaderPosition::Result, &header.target)?;
                 }
                 ParsedHeader::Record(header) => {
                     let authored = paired
@@ -113,14 +124,13 @@ impl Catalog {
                     }
                     for (data, raw_field) in header.fields.iter().zip(authored) {
                         let position = fields[raw_field.index()].ok_or_else(integrity)?.index;
-                        let mut lengths = Vec::new();
-                        data.length_expressions(&mut lengths);
-                        register(HeaderPosition::Field(position), lengths)?;
+                        register(HeaderPosition::Field(position), data)?;
                     }
                 }
             }
         }
-        let sources = Sources::new(codes, records).map_err(ModuleSourcesFailure::Access)?;
+        let sources =
+            Sources::with_aliases(codes, records, aliases).map_err(ModuleSourcesFailure::Access)?;
         Ok(Self {
             parsed,
             sources,

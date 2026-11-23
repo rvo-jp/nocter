@@ -388,7 +388,7 @@ mod tests {
                     CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                     [],
                     DataReference::Array {
-                        element: Box::new(BuiltinType::I32.into()),
+                        element: std::sync::Arc::new(BuiltinType::I32.into()),
                         length,
                     },
                 )
@@ -400,7 +400,7 @@ mod tests {
                     [nocter_declarations::value_access::FieldDefinition {
                         name: symbols.get("value").unwrap(),
                         data: DataReference::Array {
-                            element: Box::new(BuiltinType::I32.into()),
+                            element: std::sync::Arc::new(BuiltinType::I32.into()),
                             length,
                         },
                     }],

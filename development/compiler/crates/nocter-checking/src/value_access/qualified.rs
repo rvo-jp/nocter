@@ -180,14 +180,22 @@ impl Checker<'_, '_> {
             return Ok(None);
         }
         if let [name] = tokens.as_slice() {
+            self.require_header(Namespace::Type, *name)?;
             return Ok(self.program().type_owner_named_in(scope, self.text(*name)?));
         }
         match self
             .program()
             .declaration_path_in(scope, Namespace::Type, &symbols)
         {
-            Ok(DeclarationId::Record(owner)) => Ok(Some(BehaviorOwner::Record(owner))),
-            Ok(DeclarationId::Code(_)) => Err(Failure::InconsistentSyntax),
+            Ok(declaration) => {
+                let token = *tokens.last().ok_or(Failure::InconsistentSyntax)?;
+                self.require_declaration(declaration, token)?;
+                let data = self
+                    .program()
+                    .type_declaration_identity(declaration)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                Ok(self.program().behavior_owner(data))
+            }
             Err(error @ QualifiedNameError::Inaccessible { position })
                 if position + 1 == tokens.len() =>
             {

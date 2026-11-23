@@ -58,7 +58,7 @@ fn nested_header_contracts_preserve_owners_reconciliation_and_body_replay() {
         let nested = signature(callable(BuiltinType::I32.into()));
         let recipe = if compound {
             DataReference::Array {
-                element: Box::new(DataReference::Function(Box::new(nested))),
+                element: std::sync::Arc::new(DataReference::Function(Box::new(nested))),
                 length: 0,
             }
             .into()

@@ -74,6 +74,8 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
             || parser.at_contextual(ContextualSpelling::Static)
         {
             initializer(parser);
+        } else if parser.at_keyword(Keyword::Type) {
+            type_alias(parser);
         } else if parser.at_keyword(Keyword::Struct)
             || (parser.at_contextual(ContextualSpelling::Copy)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
@@ -92,6 +94,15 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     }
     parser.bump();
     parser.complete(marker, NodeKind::V2CoreUnit);
+}
+
+fn type_alias(parser: &mut Parser<'_>) {
+    let declaration = parser.start();
+    parser.expect_keyword(Keyword::Type);
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Equal);
+    type_(parser);
+    parser.complete(declaration, NodeKind::TypeAliasDeclaration);
 }
 
 fn record(parser: &mut Parser<'_>) {

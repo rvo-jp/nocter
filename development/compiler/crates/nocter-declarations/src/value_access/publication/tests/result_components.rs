@@ -18,7 +18,7 @@ fn result() -> DataReference {
     DataReference::Tuple(TupleData::new(
         callable(BuiltinType::I32),
         DataReference::Array {
-            element: Box::new(callable(BuiltinType::I32)),
+            element: std::sync::Arc::new(callable(BuiltinType::I32)),
             length: 2,
         },
         [],
@@ -126,7 +126,7 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
             let changed = DataReference::Tuple(TupleData::new(
                 callable(BuiltinType::I64),
                 DataReference::Array {
-                    element: Box::new(callable(BuiltinType::I32)),
+                    element: std::sync::Arc::new(callable(BuiltinType::I32)),
                     length: 2,
                 },
                 [],
@@ -171,7 +171,7 @@ fn result_path_lookup_terminates_through_recursive_empty_nominal_schemas() {
             [FieldDefinition {
                 name: symbols.get("next").unwrap(),
                 data: DataReference::Array {
-                    element: Box::new(DataReference::Record(node)),
+                    element: std::sync::Arc::new(DataReference::Record(node)),
                     length: 0,
                 },
             }],
@@ -205,10 +205,12 @@ fn result_descriptor_paths_preserve_outcomes_and_empty_array_metadata_without_va
         let mut builder = reservations.finish().unwrap();
         let (data, path) = if let Some(length) = length {
             let data = DataReference::Optional {
-                payload: Box::new(DataReference::Fallible(Box::new(DataReference::Array {
-                    element: Box::new(callable(BuiltinType::I32)),
-                    length,
-                }))),
+                payload: std::sync::Arc::new(DataReference::Fallible(std::sync::Arc::new(
+                    DataReference::Array {
+                        element: std::sync::Arc::new(callable(BuiltinType::I32)),
+                        length,
+                    },
+                ))),
                 layers: std::num::NonZeroUsize::new(2).unwrap(),
             };
             (
@@ -272,7 +274,7 @@ fn invalid_result_slots_and_initializer_positions_publish_nothing() {
             _ => callable(BuiltinType::I32),
         };
         let data = DataReference::Array {
-            element: Box::new(leaf),
+            element: std::sync::Arc::new(leaf),
             length: 0,
         };
         let kind = match case {

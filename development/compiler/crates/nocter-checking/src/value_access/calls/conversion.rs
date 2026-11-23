@@ -23,6 +23,7 @@ impl Checker<'_, '_> {
             let token = direct_token(self.syntax().tree(), node, TokenKind::Keyword(Keyword::As))
                 .ok_or(Failure::InconsistentSyntax)?;
             let member = match self
+                .program()
                 .behavior_owner(actual)
                 .map_or(ConversionSelection::Missing, |owner| {
                     self.context.conversion(owner, data)

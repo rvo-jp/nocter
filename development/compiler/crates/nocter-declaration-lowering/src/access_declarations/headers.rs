@@ -1,7 +1,7 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
     Failure, TypeSyntax, project_type_syntax,
-    source::{FieldSource, RecordSource},
+    source::{AliasSource, FieldSource, RecordSource},
     text,
 };
 use nocter_declarations::value_access::CodeKind;
@@ -34,6 +34,21 @@ pub(super) struct RecordHeader {
     pub source: Arc<RecordSource>,
     pub copy: bool,
     pub fields: Box<[TypeSyntax]>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct AliasHeader {
+    pub source: AliasSource,
+    pub target: TypeSyntax,
+}
+
+pub(super) fn alias(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<AliasHeader, Failure> {
+    let tree = syntax.tree();
+    let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
+    let ty = direct_node(tree, declaration, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    Ok(AliasHeader {
+        source: AliasSource { name, ty },
+        target: project_type_syntax(syntax, ty)?,
+    })
 }
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {

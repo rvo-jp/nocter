@@ -21,6 +21,8 @@ pub use body_types::{
 pub use closures::Closure;
 mod aggregate;
 pub use aggregate::{AggregateForm, AggregateSchema};
+mod aliases;
+pub use aliases::TypeAlias;
 mod code_bindings;
 mod data;
 mod data_instances;
@@ -47,6 +49,7 @@ pub use records::{Field, FieldDefinition, Record};
 pub enum DeclarationId {
     Code(AccessCodeId),
     Record(NominalTypeId),
+    Alias(nocter_model::TypeAliasId),
 }
 impl From<AccessCodeId> for DeclarationId {
     fn from(id: AccessCodeId) -> Self {
@@ -56,6 +59,11 @@ impl From<AccessCodeId> for DeclarationId {
 impl From<NominalTypeId> for DeclarationId {
     fn from(id: NominalTypeId) -> Self {
         Self::Record(id)
+    }
+}
+impl From<nocter_model::TypeAliasId> for DeclarationId {
+    fn from(id: nocter_model::TypeAliasId) -> Self {
+        Self::Alias(id)
     }
 }
 
@@ -99,13 +107,17 @@ pub enum DeclarationRule {
     UnsupportedDataType { data: BuiltinType },
     UnsupportedCallableData,
     DuplicateRecord { first: NominalTypeId },
+    DuplicateTypeName { first: DeclarationId },
     DuplicateField { first: usize },
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
+    UnreadyAlias { alias: nocter_model::TypeAliasId },
     QualifiedDataName { error: QualifiedNameError },
     RecursivePayload { through: NominalTypeId },
     NonCopyField,
     RepeatedFailure,
+    RecursiveAlias,
+    UnsupportedAliasTarget,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -262,6 +274,7 @@ pub struct Program {
     parameters: SparseArena<AccessParameterId, Parameter>,
     namespace: std::sync::Arc<namespace::Names>,
     records: records::Schemas,
+    aliases: SparseArena<nocter_model::TypeAliasId, TypeAlias>,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
     closure_parameters: BTreeMap<nocter_model::ValueParameter, FunctionConstraint>,
     callable_contracts: BTreeMap<nocter_model::ValueCallableContract, FunctionConstraint>,
@@ -342,6 +355,7 @@ impl Program {
             && self.parameters.is_complete()
             && self.records.records.is_complete()
             && self.records.fields.is_complete()
+            && self.aliases.is_complete()
     }
     /// A complete published contract, including its established transitive record schemas.
     #[must_use]
@@ -349,6 +363,7 @@ impl Program {
         match declaration.into() {
             DeclarationId::Code(id) => self.codes.get(id).is_some(),
             DeclarationId::Record(id) => self.records.records.get(id).is_some(),
+            DeclarationId::Alias(id) => self.aliases.get(id).is_some(),
         }
     }
     /// Retains every established contract and its exact type prefix from the same construction.
@@ -359,6 +374,7 @@ impl Program {
             && self.records.fields.preserves(&older.records.fields)
             && self.codes.preserves(&older.codes)
             && self.parameters.preserves(&older.parameters)
+            && self.aliases.preserves(&older.aliases)
             && self.header_prefix.preserves_prefix(&older.header_prefix)
     }
     #[must_use]
@@ -451,7 +467,7 @@ impl Program {
     pub fn resolve_record_in(&self, scope: ScopeId, name: Symbol) -> Option<NominalTypeId> {
         match self.declaration_in(scope, Namespace::Type, name)? {
             DeclarationId::Record(id) => Some(id),
-            DeclarationId::Code(_) => None,
+            DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
         }
     }
     #[must_use]
@@ -480,7 +496,7 @@ impl Program {
     pub fn resolve_code_in(&self, scope: ScopeId, name: Symbol) -> Option<AccessCodeId> {
         match self.declaration_in(scope, Namespace::Value, name)? {
             DeclarationId::Code(id) => Some(id),
-            DeclarationId::Record(_) => None,
+            DeclarationId::Record(_) | DeclarationId::Alias(_) => None,
         }
     }
     #[must_use]
@@ -599,6 +615,7 @@ pub struct Reservations {
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
     records: records::Builder,
+    aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
 }
 
 impl Reservations {
@@ -615,6 +632,7 @@ impl Reservations {
             codes: ArenaBuilder::new(),
             parameters: ArenaBuilder::new(),
             records: records::Builder::default(),
+            aliases: ArenaBuilder::new(),
         }
     }
 
@@ -681,6 +699,7 @@ impl Reservations {
                 .and_then(Reservation::source_name)
                 .is_some(),
             DeclarationId::Record(id) => self.records.field_ids(id).is_some(),
+            DeclarationId::Alias(id) => self.aliases.get(id).is_some(),
         };
         if !self.scopes.contains(scope) || !known {
             return Err(DefinitionError::UnknownId);
@@ -814,6 +833,12 @@ impl Reservations {
             DeclarationId::Record(id) => {
                 self.records.scope(id).ok_or(DefinitionError::UnknownId)?
             }
+            DeclarationId::Alias(id) => {
+                self.aliases
+                    .get(id)
+                    .ok_or(DefinitionError::UnknownId)?
+                    .scope
+            }
         };
         self.reserve_type_expression_in(scope, source)
     }
@@ -841,6 +866,8 @@ impl Reservations {
             DeclarationId::Record(id) => self.records.field_ids(id).is_some_and(|fields| {
                 matches!(source.position, HeaderPosition::Field(index) if index < fields.len())
             }),
+            DeclarationId::Alias(id) => self.aliases.get(id).is_some()
+                && source.position == HeaderPosition::Result,
         };
         if !valid {
             return Err(DefinitionError::UnknownId);
@@ -877,6 +904,20 @@ impl Reservations {
         Ok(self.records.reserve(scope, name, field_count))
     }
 
+    /// Reserve a type name that will resolve to an existing data identity.
+    /// # Errors
+    /// Rejects a scope outside this construction.
+    pub fn reserve_alias(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+    ) -> Result<nocter_model::TypeAliasId, DefinitionError> {
+        if !self.scopes.contains(scope) {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.aliases.insert(aliases::Slot::new(scope, name)))
+    }
+
     /// Close the complete name domain before resolving types or checking definitions.
     /// # Errors
     /// Rejects unknown, reserved or colliding names without inventing missing type/header data.
@@ -886,6 +927,7 @@ impl Reservations {
             &self.symbols,
             &self.codes,
             &self.records,
+            &self.aliases,
             self.scopes,
             &mut violations,
         );
@@ -897,6 +939,7 @@ impl Reservations {
             codes: self.codes,
             parameters: self.parameters.finish(),
             records: self.records,
+            aliases: self.aliases,
             namespace: namespace.into(),
         })
     }
@@ -911,6 +954,7 @@ pub struct Builder {
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
     records: records::Builder,
+    aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
     namespace: Arc<namespace::Names>,
 }
 
@@ -1010,7 +1054,9 @@ impl Builder {
 }
 
 fn test_result() -> ValueDefinition {
-    ValueDefinition::Data(DataReference::Fallible(Box::new(BuiltinType::Void.into())))
+    ValueDefinition::Data(DataReference::Fallible(std::sync::Arc::new(
+        BuiltinType::Void.into(),
+    )))
 }
 
 fn validate_definition(
@@ -1112,7 +1158,9 @@ fn validate_parameter_names(
                                 DeclarationId::Code(declaration) => {
                                     DeclarationRule::ParameterShadowsValue { declaration }
                                 }
-                                DeclarationId::Record(_) => unreachable!("value namespace"),
+                                DeclarationId::Record(_) | DeclarationId::Alias(_) => {
+                                    unreachable!("value namespace")
+                                }
                             })
                     }
                 }

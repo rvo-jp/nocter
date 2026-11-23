@@ -34,7 +34,7 @@ impl Fixture {
                 [FieldDefinition {
                     name: symbols.get("items").unwrap(),
                     data: DataReference::Array {
-                        element: Box::new(if compound {
+                        element: std::sync::Arc::new(if compound {
                             DataReference::Record(leaf)
                         } else {
                             BuiltinType::Error.into()
@@ -281,7 +281,7 @@ fn zero_sized_elements_keep_separate_logical_availability() {
             [FieldDefinition {
                 name: symbols.get("items").unwrap(),
                 data: DataReference::Array {
-                    element: Box::new(BuiltinType::Void.into()),
+                    element: std::sync::Arc::new(BuiltinType::Void.into()),
                     length: 2,
                 },
             }],
