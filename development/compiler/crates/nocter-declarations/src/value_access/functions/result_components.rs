@@ -46,6 +46,7 @@ impl Program {
                     pending.push((payload, path.project(ValueProjection::Variant(true))));
                 }
                 PayloadSchema::Builtin(_)
+                | PayloadSchema::Enumeration(_)
                 | PayloadSchema::Function(_)
                 | PayloadSchema::Future(_) => {}
             }

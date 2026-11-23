@@ -24,6 +24,7 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
+                Data::EnumTag(tag) => FrozenNode::EnumTag(*tag),
                 Data::Text(text) => FrozenNode::Scalar(ConstantValue::Text(text.as_ref().into())),
                 Data::Variant { primary, payload } => FrozenNode::Variant {
                     primary: *primary,
@@ -75,6 +76,7 @@ impl Value {
             }
             let value = match node {
                 FrozenNode::Unit => Self::unit(),
+                FrozenNode::EnumTag(tag) => Self::enum_tag(*tag),
                 FrozenNode::Variant { primary, payload } => Self::variant(
                     *primary,
                     match payload {

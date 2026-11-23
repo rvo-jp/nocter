@@ -3,7 +3,7 @@ use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{
     BehaviorOwner, DeclarationId, Namespace, QualifiedNameError,
 };
-use nocter_model::{AccessCodeId, Symbol};
+use nocter_model::{AccessCodeId, Symbol, TypeId, VariantId};
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken, TokenKind};
 
 pub(super) struct QualifiedSelection {
@@ -13,6 +13,32 @@ pub(super) struct QualifiedSelection {
     pub members: Vec<SyntaxToken>,
 }
 impl Checker<'_, '_> {
+    pub(super) fn enum_variant(
+        &self,
+        owner: BehaviorOwner,
+        member: SyntaxToken,
+    ) -> Result<Option<(TypeId, VariantId)>, Failure> {
+        let BehaviorOwner::Nominal(nominal) = owner else {
+            return Ok(None);
+        };
+        if !self.context.owns_enum_schema(nominal) {
+            return Ok(None);
+        }
+        self.require_declaration(nominal.into(), member)?;
+        let schema = self
+            .program()
+            .enumeration(nominal)
+            .ok_or(Failure::InconsistentSyntax)?;
+        let data = schema.data();
+        let Some(variant) = self.context.enum_variant(data, self.text(member)?) else {
+            return Ok(None);
+        };
+        if !variant.accessible {
+            return self.reject(Rule::InaccessibleName, member);
+        }
+        Ok(Some((data, variant.id)))
+    }
+
     fn path_symbols(&self, path: &[SyntaxToken]) -> Result<Vec<Option<Symbol>>, Failure> {
         path.iter()
             .map(|&token| {

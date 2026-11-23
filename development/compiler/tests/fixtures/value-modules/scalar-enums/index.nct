@@ -1,0 +1,5 @@
+#package: { name: "scalar-enums", version: "2.0.0" }
+#executable: { name: "scalar-enums" }
+see ./main.nct
+
+func main(): i32

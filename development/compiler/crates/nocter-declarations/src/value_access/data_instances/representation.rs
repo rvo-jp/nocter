@@ -77,6 +77,8 @@ impl DataInstanceKey {
                             |_| true,
                         ) => {}
                 (InstanceSchema::Builtin(a), InstanceSchema::Builtin(b)) if a == b => {}
+                (InstanceSchema::Enumeration(a), InstanceSchema::Enumeration(b))
+                    if a.data() == b.data() => {}
                 (InstanceSchema::Function(a), InstanceSchema::Function(b)) if a == b => {}
                 (
                     InstanceSchema::FunctionAlternatives(a),

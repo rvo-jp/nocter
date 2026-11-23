@@ -12,6 +12,7 @@ mod uninhabited;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PayloadSchema<'a> {
     Builtin(BuiltinType),
+    Enumeration(&'a super::Enumeration),
     Aggregate(super::AggregateSchema<'a>),
     Array(ArraySchema),
     Optional(TypeId),
@@ -462,6 +463,10 @@ impl Program {
                     copyable.insert(current, builtin_copyable(builtin)?);
                     continue;
                 }
+                PayloadSchema::Enumeration(schema) => {
+                    copyable.insert(current, schema.copyable());
+                    continue;
+                }
                 PayloadSchema::Optional(payload) => vec![payload],
                 PayloadSchema::Fallible(_) | PayloadSchema::Future(_) => {
                     copyable.insert(current, false);
@@ -529,9 +534,14 @@ impl Program {
             TypeKind::Nominal {
                 definition,
                 arguments,
-            } if arguments.as_slice().is_empty() => self.record(*definition).map(|record| {
-                PayloadSchema::Aggregate(super::AggregateSchema::record(record, self.fields()))
-            }),
+            } if arguments.as_slice().is_empty() => {
+                self.nominals().get(*definition).map(|schema| match schema {
+                    super::NominalSchema::Record(record) => PayloadSchema::Aggregate(
+                        super::AggregateSchema::record(record, self.fields()),
+                    ),
+                    super::NominalSchema::Enumeration(schema) => PayloadSchema::Enumeration(schema),
+                })
+            }
             TypeKind::FixedArray { element, length } => Some(PayloadSchema::Array(ArraySchema {
                 element: *element,
                 length: length.closed_value()?,

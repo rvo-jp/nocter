@@ -58,6 +58,21 @@ impl RuntimeEnvironment {
         &self.type_representations
     }
 
+    /// Check a scalar enum ordinal against the actual representation of this runtime identity.
+    #[must_use]
+    pub fn scalar_enum_variant(
+        &self,
+        data: RuntimeDataId,
+        tag: u64,
+    ) -> Option<nocter_model::VariantId> {
+        let RuntimeTypeRepresentation::ScalarEnum { variants } =
+            self.type_representations.get(data)?
+        else {
+            return None;
+        };
+        variants.get(usize::try_from(tag).ok()?).copied()
+    }
+
     /// Select one stored value-model component. This grants no initialization or access proof.
     #[must_use]
     pub fn value_field(
@@ -161,6 +176,7 @@ fn validate_representations(
                 RuntimeTypeRepresentation::Struct { .. }
                     | RuntimeTypeRepresentation::ValueAggregate { .. }
                     | RuntimeTypeRepresentation::Enum { .. }
+                    | RuntimeTypeRepresentation::ScalarEnum { .. }
             ) | (
                 RuntimeType::Closure,
                 RuntimeTypeRepresentation::Closure { .. }
@@ -184,6 +200,17 @@ fn validate_representation(
 ) -> Result<(), RuntimeEnvironmentError> {
     match representation {
         RuntimeTypeRepresentation::ValueText => {}
+        RuntimeTypeRepresentation::ScalarEnum { variants } => {
+            if variants.is_empty() {
+                return Err(RuntimeEnvironmentError::EmptyScalarEnum(owner));
+            }
+            let mut identities = BTreeSet::new();
+            if variants.iter().any(|&variant| !identities.insert(variant)) {
+                return Err(RuntimeEnvironmentError::DuplicateRepresentationMember(
+                    owner,
+                ));
+            }
+        }
         RuntimeTypeRepresentation::ValueAggregate { fields } => {
             let mut identities = BTreeSet::new();
             for field in fields {
@@ -265,6 +292,7 @@ pub enum RuntimeEnvironmentError {
         member: RuntimeDataId,
     },
     DuplicateRepresentationMember(RuntimeDataId),
+    EmptyScalarEnum(RuntimeDataId),
     UnsupportedStorage {
         ty: RuntimeDataId,
         role: crate::RuntimeStorageRole,

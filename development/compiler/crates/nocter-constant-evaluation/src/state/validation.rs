@@ -95,6 +95,7 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_))
             | (Some(Type::Text), Data::Text(_)) => {}
+            (Some(Type::ScalarEnum { variants, .. }), Data::EnumTag(tag)) if tag < variants => {}
             (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()
@@ -182,6 +183,9 @@ fn validate_types(program: &Program, first: usize) -> Result<()> {
         if let Type::Record(fields) = data
             && fields.iter().any(|&field| field >= id)
         {
+            return Err(INVALID);
+        }
+        if matches!(data, Type::ScalarEnum { variants: 0, .. }) {
             return Err(INVALID);
         }
         if let Type::Variant { primary, alternate } = data

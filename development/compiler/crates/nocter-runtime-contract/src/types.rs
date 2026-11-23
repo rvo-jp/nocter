@@ -49,7 +49,16 @@ impl RuntimePrimitive {
     /// This numeric contract supplies no selected case or primitive runtime identity.
     #[must_use]
     pub fn callable_tag(case_count: usize) -> Option<Self> {
-        let largest = case_count.checked_sub(1).filter(|_| case_count >= 2)?;
+        if case_count < 2 {
+            return None;
+        }
+        Self::unsigned_tag(case_count)
+    }
+
+    /// Smallest unsigned integer representation for a nonempty finite domain.
+    #[must_use]
+    pub fn unsigned_tag(case_count: usize) -> Option<Self> {
+        let largest = case_count.checked_sub(1)?;
         let bits = if u8::try_from(largest).is_ok() {
             8
         } else if u16::try_from(largest).is_ok() {

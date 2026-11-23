@@ -789,6 +789,11 @@ impl LayoutBuilder<'_> {
                 fields.iter().map(|f| (Member::Value(f.field()), f.ty())),
             ),
             RuntimeTypeRepresentation::Enum { variants } => self.enumeration(ty, &variants),
+            RuntimeTypeRepresentation::ScalarEnum { variants } => {
+                let scalar = RuntimePrimitive::unsigned_tag(variants.len())
+                    .ok_or(MachineLayoutError::InvalidRepresentation(ty))?;
+                self.primitive(ty, scalar)
+            }
             RuntimeTypeRepresentation::ValueText
             | RuntimeTypeRepresentation::Opaque { .. }
             | RuntimeTypeRepresentation::Closure { .. } => {

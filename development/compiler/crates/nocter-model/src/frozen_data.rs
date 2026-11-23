@@ -7,6 +7,8 @@ use std::sync::Arc;
 pub enum FrozenNode {
     Unit,
     Scalar(ConstantValue),
+    /// A payloadless variant's ordinal within the consuming nominal schema.
+    EnumTag(u64),
     /// One selected branch and its optional stored payload; the consuming type owns tag meaning.
     Variant {
         primary: bool,
@@ -49,7 +51,7 @@ impl FrozenData {
                         .any(|&(index, value)| index >= length.get() || value >= id)
                     || replacements.windows(2).any(|pair| pair[0].0 >= pair[1].0)
             }
-            FrozenNode::Unit | FrozenNode::Scalar(_) => false,
+            FrozenNode::Unit | FrozenNode::Scalar(_) | FrozenNode::EnumTag(_) => false,
         }) {
             return Err(InvalidFrozenData);
         }

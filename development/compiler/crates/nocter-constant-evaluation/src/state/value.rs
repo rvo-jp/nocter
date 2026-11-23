@@ -19,6 +19,7 @@ pub enum Data {
     Unit,
     Bool(bool),
     Integer(i128),
+    EnumTag(u64),
     Text(Arc<str>),
     Variant {
         primary: bool,
@@ -80,6 +81,10 @@ impl Value {
     #[must_use]
     pub fn integer(value: impl Into<i128>) -> Self {
         Self::plain(Data::Integer(value.into()))
+    }
+    #[must_use]
+    pub fn enum_tag(tag: u64) -> Self {
+        Self::plain(Data::EnumTag(tag))
     }
     #[must_use]
     pub fn text(value: impl Into<Arc<str>>) -> Self {
@@ -186,6 +191,7 @@ impl PartialEq for Value {
                 (Data::Unit, Data::Unit) => {}
                 (Data::Bool(a), Data::Bool(b)) if a == b => {}
                 (Data::Integer(a), Data::Integer(b)) if a == b => {}
+                (Data::EnumTag(a), Data::EnumTag(b)) if a == b => {}
                 (Data::Text(a), Data::Text(b)) if a == b => {}
                 _ if left.data().component_pairs(right.data(), &mut pending) => {}
                 _ => return false,

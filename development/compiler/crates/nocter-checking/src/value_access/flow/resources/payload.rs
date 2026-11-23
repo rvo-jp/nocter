@@ -4,7 +4,7 @@ use super::{
     payload,
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
-use nocter_model::ValueField;
+use nocter_model::{BuiltinType, ValueField};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -142,9 +142,7 @@ impl OwnedValue {
                     let data = if primary {
                         data
                     } else {
-                        program
-                            .data_type(nocter_model::BuiltinType::Error)
-                            .ok_or(INVALID)?
+                        program.data_type(BuiltinType::Error).ok_or(INVALID)?
                     };
                     pending.push(Pending::Value(
                         place.project(ValueField::Variant(primary)),
@@ -152,6 +150,7 @@ impl OwnedValue {
                     ));
                 }
                 PayloadSchema::Builtin(_)
+                | PayloadSchema::Enumeration(_)
                 | PayloadSchema::Function(_)
                 | PayloadSchema::Future(_) => return Err(INVALID),
             }

@@ -93,7 +93,7 @@ impl Query<'_, '_> {
             } else {
                 let value = if matches!(
                     self.program.data_schema(target),
-                    Some(PayloadSchema::Builtin(_))
+                    Some(PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_))
                 ) {
                     self.program.instantiate_closed_data(target)
                 } else {
@@ -124,6 +124,11 @@ fn children(
     Some(
         match (program.data_schema(source)?, program.data_schema(target)?) {
             (PayloadSchema::Builtin(a), PayloadSchema::Builtin(b)) if a == b => Vec::new(),
+            (PayloadSchema::Enumeration(a), PayloadSchema::Enumeration(b))
+                if a.data() == b.data() =>
+            {
+                Vec::new()
+            }
             (PayloadSchema::Aggregate(a), PayloadSchema::Aggregate(b))
                 if a.len() == b.len()
                     && (source == target

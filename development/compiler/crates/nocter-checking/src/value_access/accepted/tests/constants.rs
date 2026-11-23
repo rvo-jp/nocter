@@ -283,6 +283,7 @@ fn named_witnesses_and_their_containers_have_temporary_but_no_final_data_evidenc
                 nocter_declarations::value_access::PayloadSchema::Aggregate(_) => 1,
                 nocter_declarations::value_access::PayloadSchema::Array(_) => 2,
                 nocter_declarations::value_access::PayloadSchema::Builtin(_)
+                | nocter_declarations::value_access::PayloadSchema::Enumeration(_)
                 | nocter_declarations::value_access::PayloadSchema::Optional(_)
                 | nocter_declarations::value_access::PayloadSchema::Fallible(_) => {
                     panic!("ordinary scalar/optional final admission must remain available")

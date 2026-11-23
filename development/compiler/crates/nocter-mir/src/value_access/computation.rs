@@ -145,7 +145,13 @@ impl Builder<'_> {
                 source: self.value(source)?,
                 primary: true,
             },
-            ExpressionKind::Constant(value) => Operation::Frozen { destination, value },
+            ExpressionKind::Constant(value) => match value.node() {
+                nocter_model::FrozenNode::EnumTag(tag) => Operation::Constant {
+                    destination,
+                    value: Constant::EnumTag(*tag),
+                },
+                _ => Operation::Frozen { destination, value },
+            },
             ExpressionKind::Integer(value) => Operation::Constant {
                 destination,
                 value: Constant::Integer(value),

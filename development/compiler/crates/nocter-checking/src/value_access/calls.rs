@@ -200,6 +200,15 @@ impl Checker<'_, '_> {
                 Some(nocter_model::BuiltinType::Str),
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Text(_)),
             ) => ExpressionKind::Constant(value.clone()),
+            (_, nocter_model::FrozenNode::EnumTag(tag))
+                if matches!(
+                    self.program().data_schema(data),
+                    Some(PayloadSchema::Enumeration(schema))
+                        if usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
+                ) =>
+            {
+                ExpressionKind::Constant(value.clone())
+            }
             (_, nocter_model::FrozenNode::Variant { .. })
                 if matches!(
                     self.program().data_schema(data),
@@ -238,6 +247,14 @@ impl Checker<'_, '_> {
             if token.kind() == TokenKind::Identifier
                 && let Some(owner) = self.constructor_owner(*base)?
             {
+                if self.enum_variant(owner, token)?.is_some() {
+                    return self.reject_message(
+                        Rule::InvalidCall,
+                        token,
+                        "use a payloadless enum variant without parentheses".into(),
+                        Vec::new(),
+                    );
+                }
                 let Some(member) = self.context.type_member(owner, self.text(token)?) else {
                     return self.reject(Rule::InvalidCall, token);
                 };

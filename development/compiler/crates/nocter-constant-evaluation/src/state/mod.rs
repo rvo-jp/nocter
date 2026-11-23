@@ -60,6 +60,10 @@ pub enum Type {
     /// A descriptor of immutable program-extent UTF-8, with no writable components.
     Text,
     Integer(nocter_model::BuiltinType),
+    ScalarEnum {
+        nominal: nocter_model::NominalTypeId,
+        variants: u64,
+    },
     Variant {
         primary: usize,
         /// None means an absent payload, not an unavailable or uninitialized value.

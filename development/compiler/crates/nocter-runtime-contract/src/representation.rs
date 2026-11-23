@@ -144,6 +144,10 @@ pub enum RuntimeTypeRepresentation {
     ValueAggregate {
         fields: Box<[RuntimeValueFieldRepresentation]>,
     },
+    /// A v2 payloadless enum in declaration order, retaining nominal variant identities.
+    ScalarEnum {
+        variants: Box<[VariantId]>,
+    },
     Struct {
         fields: Box<[RuntimeFieldRepresentation]>,
     },

@@ -166,7 +166,7 @@ impl Signatures<'_, '_> {
                 .data_schema(data)
                 .ok_or(Failure::InconsistentSyntax)?
             {
-                PayloadSchema::Builtin(_) => {}
+                PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_) => {}
                 PayloadSchema::Optional(payload)
                 | PayloadSchema::Fallible(payload)
                 | PayloadSchema::Future(payload) => {

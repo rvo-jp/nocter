@@ -196,6 +196,7 @@ pub enum Effect {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Constant {
+    EnumTag(u64),
     Integer(i128),
     Boolean(bool),
     Zero,

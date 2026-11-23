@@ -318,6 +318,13 @@ impl Types {
                         self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                         continue;
                     }
+                    PayloadSchema::Enumeration(schema) => {
+                        let nominal = program.nominal_identity(schema.data()).ok_or(INVALID)?;
+                        let variants =
+                            u64::try_from(schema.variants().len()).map_err(|_| INVALID)?;
+                        self.insert(data, Type::ScalarEnum { nominal, variants }, true);
+                        continue;
+                    }
                     PayloadSchema::Future(_) => {
                         self.insert(data, Type::Unavailable, false);
                         continue;
@@ -478,7 +485,9 @@ impl Types {
                         environment: *children.first().ok_or(INVALID)?,
                     }
                 }
-                PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => return Err(INVALID),
+                PayloadSchema::Builtin(_)
+                | PayloadSchema::Enumeration(_)
+                | PayloadSchema::Future(_) => return Err(INVALID),
             }
         };
         let id = self.insert(data, ty, supported);

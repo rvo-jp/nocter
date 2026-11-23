@@ -8,6 +8,41 @@ use nocter_declarations::value_access::PayloadSchema;
 mod primitives;
 mod reuse;
 
+#[test]
+fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
+    use nocter_model::FrozenNode;
+    let fixture = Fixture::new(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\nenum Status { idle\nactive\nstopped }\nconst ANSWER: (Status, Status)",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nconst func choose(): Status { Status.stopped }\nconst ANSWER: (Status, Status) = (Status.active, choose())",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let source = ModuleSourceUnit::prepare(&fixture.input()).unwrap();
+    let unit = source.unit();
+    let program = unit.program();
+    let constant = program
+        .resolve_constant(program.symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let value = unit.constant_value(constant).unwrap();
+    let FrozenNode::Aggregate(fields) = value.node() else {
+        panic!("compound enum constant");
+    };
+    let tags = fields
+        .iter()
+        .map(|&id| &value.nodes()[id])
+        .collect::<Vec<_>>();
+    assert_eq!(tags, [&FrozenNode::EnumTag(1), &FrozenNode::EnumTag(2)]);
+}
+
 fn counts(body_increment: u64) -> Fixture {
     let body_count =
         format!("const BASE: usize = 39\nconst func width(): usize {{ BASE + {body_increment} }}");

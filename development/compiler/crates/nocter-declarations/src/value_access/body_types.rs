@@ -363,7 +363,7 @@ impl Program {
                 continue;
             }
             match self.data_schema(data)? {
-                PayloadSchema::Builtin(_) => {}
+                PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_) => {}
                 PayloadSchema::Future(_) => dependencies.requires_future = true,
                 PayloadSchema::Aggregate(schema) => {
                     pending.extend(schema.components().map(|component| component.data));
@@ -568,6 +568,7 @@ fn ordinary_data(program: &Program, data: TypeId) -> bool {
         program.data_schema(data),
         Some(
             super::PayloadSchema::Builtin(_)
+                | super::PayloadSchema::Enumeration(_)
                 | super::PayloadSchema::Aggregate(_)
                 | super::PayloadSchema::Array(_)
                 | super::PayloadSchema::Optional(_)

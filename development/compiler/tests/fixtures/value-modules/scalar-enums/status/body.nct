@@ -1,0 +1,12 @@
+see ./index.nct
+
+enum Secret {
+    internal
+    external
+}
+
+copy enum Token { issued }
+
+const func in_progress(): Status { Status.active }
+func secret(): Secret { Secret.internal }
+func token(): Token { Token.issued }

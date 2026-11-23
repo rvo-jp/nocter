@@ -447,6 +447,10 @@ impl ModuleSourceBinding<'_> {
         self.declaration_access(caller, *self.catalog.enum_owners.get(&owner)?)
     }
 
+    pub(super) fn owns_enum_schema(&self, owner: NominalTypeId) -> bool {
+        self.catalog.enum_owners.contains_key(&owner)
+    }
+
     fn physical_source(&self, source: nocter_source::SourceId) -> Option<SurfaceSourceId> {
         self.paired
             .inventory

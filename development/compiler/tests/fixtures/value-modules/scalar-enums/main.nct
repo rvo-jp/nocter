@@ -1,0 +1,22 @@
+see ./index.nct
+use ./status
+
+const CURRENT: status.Status = status.in_progress()
+static CATALOG: (status.State, status.State) = (CURRENT, status.State.idle)
+
+func receive(take current: status.Status, take secret: status.Secret, take token: status.Token): i32 {
+    let copy_of_status = current
+    let copy_of_token = token
+    drop copy_of_status
+    drop copy_of_token
+    drop secret
+    42
+}
+
+func main(): i32 {
+    let hidden = status.secret()
+    let closed = status.State.stopped
+    let token = status.token()
+    drop closed
+    receive(CATALOG.0, hidden^, token)
+}

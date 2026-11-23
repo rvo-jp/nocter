@@ -202,7 +202,10 @@ impl Program {
                 continue;
             }
             active.remove(&data);
-            let key = if matches!(schema, PayloadSchema::Builtin(_)) {
+            let key = if matches!(
+                schema,
+                PayloadSchema::Builtin(_) | PayloadSchema::Enumeration(_)
+            ) {
                 DataInstanceKey {
                     data,
                     context: Arc::new(Context::Closed),

@@ -1,0 +1,16 @@
+see ./body.nct
+
+enum Status {
+    idle
+    active
+    stopped
+}
+
+type State = Status
+
+enum Secret
+copy enum Token
+
+const func in_progress(): Status
+func secret(): Secret
+func token(): Token

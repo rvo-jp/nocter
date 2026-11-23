@@ -462,6 +462,13 @@ impl Query {
 }
 
 impl<'source> Context<'source> {
+    /// The physical source inventory can identify an enum before publishing its variants.
+    #[must_use]
+    pub fn owns_enum_schema(&self, owner: NominalTypeId) -> bool {
+        self.module
+            .is_some_and(|binding| binding.owns_enum_schema(owner))
+    }
+
     /// Select a variant from the original nominal representation and check its source audience.
     #[must_use]
     pub fn enum_variant(&self, data: nocter_model::TypeId, name: &str) -> Option<EnumVariant> {

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry payloadless variants from the selected nominal declaration through value checking,
-required evaluation and native storage. Preserve source visibility, Copy and exact variant
-identity while selecting the physical tag width from the complete schema.
+Qualify read-mode scalar enum conditions in the adopted if-is form. Preserve one scrutinee
+evaluation, exact nominal variant identity and original visibility through required evaluation
+and native control flow.
 
 ## Remaining Contextual Representation Qualification
 
@@ -712,9 +712,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind scalar enum declarations in the physical source catalog. Qualify braced and opaque
   contracts, original variant audiences, complete Copy policy, correspondence, and collisions
   with variant or type-owned callable names.
-- [ ] Qualify nongeneric scalar enum schemas and payloadless variant construction through
+- [x] Qualify nongeneric scalar enum schemas and payloadless variant construction through
   ordinary source. Preserve original variant order and audiences, reject incomplete or
   conflicting schemas, and carry one selected tag through required and native execution.
+- [ ] Qualify read-mode scalar enum if-is through source and execution. Check repeated tags
+  across distinct nominal types, original variant audiences and once-evaluated scrutinees.
+  Keep edit/take access and payload bindings under the remaining control qualification.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

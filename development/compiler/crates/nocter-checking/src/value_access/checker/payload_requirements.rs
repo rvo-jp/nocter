@@ -122,7 +122,9 @@ fn unready<Origin: Copy>(
             .data_schema(data)
             .ok_or(Failure::InconsistentSyntax)?
         {
-            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => {}
+            PayloadSchema::Builtin(_)
+            | PayloadSchema::Enumeration(_)
+            | PayloadSchema::Function(_) => {}
             PayloadSchema::Optional(payload)
             | PayloadSchema::Fallible(payload)
             | PayloadSchema::Future(payload) => {

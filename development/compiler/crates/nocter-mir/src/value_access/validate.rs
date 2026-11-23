@@ -462,6 +462,11 @@ impl Context<'_> {
                     super::Constant::Integer(value) => {
                         self.integer_literal(destination.data, *value)
                     }
+                    super::Constant::EnumTag(tag) => self
+                        .program
+                        .runtime
+                        .scalar_enum_variant(destination.data, *tag)
+                        .is_some(),
                     super::Constant::Boolean(_) => self.primitive(destination.data, boolean),
                     super::Constant::Zero => matches!(
                         self.program.runtime.types().get(destination.data),
@@ -1133,6 +1138,14 @@ impl Context<'_> {
                 continue;
             }
             match (&value.nodes()[node], self.program.runtime.types().get(data)) {
+                (FrozenNode::EnumTag(tag), Some(RuntimeType::Aggregate)) => {
+                    self.require(
+                        self.program
+                            .runtime
+                            .scalar_enum_variant(data, *tag)
+                            .is_some(),
+                    )?;
+                }
                 (FrozenNode::Unit, Some(RuntimeType::Unit))
                 | (
                     FrozenNode::Scalar(ConstantValue::Bool(_)),

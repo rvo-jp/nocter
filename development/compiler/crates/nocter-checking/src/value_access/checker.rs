@@ -445,6 +445,12 @@ impl<'a, 's> Checker<'a, 's> {
                 array.length()
             ),
             PayloadSchema::Builtin(data) => data.spelling().to_owned(),
+            PayloadSchema::Enumeration(schema) => self
+                .program()
+                .symbols()
+                .spelling(schema.name())
+                .expect("enumeration name")
+                .to_owned(),
             PayloadSchema::Aggregate(schema) => match schema.form() {
                 AggregateForm::Record(record) => self
                     .program()

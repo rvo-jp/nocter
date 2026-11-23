@@ -37,6 +37,8 @@ pub(super) fn constraints(
                 }
             }
             (Some(PayloadSchema::Builtin(a)), Some(PayloadSchema::Builtin(b))) if a == b => {}
+            (Some(PayloadSchema::Enumeration(a)), Some(PayloadSchema::Enumeration(b)))
+                if a.data() == b.data() => {}
             (Some(PayloadSchema::Optional(a)), Some(PayloadSchema::Optional(b)))
             | (Some(PayloadSchema::Fallible(a)), Some(PayloadSchema::Fallible(b))) => {
                 pending.push((a, b));

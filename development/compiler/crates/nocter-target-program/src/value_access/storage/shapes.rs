@@ -281,6 +281,15 @@ impl<'a> Builder<'a> {
                 RuntimeType::Fallible(payload)
             }
             InstanceSchema::Builtin(builtin) => self.primitive(id, key.data(), builtin)?,
+            InstanceSchema::Enumeration(schema) => {
+                self.representations.insert(
+                    id,
+                    RuntimeTypeRepresentation::ScalarEnum {
+                        variants: schema.variants().into(),
+                    },
+                );
+                RuntimeType::Aggregate
+            }
             InstanceSchema::Aggregate(aggregate) => {
                 let fields = aggregate
                     .components()

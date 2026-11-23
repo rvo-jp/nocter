@@ -969,6 +969,60 @@ fn installed_v2_callable_annotations_validate_patterns_without_binding_values() 
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
+    let tree = TempTree::new("scalar-enums");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/scalar-enums"),
+        &package,
+    );
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    let InvocationOutcome::Run(executed) =
+        execute("run").unwrap_or_else(|error| panic!("{}", render(&error)))
+    else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let main = package.join("main.nct");
+    let original = fs::read_to_string(&main).unwrap();
+    for (before, after, expected) in [
+        (
+            "status.State.stopped",
+            "status.State.stopped()",
+            "without parentheses",
+        ),
+        (
+            "status.State.stopped",
+            "status.Secret.internal",
+            "outside its visibility boundary",
+        ),
+        ("hidden^, token", "hidden, token", "E0371"),
+    ] {
+        assert!(original.contains(before));
+        fs::write(&main, original.replace(before, after)).unwrap();
+        let diagnostic = render(&execute("check").unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

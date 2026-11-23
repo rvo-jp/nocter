@@ -583,6 +583,7 @@ impl<'a> Builder<'a> {
     fn constant(&mut self, destination: &mir::Place, value: &mir::Constant) -> Result<(), Failure> {
         let value = match value {
             mir::Constant::Integer(value) => MachineConstant::Integer(*value),
+            mir::Constant::EnumTag(tag) => MachineConstant::Integer((*tag).into()),
             mir::Constant::Boolean(value) => MachineConstant::Bool(*value),
             mir::Constant::Zero => return Ok(()),
         };

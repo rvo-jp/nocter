@@ -31,6 +31,7 @@ pub enum InstanceSchema<'a> {
     /// This semantic descriptor has no represented values in the selected specialization.
     Uninhabited,
     Builtin(BuiltinType),
+    Enumeration(&'a super::Enumeration),
     Aggregate(AggregateSchema<'a>),
     Array(ArraySchema),
     Optional(TypeId),
@@ -101,6 +102,7 @@ impl DataInstanceKey {
                 .ok_or(CodeBindingError::InvalidWitness)?
             {
                 PayloadSchema::Builtin(data) => InstanceSchema::Builtin(data),
+                PayloadSchema::Enumeration(schema) => InstanceSchema::Enumeration(schema),
                 PayloadSchema::Aggregate(data) => InstanceSchema::Aggregate(data),
                 PayloadSchema::Array(data) => InstanceSchema::Array(data),
                 PayloadSchema::Optional(data) => InstanceSchema::Optional(data),
