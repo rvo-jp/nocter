@@ -223,10 +223,20 @@ fn execute_native(image: &NativeImage, root: &Path, name: &str) -> std::process:
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn native_command(image: &NativeImage, root: &Path, name: &str) -> std::process::Command {
+    use std::io::Write as _;
     use std::os::unix::fs::PermissionsExt;
 
-    let executable = root.join(name);
-    fs::write(&executable, image.bytes()).unwrap();
+    // The label can cover several variants in one fixture. Keep each launch attached to
+    // its own executable, even if another command is prepared with the same name.
+    let serial = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+    let executable = root.join(format!("{name}-launch-{serial}"));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&executable)
+        .unwrap();
+    file.write_all(image.bytes()).unwrap();
+    drop(file);
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
     let mut command = std::process::Command::new(executable);
     command.current_dir(root);

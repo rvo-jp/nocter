@@ -865,6 +865,10 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [x] Write each shared native fixture launch to its own executable, including different images
+  that use the same test label. Verify the nullable captured-input variants and the complete
+  private native suite after removing in-place replacement from the launch helper.
+
 - [x] Limit the website source inventory to authored documentation roots. Verify local drafts
   outside those roots stay out of pages, navigation, search and sitemap, including when their
   Markdown contains unresolved links.
