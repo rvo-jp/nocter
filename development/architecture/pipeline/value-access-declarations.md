@@ -35,7 +35,7 @@ defines source reuse and recovery scope.
 ### Type-Owned Calls
 
 Non-generic structs support [named construction and method contracts](../../spec/language/type-behavior.md#functions-and-methods)
-on direct places and produced values.
+on direct places, guarded outcome payloads, and produced values.
 The physical source binding resolves each `impl` to the directly visible nominal owned by its
 module. It pairs complete public and implementation signatures, supplies `Self` in their lexical
 scopes, and selects members by nominal identity and member name. The effective member audience
@@ -45,6 +45,11 @@ The checker selects a constructor through the type or a method through the evalu
 A method supplies the receiver as the first input under the same access and transfer rules as
 an explicit argument. The selected code and authored member token feed the existing call,
 compile-time evaluation, native lowering, and named navigation paths.
+
+For a receiver that eliminates or recovers an outcome, the carrier's data and the field or array
+schema identify the member before materializing the projection. The selected input operation
+then guides the ordinary outcome and recovery preparation. The original carrier, index
+expressions, and recovery branches retain their evaluation and access order.
 
 ## Implemented Handoff
 

@@ -168,7 +168,7 @@ impl Checker<'_, '_> {
             Vec::new(),
         )
     }
-    fn fields(
+    pub(super) fn fields(
         &self,
         mut data: TypeId,
         members: &[SyntaxToken],

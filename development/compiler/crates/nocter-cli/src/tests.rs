@@ -247,17 +247,6 @@ fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs(
         fs::write(&source, program.replace(old, new)).unwrap();
         expect_rejection(code);
     }
-    let projected_update = program
-        .replace(
-            "    method take self.count",
-            "    method edit self.increase(): void { self.value = self.value + 1 }\n    method take self.count",
-        )
-        .replace(
-            "    value^.finish()",
-            "    var retained: Buffer? = local\n    (retained!).increase()\n    value^.finish()",
-        );
-    fs::write(&source, projected_update).unwrap();
-    expect_rejection("E0390");
     fs::write(&source, &program).unwrap();
     fs::write(
         buffer.join("body.nct"),
@@ -289,6 +278,66 @@ fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs(
     )
     .unwrap();
     expect_rejection("E0412");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_methods_edit_contextual_outcomes_in_place() {
+    let tree = TempTree::new("projected-method-receiver");
+    let home = tree.value_access_installation();
+    let path = tree.0.join("app.nct");
+    let program = fs::read_to_string(
+        nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/type-member-receivers.nct"),
+    )
+    .unwrap();
+    fs::write(&path, &program).unwrap();
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--file", "app.nct", "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let outcome = execute("run").unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    let InvocationOutcome::Run(executed) = outcome else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let expect_rejection = |source, code| {
+        fs::write(&path, source).unwrap();
+        let failure = execute("check").unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        assert!(diagnostic.contains(code), "{diagnostic}");
+    };
+    expect_rejection(program.replace("var grid", "let grid"), "E0387");
+
+    let overlapping = program
+        .replace(
+            "    var evaluations: usize = 0",
+            "    read observed = (grid!).values[index]\n    var evaluations: usize = 0",
+        )
+        .replace(
+            "    (grid!).values[index].current()",
+            "    observed.current()",
+        );
+    expect_rejection(overlapping, "E0397");
+
+    let stale = program.replace(
+        "    (slot^!).finish()",
+        "    let _ = (slot^!).finish()\n    (slot!).current()",
+    );
+    expect_rejection(stale, "E0378");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

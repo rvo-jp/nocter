@@ -98,49 +98,49 @@ impl Checker<'_, '_> {
         projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        let child = self.first_child(node)?;
+        let source = self.expression_with_projection(child, None, None, projection, reachable)?;
+        self.outcome_from_source(node, source, projection)
+    }
+
+    pub(super) fn outcome_from_source(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        projection: Option<super::ir::Projection>,
+    ) -> Result<AccessExpressionId, Failure> {
         let propagate = nocter_syntax::direct_token_iter(self.syntax().tree(), node).any(|token| {
             token.kind()
                 == nocter_syntax::TokenKind::Punctuation(nocter_syntax::Punctuation::Question)
         });
-        if matches!(
-            projection.map(|request| request.mode),
-            Some(Mode::Read | Mode::Update)
-        ) {
-            let child = self.first_child(node)?;
-            let source =
-                self.expression_with_projection(child, None, None, projection, reachable)?;
-            if let Some(place) = self.expression_referent(source) {
-                let Some(access) = self.ty(source).access() else {
-                    return self.reject(Rule::TypeMismatch, node);
-                };
-                let payload = match self.program().data_schema(access.data()) {
+        if let Some(request) =
+            projection.filter(|request| matches!(request.mode, Mode::Read | Mode::Update))
+            && let Some(place) = self.expression_referent(source)
+        {
+            let Some(access) = self.ty(source).access() else {
+                return self.reject(Rule::TypeMismatch, node);
+            };
+            let payload = match self.program().data_schema(access.data()) {
                     Some(PayloadSchema::Optional(payload)) => payload,
                     Some(PayloadSchema::Fallible(payload)) if !propagate => payload,
                     Some(PayloadSchema::Fallible(_)) => return self.reject_message(Rule::MissingTransfer, node,
                         "scoped failure propagation cannot extract an owned error; supply the carrier as a value or recover locally".into(), Vec::new()),
                     _ => return self.reject(Rule::TypeMismatch, node),
                 };
-                if projection.is_some_and(|request| request.mode == Mode::Update) {
-                    self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
-                }
-                let fallback = if propagate {
-                    Some(self.absence_return(node)?)
-                } else {
-                    None
-                };
-                return self.scoped_outcome(node, source, place, access.data(), payload, fallback);
+            if request.mode == Mode::Update {
+                self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
             }
-            // Reuse the already checked produced value rather than preparing it twice.
-            return if propagate {
-                self.propagate_outcome_source(node, source)
+            let fallback = if propagate {
+                Some(self.absence_return(node)?)
             } else {
-                self.require_primary_source(node, source)
+                None
             };
+            return self.scoped_outcome(node, source, place, access.data(), payload, fallback);
         }
         if propagate {
-            self.propagate_outcome(node, reachable)
+            self.propagate_outcome_source(node, source)
         } else {
-            self.require_primary(node, reachable)
+            self.require_primary_source(node, source)
         }
     }
     fn supply_outcome(
@@ -158,15 +158,6 @@ impl Checker<'_, '_> {
         };
         let source = self.boundary(node, source, Boundary::Value(access.data()))?;
         Ok((source, access.data(), payload))
-    }
-    fn require_primary(
-        &mut self,
-        node: NodeId,
-        reachable: bool,
-    ) -> Result<AccessExpressionId, Failure> {
-        let child = self.first_child(node)?;
-        let source = self.expression(child, None, reachable)?;
-        self.require_primary_source(node, source)
     }
     fn require_primary_source(
         &mut self,
@@ -212,15 +203,6 @@ impl Checker<'_, '_> {
 
     /// Expand value propagation into ordinary binding, conditional and return operations.
     /// The local owns the supplied carrier once; its scope protects the selected answer before cleanup.
-    fn propagate_outcome(
-        &mut self,
-        node: NodeId,
-        reachable: bool,
-    ) -> Result<AccessExpressionId, Failure> {
-        let child = self.first_child(node)?;
-        let source = self.expression(child, None, reachable)?;
-        self.propagate_outcome_source(node, source)
-    }
     fn propagate_outcome_source(
         &mut self,
         node: NodeId,

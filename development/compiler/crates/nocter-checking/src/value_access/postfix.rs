@@ -36,32 +36,28 @@ impl Checker<'_, '_> {
             root = self.unwrap(*base)?;
         }
         spine.reverse();
-        let first = spine.iter().position(|&(_, _, suffix)| {
-            suffix.is_none_or(|suffix| !matches!(self.kind(suffix), Ok(NodeKind::MemberSuffix)))
-        });
-        let Some(first) = first else {
-            return self.member_value(node, projection, reachable);
-        };
         // Keep a static member prefix as one selected place. Its siblings must not acquire
-        // a complete-parent read. A leading authored direct call also stays a direct call.
-        let (head, base, suffix) = spine[first];
-        let initial_call =
-            suffix.is_some_and(|suffix| matches!(self.kind(suffix), Ok(NodeKind::CallSuffix)));
-        let mut value = if initial_call {
-            self.call(head, reachable)?
+        // a complete-parent read. The first invocation chooses its input boundary before
+        // composing the remaining postfix operations on the produced value.
+        let first_call = spine.iter().position(|&(_, _, suffix)| {
+            suffix.is_some_and(|suffix| matches!(self.kind(suffix), Ok(NodeKind::CallSuffix)))
+        });
+        let (mut value, next) = if let Some(first) = first_call {
+            (self.call(spine[first].0, reachable)?, first + 1)
         } else {
-            let projection = projection.filter(|_| {
-                !spine.iter().any(|(_, _, suffix)| {
-                    suffix
-                        .is_none_or(|suffix| matches!(self.kind(suffix), Ok(NodeKind::CallSuffix)))
-                })
+            let first = spine.iter().position(|&(_, _, suffix)| {
+                suffix.is_none_or(|suffix| !matches!(self.kind(suffix), Ok(NodeKind::MemberSuffix)))
             });
-            self.expression_with_projection(base, None, None, projection, reachable)?
+            let Some(first) = first else {
+                return self.member_value(node, projection, reachable);
+            };
+            let projection =
+                projection.filter(|_| spine.iter().all(|(_, _, suffix)| suffix.is_some()));
+            let value =
+                self.expression_with_projection(spine[first].1, None, None, projection, reachable)?;
+            (value, first)
         };
-        let mut pending = spine
-            .into_iter()
-            .skip(first + usize::from(initial_call))
-            .peekable();
+        let mut pending = spine.into_iter().skip(next).peekable();
         while let Some((step, _, suffix)) = pending.next() {
             let Some(suffix) = suffix else {
                 let Some(referent) = self.expression_referent(value) else {

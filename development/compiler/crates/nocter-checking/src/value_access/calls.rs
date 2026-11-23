@@ -7,9 +7,12 @@ use super::{
 use nocter_declaration_lowering::access_declarations::{TypeMember, TypeMemberKind};
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueInvocation,
+    AccessCodeId, AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueFunctionOrigin,
+    ValueInvocation,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken, TokenKind};
+
+mod receiver;
 
 struct Callee {
     witness: FunctionWitness,
@@ -249,8 +252,7 @@ impl Checker<'_, '_> {
                 let value = self.qualified_value(callee, &selected)?;
                 return self.value_callee(callee, value);
             }
-            let receiver = self.expression(*base, None, reachable)?;
-            return self.member_callee(callee, *base, receiver, token);
+            return self.prepare_member_callee(callee, *base, token, reachable);
         }
         if let Some((target, token)) = self.declared_function(node)? {
             return Ok(Callee::direct(target, token, None));
@@ -264,10 +266,19 @@ impl Checker<'_, '_> {
         token: SyntaxToken,
         receiver: Option<(NodeId, AccessExpressionId)>,
     ) -> Result<Callee, Failure> {
+        self.require_type_member(member, token, receiver.is_some())?;
+        Ok(Callee::direct(member.code, token, receiver))
+    }
+    fn require_type_member(
+        &self,
+        member: TypeMember,
+        token: SyntaxToken,
+        receiver: bool,
+    ) -> Result<(), Failure> {
         if !member.accessible {
             return self.reject(Rule::InaccessibleName, token);
         }
-        let mismatch = match (member.kind, receiver.is_some()) {
+        let mismatch = match (member.kind, receiver) {
             (TypeMemberKind::Method, false) => {
                 Some("a method must be called on a value of its owning type")
             }
@@ -279,8 +290,13 @@ impl Checker<'_, '_> {
         if let Some(message) = mismatch {
             return self.reject_message(Rule::InvalidCall, token, message.into(), Vec::new());
         }
-        self.require_declaration(member.code.into(), token)?;
-        Ok(Callee::direct(member.code, token, receiver))
+        self.require_declaration(member.code.into(), token)
+    }
+    fn member_for(&self, data: TypeId, token: SyntaxToken) -> Result<Option<TypeMember>, Failure> {
+        let Some(owner) = self.program().record_identity(data) else {
+            return Ok(None);
+        };
+        Ok(self.context.type_member(owner, self.text(token)?))
     }
     fn member_callee(
         &mut self,
@@ -289,57 +305,15 @@ impl Checker<'_, '_> {
         receiver: AccessExpressionId,
         token: SyntaxToken,
     ) -> Result<Callee, Failure> {
-        if let Some(owner) = self
-            .ty(receiver)
-            .access()
-            .and_then(|access| self.program().record_identity(access.data()))
-            && let Some(member) = self.context.type_member(owner, self.text(token)?)
+        if let Some(access) = self.ty(receiver).access()
+            && let Some(member) = self.member_for(access.data(), token)?
         {
-            let selected = self.type_member_callee(member, token, Some((base, receiver)))?;
-            if self.unprepared_outcome_receiver(base)? {
-                let input = self
-                    .program()
-                    .function_contract(selected.witness)
-                    .and_then(|contract| contract.inputs.first().copied())
-                    .ok_or(Failure::InconsistentSyntax)?;
-                if input.operation != nocter_model::ValueInputOperation::Take {
-                    return self.reject_message(
-                        Rule::InvalidCall,
-                        base,
-                        "this receiver needs contextual outcome access; bind a read or edit alias to the payload first".into(),
-                        Vec::new(),
-                    );
-                }
-            }
-            return Ok(selected);
+            return self.type_member_callee(member, token, Some((base, receiver)));
         }
         let value = self.component_value(node, receiver, &[token])?;
         self.value_callee(node, value)
     }
 
-    // An outcome on a place can select the retained payload at a scoped input boundary.
-    // Until the receiver selects that boundary before preparation, never lend a copied payload.
-    fn unprepared_outcome_receiver(&self, mut node: NodeId) -> Result<bool, Failure> {
-        let mut outcome = false;
-        loop {
-            node = self.unwrap(node)?;
-            match self.kind(node)? {
-                NodeKind::ReferenceExpression => return Ok(outcome),
-                NodeKind::OutcomeExpression | NodeKind::RecoveryExpression => outcome = true,
-                NodeKind::PostfixExpression => {
-                    let children = self.children(node);
-                    let [_, suffix] = children.as_slice() else {
-                        return Err(Failure::InconsistentSyntax);
-                    };
-                    if self.kind(*suffix)? == NodeKind::CallSuffix {
-                        return Ok(false);
-                    }
-                }
-                _ => return Ok(false),
-            }
-            node = self.first_child(node)?;
-        }
-    }
     fn value_callee(&self, node: NodeId, value: AccessExpressionId) -> Result<Callee, Failure> {
         let Some(access) = self.ty(value).access() else {
             return self.reject(Rule::InvalidCall, node);

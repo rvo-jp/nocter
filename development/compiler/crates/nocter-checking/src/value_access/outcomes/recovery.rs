@@ -21,6 +21,16 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let child = self.first_child(node)?;
         let source = self.expression_with_projection(child, None, None, projection, reachable)?;
+        self.recover_from_source(node, source, projection, reachable)
+    }
+
+    pub(in crate::value_access) fn recover_from_source(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        projection: Option<Projection>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let Some(access) = self.ty(source).access() else {
             return self.reject(Rule::TypeMismatch, node);
         };

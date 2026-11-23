@@ -1,0 +1,39 @@
+copy struct Counter { value: i32 }
+impl Counter {
+    method self.current(): i32 { self.value }
+    method edit self.increment(): void { self.value = self.value + 1 }
+    method take self.finish(): i32 { self.value }
+}
+
+struct Grid { values: [Counter; 2] }
+
+func select_index(edit evaluations: usize, index: usize): usize {
+    evaluations = evaluations + 1
+    index
+}
+
+func primary(index: usize): i32 {
+    var grid: Grid? = Grid { values: [Counter { value: 18 }, Counter { value: 41 }] }
+    var evaluations: usize = 0
+    (grid!).values[select_index(evaluations, index)].increment()
+    if evaluations != 1 { return 10 }
+    (grid!).values[index].current()
+}
+
+func recovered(): i32 {
+    var absent: Counter? = none
+    var fallback = Counter { value: 41 }
+    (absent otherwise { fallback }).increment()
+    fallback.current()
+}
+
+func retired(): i32 {
+    let slot: Counter? = Counter { value: 42 }
+    (slot^!).finish()
+}
+
+func main(): i32 {
+    if primary(1) != 42 { return 11 }
+    if retired() != 42 { return 12 }
+    recovered()
+}

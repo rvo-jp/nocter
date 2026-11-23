@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Resolve receiver operations before checking source-derived outcome and recovery projections.
-Share the ordinary input preparation path and preserve the original payload and its evaluation order.
+Admit structural literal grants for non-generic structs. Close the named root field schema and
+use the grant's effective audience to select the ordinary record construction path.
 
 ## Remaining Contextual Representation Qualification
 
@@ -664,7 +664,7 @@ not a language restriction derived from the current realization boundary.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.
-- [ ] Select the receiver's operation before preparing contextual outcome and recovery projections.
+- [x] Select the receiver's operation before preparing contextual outcome and recovery projections.
   Reuse the ordinary input boundary so a method can read or edit the original payload once,
   including through field/index suffixes. Qualify fallback access, a conflicting access and
   retained source retirement separately from calls on already produced values.
