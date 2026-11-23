@@ -270,7 +270,10 @@ impl Types {
         }
         self.ids.get(root).copied().ok_or(INVALID)
     }
-    #[expect(clippy::too_many_lines, reason = "one worklist owns evaluator projection for the closed data shapes")]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one worklist owns evaluator projection for the closed data shapes"
+    )]
     fn project(
         &mut self,
         program: &Program,
