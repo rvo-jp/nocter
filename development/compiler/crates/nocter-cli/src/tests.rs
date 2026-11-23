@@ -215,10 +215,10 @@ fn installed_v2_test_runs_only_authored_cases_in_source_order() {
     .unwrap();
     fs::write(
         package.join("tests/unit/cases.nct"),
-        "use std/process\nuse ../helper\n\
+        "use std/process as x_fails\nuse ../helper\n\
          func z_first(): i32 { helper.answer() }\n\
          test z_first { return }\n\
-         test x_fails { let _ = process.env(\"\")? }\n\
+         test x_fails { let _ = x_fails.env(\"\")? }\n\
          test a_last { let _ = z_first() }\n",
     )
     .unwrap();

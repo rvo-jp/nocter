@@ -413,23 +413,16 @@ fn local_origin(
     name: Symbol,
     namespace: ExportNamespace,
 ) -> Result<Option<SyntaxOrigin>, ModuleSourcesFailure> {
-    let visible = std::iter::once(source)
-        .chain(
-            paired
-                .inventory
-                .source_visibilities()
-                .iter()
-                .filter(|edge| edge.source() == source)
-                .map(|edge| edge.target()),
-        )
-        .collect::<BTreeSet<_>>();
+    let visible = super::module_sources::visible_sources(paired, source).collect::<BTreeSet<_>>();
     for (raw, declaration) in paired.inventory.declaration_entries() {
-        if declarations[raw.index()].is_some_and(|declaration| {
-            namespaces_conflict(
-                namespace,
-                ExportTarget::Declaration(declaration).namespace(),
-            )
-        }) && visible.contains(&declaration.source())
+        if super::module_sources::has_source_name(declaration)
+            && declarations[raw.index()].is_some_and(|declaration| {
+                namespaces_conflict(
+                    namespace,
+                    ExportTarget::Declaration(declaration).namespace(),
+                )
+            })
+            && visible.contains(&declaration.source())
         {
             let token = declaration.name().ok_or_else(integrity)?;
             if symbol(paired, declaration.source(), token)? == name {

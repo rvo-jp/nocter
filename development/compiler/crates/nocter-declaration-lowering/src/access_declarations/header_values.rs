@@ -2,10 +2,11 @@
 use super::{
     CodeSource, Context, SourceMismatch,
     definitions::{self, HeaderScope, Projection},
-    headers,
+    headers::{self, Header, RecordHeader},
+    module_scopes::ParsedHeader,
 };
-use nocter_declarations::value_access::Program;
-use nocter_model::{AccessCodeId, FrozenData};
+use nocter_declarations::value_access::{DeclarationId, Program};
+use nocter_model::{AccessCodeId, FrozenData, NominalTypeId};
 
 impl Context<'_> {
     /// Require source header counts to reproduce this snapshot's established type identities.
@@ -19,89 +20,109 @@ impl Context<'_> {
         if !self.program().headers_complete() {
             return Err(SourceMismatch::InconsistentSyntax);
         }
-        let scopes = match self.module {
-            Some(binding) => binding.header_scopes()?,
-            None => vec![HeaderScope {
-                syntax: self.syntax,
-                lookup: self.lookup,
-            }],
-        };
-        for scope in scopes {
-            let (functions, records) =
-                headers::collect(scope.syntax).map_err(|_| SourceMismatch::InconsistentSyntax)?;
-            for header in functions {
-                let name = self
-                    .program()
-                    .symbols()
-                    .get(super::text(scope.syntax, header.name))
-                    .ok_or(SourceMismatch::InconsistentSyntax)?;
-                let id = self
-                    .program()
-                    .resolve_code_in(scope.lookup, name)
-                    .ok_or(SourceMismatch::InconsistentSyntax)?;
-                let source = CodeSource::from_header(&header);
-                let actual = complete(
-                    definitions::project_code(
-                        self.program(),
-                        scope,
-                        id,
-                        &definitions::Recipe::from(header),
-                        &source,
-                        &self.sources,
-                        &mut values,
-                    )
-                    .map_err(|_| SourceMismatch::InconsistentSyntax)?,
-                )?;
-                if !matches_code(self.program(), id, &actual) {
-                    return Err(SourceMismatch::InconsistentSyntax);
+        if let Some(binding) = self.module {
+            for occurrence in binding.header_occurrences() {
+                let (id, header, scope) = occurrence?;
+                match (id, header) {
+                    (DeclarationId::Code(id), ParsedHeader::Code(header)) => {
+                        self.verify_code_header(id, header.clone(), scope, &mut values)?;
+                    }
+                    (DeclarationId::Record(id), ParsedHeader::Record(header)) => {
+                        self.verify_record_header(id, header, scope, &mut values)?;
+                    }
+                    (DeclarationId::Code(_), ParsedHeader::Test { .. }) => {}
+                    _ => return Err(SourceMismatch::InconsistentSyntax),
                 }
             }
-            for header in records {
-                let name = self
-                    .program()
-                    .symbols()
-                    .get(super::text(scope.syntax, header.source.name))
-                    .ok_or(SourceMismatch::InconsistentSyntax)?;
-                let id = self
-                    .program()
-                    .resolve_record_in(scope.lookup, name)
-                    .ok_or(SourceMismatch::InconsistentSyntax)?;
-                let actual = complete(
-                    definitions::project_record(
-                        self.program(),
-                        scope,
-                        id,
-                        &header,
-                        &self.sources,
-                        &mut values,
-                    )
-                    .map_err(|_| SourceMismatch::InconsistentSyntax)?,
-                )?;
-                let record = self
-                    .program()
-                    .records()
-                    .get(id)
-                    .ok_or(SourceMismatch::InconsistentSyntax)?;
-                if record.copyable() != actual.copy {
-                    return Err(SourceMismatch::InconsistentSyntax);
-                }
-                for field in actual.fields {
-                    let field_id = record
-                        .resolve_field(field.name)
-                        .ok_or(SourceMismatch::InconsistentSyntax)?;
-                    let slot = self
-                        .program()
-                        .fields()
-                        .get(field_id)
-                        .ok_or(SourceMismatch::InconsistentSyntax)?;
-                    if self
-                        .program()
-                        .existing_field_data_reference(field_id, &field.data)
-                        != Some(slot.data())
-                    {
-                        return Err(SourceMismatch::InconsistentSyntax);
-                    }
-                }
+            return Ok(());
+        }
+
+        let scope = HeaderScope {
+            syntax: self.syntax,
+            lookup: self.lookup,
+        };
+        let (functions, records) =
+            headers::collect(scope.syntax).map_err(|_| SourceMismatch::InconsistentSyntax)?;
+        let name = |token| {
+            self.program()
+                .symbols()
+                .get(super::text(scope.syntax, token))
+        };
+        for header in functions {
+            let id = name(header.name)
+                .and_then(|name| self.program().resolve_code_in(scope.lookup, name))
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
+            self.verify_code_header(id, header, scope, &mut values)?;
+        }
+        for header in records {
+            let id = name(header.source.name)
+                .and_then(|name| self.program().resolve_record_in(scope.lookup, name))
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
+            self.verify_record_header(id, &header, scope, &mut values)?;
+        }
+        Ok(())
+    }
+
+    fn verify_code_header<'value>(
+        &self,
+        id: AccessCodeId,
+        header: Header,
+        scope: HeaderScope<'_>,
+        values: &mut dyn FnMut(AccessCodeId) -> Option<&'value FrozenData>,
+    ) -> Result<(), SourceMismatch> {
+        let source = CodeSource::from_header(&header);
+        let actual = complete(
+            definitions::project_code(
+                self.program(),
+                scope,
+                id,
+                &definitions::Recipe::from(header),
+                &source,
+                &self.sources,
+                values,
+            )
+            .map_err(|_| SourceMismatch::InconsistentSyntax)?,
+        )?;
+        if !matches_code(self.program(), id, &actual) {
+            return Err(SourceMismatch::InconsistentSyntax);
+        }
+        Ok(())
+    }
+
+    fn verify_record_header<'value>(
+        &self,
+        id: NominalTypeId,
+        header: &RecordHeader,
+        scope: HeaderScope<'_>,
+        values: &mut dyn FnMut(AccessCodeId) -> Option<&'value FrozenData>,
+    ) -> Result<(), SourceMismatch> {
+        let actual = complete(
+            definitions::project_record(self.program(), scope, id, header, &self.sources, values)
+                .map_err(|_| SourceMismatch::InconsistentSyntax)?,
+        )?;
+        let record = self
+            .program()
+            .records()
+            .get(id)
+            .ok_or(SourceMismatch::InconsistentSyntax)?;
+        if record.copyable() != actual.copy {
+            return Err(SourceMismatch::InconsistentSyntax);
+        }
+        for field in actual.fields {
+            let id = record
+                .resolve_field(field.name)
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
+            let slot = self
+                .program()
+                .fields()
+                .get(id)
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
+            if self
+                .program()
+                .existing_field_data_reference(id, &field.data)
+                != Some(slot.data())
+            {
+                return Err(SourceMismatch::InconsistentSyntax);
             }
         }
         Ok(())

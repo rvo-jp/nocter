@@ -3,10 +3,30 @@ use super::{Failure, validate_source_role};
 use crate::{
     CompileUnitInput, DeclarationContractDiagnostic, DeclarationContractError,
     DeclarationContracts, DeclarationSurface, SurfaceDeclaration, SurfaceDeclarationId,
-    SurfaceError, SurfaceImport, SurfaceSource, SurfaceVisibility,
+    SurfaceError, SurfaceImport, SurfaceSource, SurfaceSourceId, SurfaceVisibility,
 };
 use nocter_source::SourceMap;
 use nocter_syntax::BoundSyntax;
+
+/// Declarations that can introduce a name in the source's ordinary lookup scope.
+pub(super) fn has_source_name(declaration: SurfaceDeclaration) -> bool {
+    declaration.owner().is_none() && declaration.kind() != crate::SurfaceDeclarationKind::Test
+}
+
+/// Physical source lookup consists of the current file and its directly seen files.
+pub(super) fn visible_sources<'a>(
+    paired: &'a PairedModuleSources<'_>,
+    source: SurfaceSourceId,
+) -> impl Iterator<Item = SurfaceSourceId> + 'a {
+    std::iter::once(source).chain(
+        paired
+            .inventory
+            .source_visibilities()
+            .iter()
+            .filter(move |edge| edge.source() == source)
+            .map(|edge| edge.target()),
+    )
+}
 
 /// Source topology and role evidence only: no normalized types, name bindings or accepted Unit.
 /// The private surface cannot be passed into released declaration reservation.

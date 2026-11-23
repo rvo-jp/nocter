@@ -111,7 +111,7 @@ impl ModuleSourceBinding<'_> {
     }
 }
 #[derive(Debug)]
-enum ParsedHeader {
+pub(super) enum ParsedHeader {
     Code(Header),
     Record(RecordHeader),
     Test {
@@ -367,20 +367,29 @@ impl ModuleSourceBinding<'_> {
     ) -> &[SyntaxToken] {
         self.lexical.names(syntax, node)
     }
-    pub(super) fn header_scopes(
+    pub(super) fn header_occurrences(
         &self,
-    ) -> Result<Vec<super::definitions::HeaderScope<'_>>, super::SourceMismatch> {
-        self.paired
-            .inventory
-            .source_entries()
-            .map(|(source, _)| {
-                Ok(super::definitions::HeaderScope {
-                    syntax: syntax(&self.paired, source)
-                        .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
-                    lookup: self.scopes[source.index()],
-                })
-            })
-            .collect()
+    ) -> impl Iterator<
+        Item = Result<
+            (
+                DeclarationId,
+                &ParsedHeader,
+                super::definitions::HeaderScope<'_>,
+            ),
+            super::SourceMismatch,
+        >,
+    > + '_ {
+        self.catalog.parsed.iter().map(|(raw, header)| {
+            let source = self.paired.inventory.declarations()[raw.index()].source();
+            let id =
+                self.declarations[raw.index()].ok_or(super::SourceMismatch::InconsistentSyntax)?;
+            let scope = super::definitions::HeaderScope {
+                syntax: syntax(&self.paired, source)
+                    .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
+                lookup: self.scopes[source.index()],
+            };
+            Ok((id, header, scope))
+        })
     }
     pub(super) fn code_scope(
         &self,
@@ -720,7 +729,7 @@ fn bind_sources(
 ) -> Result<(), ModuleSourcesFailure> {
     let mut authored = BTreeMap::<SurfaceSourceId, Vec<(Symbol, DeclarationId)>>::new();
     for (id, declaration) in paired.inventory.declaration_entries() {
-        if declaration.kind() == SurfaceDeclarationKind::Test {
+        if !super::module_sources::has_source_name(declaration) {
             continue;
         }
         if let Some(semantic) = declarations[id.index()] {
@@ -735,16 +744,7 @@ fn bind_sources(
         }
     }
     for (source, _) in paired.inventory.source_entries() {
-        let visible: BTreeSet<_> = std::iter::once(source)
-            .chain(
-                paired
-                    .inventory
-                    .source_visibilities()
-                    .iter()
-                    .filter(|edge| edge.source() == source)
-                    .map(|edge| edge.target()),
-            )
-            .collect();
+        let visible: BTreeSet<_> = super::module_sources::visible_sources(paired, source).collect();
         for author in visible {
             for &(name, declaration) in authored.get(&author).map_or(&[][..], Vec::as_slice) {
                 reservations

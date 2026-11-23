@@ -767,6 +767,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Generate profile-selected v2 executable and library starter packages. Qualify separate
   contracts and bodies, format/check/test and the native executable, and preserve atomic creation
   without following nested directory links. Qualify both released templates separately.
+- [x] Reconcile module header values through their original bound occurrences. Share direct source
+  visibility between lookup and import collision checks, and keep test labels outside both.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.
