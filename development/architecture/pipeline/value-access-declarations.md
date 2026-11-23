@@ -135,6 +135,11 @@ case. MIR validates those edges against the selected case's stored types. Native
 writes the tag and only that case's fields at the offsets chosen by the layout planner. The target
 selects the smallest supported unsigned width that fits the schema.
 
+An evaluator plan can assemble an exact enum case from prepared field owners using the same
+metered staging as aggregate construction. It transfers those owners into the selected case in
+declaration order. Tag tests and dispatch inspect the stored case. Only the selected case's fields
+participate in validating an evaluator value.
+
 A scalar enum constructor produces the owning nominal value with an empty payload list. Native
 lowering materializes standalone scalar tags as immediates and uses the same scalar layout for
 nested constant data and statics. The source execution path currently materializes scalar enum

@@ -64,6 +64,12 @@ pub enum Type {
         nominal: nocter_model::NominalTypeId,
         variants: u64,
     },
+    /// Ordered cases of a nominal enum and their exact declaration-order field type IDs.
+    /// An empty case has no payload. It is distinct from a case containing an unavailable field.
+    Enum {
+        nominal: nocter_model::NominalTypeId,
+        cases: Box<[Box<[usize]>]>,
+    },
     Variant {
         primary: usize,
         /// None means an absent payload, not an unavailable or uninitialized value.
@@ -104,6 +110,13 @@ impl Type {
             Self::Array { element, length } if u64::try_from(index).ok()? < *length => {
                 Some(*element)
             }
+            _ => None,
+        }
+    }
+    fn enum_case_fields(&self, tag: u64) -> Option<&[usize]> {
+        match self {
+            Self::ScalarEnum { variants, .. } if tag < *variants => Some(&[]),
+            Self::Enum { cases, .. } => Some(cases.get(usize::try_from(tag).ok()?)?),
             _ => None,
         }
     }
@@ -221,6 +234,8 @@ pub enum Effect {
     Release(Place),
     Assemble {
         destination: usize,
+        /// Required for an enum destination, including an empty case of a mixed schema.
+        enum_case: Option<u64>,
         fields: Box<[(usize, Place)]>,
     },
     Replace {

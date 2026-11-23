@@ -444,6 +444,7 @@ fn listed_array_assembly_and_publication_share_the_aggregate_storage_path() {
             &(0..count).collect::<Vec<_>>(),
             vec![Effect::Assemble {
                 destination: count,
+                enum_case: None,
                 fields: (0..count)
                     .rev()
                     .map(|index| (index, Place::root(index)))

@@ -26,6 +26,7 @@ fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
 fn capture(destination: usize, source: usize) -> Effect {
     Effect::Assemble {
         destination,
+        enum_case: None,
         fields: Box::new([(0, Place::root(source))]),
     }
 }
@@ -92,6 +93,7 @@ fn independent_copies(owner: AccessCodeId) -> Program {
                 &[2, 3],
                 vec![Effect::Assemble {
                     destination: 5,
+                    enum_case: None,
                     fields: Box::new([(0, Place::root(2)), (1, Place::root(3))]),
                 }],
             ),

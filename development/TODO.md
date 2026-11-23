@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend the evaluator plan to assemble and inspect selected enum cases. Check the exact nominal
-case and component types, reuse metered value construction and the common tag branch operations,
-and verify retirement of staged field values before enabling authored construction.
+Project the declaration-owned enum cases into the evaluator's exact type table. Derive supported
+cases and final-value eligibility from their real fields, retaining inactive unavailable cases as
+metadata until source construction and lifecycle are qualified.
 
 ## Remaining Contextual Representation Qualification
 
@@ -737,8 +737,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify the frozen representation and serialization of enum values with selected payloads.
   Retain the tag and declaration-ordered active values, validate fields against their exact types,
   and write only the selected case into target storage.
-- [ ] Qualify selected enum case assembly and tag inspection in the evaluator plan. Reuse the
+- [x] Qualify selected enum case assembly and tag inspection in the evaluator plan. Reuse the
   metered staging and verify active arity, field types and branch selection before source admission.
+- [ ] Connect source enum payload schemas to evaluator types. Preserve field order, nominal
+  identity, and per-case domain eligibility through the existing projection graph.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

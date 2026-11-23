@@ -130,6 +130,7 @@ fn construct_function() -> Action {
             Effect::Construct(0),
             Effect::Assemble {
                 destination: 1,
+                enum_case: None,
                 fields: Box::new([(0, Place::root(0))]),
             },
         ],
@@ -215,6 +216,7 @@ fn caller(target: nocter_model::ValueCode, offered: Op) -> Plan {
         vec![
             Effect::Assemble {
                 destination: 6,
+                enum_case: None,
                 fields: Box::new([
                     (0, Place::root(3)),
                     (1, Place::root(4)),

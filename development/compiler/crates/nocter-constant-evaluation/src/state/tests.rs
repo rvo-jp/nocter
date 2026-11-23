@@ -9,6 +9,7 @@ mod captured_invocation;
 mod captured_values;
 mod contexts;
 mod empty_domains;
+mod enums;
 mod expression_roots;
 mod input_conditions;
 mod lexical_codes;

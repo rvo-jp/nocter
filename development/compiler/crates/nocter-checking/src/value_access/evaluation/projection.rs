@@ -478,6 +478,7 @@ impl Builder<'_, '_> {
                 ..
             } => plan::Effect::Assemble {
                 destination: self.holder(*destination)?,
+                enum_case: None,
                 fields: fields
                     .iter()
                     .map(|(field, source)| {
@@ -546,6 +547,7 @@ impl Builder<'_, '_> {
                 }
                 plan::Effect::Assemble {
                     destination: self.holder(*destination)?,
+                    enum_case: None,
                     fields: Box::new([(0, self.resource(source)?)]),
                 }
             }

@@ -43,7 +43,7 @@ impl Storage {
     ) -> Result<Value, Rule> {
         self.sequence(fields, Data::Aggregate)
     }
-    fn enumeration(
+    pub(in crate::state) fn enumeration(
         &self,
         tag: u64,
         fields: impl ExactSizeIterator<Item = Value>,

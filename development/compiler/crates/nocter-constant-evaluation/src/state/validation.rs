@@ -95,8 +95,15 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_))
             | (Some(Type::Text), Data::Text(_)) => {}
-            (Some(Type::ScalarEnum { variants, .. }), Data::Enum { tag, fields })
-                if tag < variants && fields.is_empty() => {}
+            (Some(ty), Data::Enum { tag, fields }) => {
+                let Some(members) = ty.enum_case_fields(*tag) else {
+                    return false;
+                };
+                if members.len() != fields.len() {
+                    return false;
+                }
+                pending.extend(members.iter().copied().zip(fields.iter().cloned()));
+            }
             (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()
@@ -187,6 +194,12 @@ fn validate_types(program: &Program, first: usize) -> Result<()> {
             return Err(INVALID);
         }
         if matches!(data, Type::ScalarEnum { variants: 0, .. }) {
+            return Err(INVALID);
+        }
+        if let Type::Enum { cases, .. } = data
+            && (cases.iter().all(|case| case.is_empty())
+                || cases.iter().flatten().any(|&field| field >= id))
+        {
             return Err(INVALID);
         }
         if let Type::Variant { primary, alternate } = data
@@ -518,7 +531,7 @@ fn tag_condition(
     let source = program.types.get(place(program, plan, source)?);
     let valid = match (source, tag) {
         (Some(Type::Variant { .. }), None) => true,
-        (Some(Type::ScalarEnum { variants, .. }), Some(tag)) => tag < *variants,
+        (Some(ty), Some(tag)) => ty.enum_case_fields(tag).is_some(),
         _ => false,
     };
     if !valid || program.types.get(ordinary_slot(plan, destination)?.data) != Some(&Type::Bool) {
@@ -827,8 +840,9 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
         }
         Effect::Assemble {
             destination,
+            enum_case,
             fields,
-        } => check_assembly(program, plan, *destination, fields)?,
+        } => check_assembly(program, plan, *destination, *enum_case, fields)?,
     }
     Ok(())
 }
@@ -922,13 +936,18 @@ fn check_assembly(
     program: &Program,
     plan: &View<'_>,
     destination: usize,
+    enum_case: Option<u64>,
     fields: &[(usize, Place)],
 ) -> Result<()> {
     let owned = |place: &Place| owned_place(program, plan, place);
     let ty = owned(&Place::root(destination))?;
     let schema = program.types.get(ty).ok_or(INVALID)?;
-    let complete = match schema {
-        Type::Variant { alternate, .. } => {
+    let active = enum_case
+        .map(|tag| schema.enum_case_fields(tag).ok_or(INVALID))
+        .transpose()?;
+    let complete = match (active, schema) {
+        (Some(active), _) => fields.len() == active.len(),
+        (None, Type::Variant { alternate, .. }) => {
             fields.len() == 1 || (fields.is_empty() && alternate.is_none())
         }
         _ => schema.component_count() == u64::try_from(fields.len()).ok(),
@@ -938,7 +957,15 @@ fn check_assembly(
     }
     let mut seen = BTreeSet::new();
     for (field, source) in fields {
-        if schema.component(*field) != Some(owned(source)?) || !seen.insert(*field) {
+        let selected = active.map_or_else(
+            || schema.component(*field),
+            |parts| parts.get(*field).copied(),
+        );
+        let supplied = owned(source)?;
+        if selected != Some(supplied)
+            || !seen.insert(*field)
+            || (active.is_some() && program.types.get(supplied) == Some(&Type::Unavailable))
+        {
             return Err(INVALID);
         }
     }

@@ -410,6 +410,7 @@ fn partial_writes_constrain_complete_carriers_at_both_source_boundaries() {
             plan::Effect::Assemble {
                 destination,
                 fields,
+                ..
             } if fields.len() == 2 => Some(body.slots[*destination].data),
             _ => None,
         })

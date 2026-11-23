@@ -122,12 +122,12 @@ fn point(
             cases,
             fallback,
         } => {
-            let Some(Type::ScalarEnum { variants, .. }) =
-                program.types.get(place(program, view, source)?)
-            else {
-                return Err(INVALID);
-            };
-            if cases.last().is_some_and(|&(tag, _)| tag >= *variants)
+            let ty = program
+                .types
+                .get(place(program, view, source)?)
+                .ok_or(INVALID)?;
+            let largest = cases.last().map_or(0, |&(tag, _)| tag);
+            if ty.enum_case_fields(largest).is_none()
                 || cases.windows(2).any(|pair| pair[0].0 >= pair[1].0)
             {
                 return Err(INVALID);

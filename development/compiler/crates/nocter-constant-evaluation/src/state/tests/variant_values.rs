@@ -120,6 +120,7 @@ fn alternate_plan() -> Plan {
                         Effect::Construct(0),
                         Effect::Assemble {
                             destination: 1,
+                            enum_case: None,
                             fields: vec![(1, Place::root(0))].into(),
                         },
                     ]
@@ -412,6 +413,7 @@ fn taking_inputs_are_protected_at_their_frozen_owner_handoff_after_wrapper_mater
                 before: vec![
                     Effect::Assemble {
                         destination: 1,
+                        enum_case: None,
                         fields: vec![(0, Place::root(0))].into(),
                     },
                     Effect::Invoke {

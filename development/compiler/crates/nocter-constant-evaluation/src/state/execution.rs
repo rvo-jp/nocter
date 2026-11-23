@@ -714,8 +714,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             ),
             Effect::Assemble {
                 destination,
+                enum_case,
                 fields,
-            } => self.assemble(frame, *destination, fields),
+            } => self.assemble(frame, *destination, *enum_case, fields),
         }
     }
     fn transport(&mut self, frame: usize, source: &Place, destination: &Place) -> Result<()> {
@@ -802,6 +803,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         &mut self,
         frame: usize,
         destination: usize,
+        enum_case: Option<u64>,
         fields: &[(usize, Place)],
     ) -> Result<()> {
         let _assembly_storage = self.memory.storage.items(fields.len())?;
@@ -809,10 +811,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .get(destination)
             .ok_or(Rule::InvalidPlan)?
             .data;
-        let value = if matches!(
-            self.program.types.get(data),
-            Some(super::Type::Variant { .. })
-        ) {
+        let value = if enum_case.is_none()
+            && matches!(
+                self.program.types.get(data),
+                Some(super::Type::Variant { .. })
+            ) {
             match fields {
                 [] => self.memory.storage.variant(false, None)?,
                 [(field, source)] => {
@@ -826,7 +829,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         } else {
             let mut values = vec![None; fields.len()];
             for (field, source) in fields {
-                values[*field] = Some(self.read(frame, source)?);
+                *values.get_mut(*field).ok_or(Rule::InvalidPlan)? = Some(self.read(frame, source)?);
                 self.memory
                     .retire(&self.memory.address(&self.program, frame, source)?, false)?;
             }
@@ -834,9 +837,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 .into_iter()
                 .collect::<Option<Box<[_]>>>()
                 .ok_or(Rule::InvalidPlan)?;
-            self.memory
-                .storage
-                .aggregate(values.into_vec().into_iter())?
+            let values = values.into_vec().into_iter();
+            match enum_case {
+                Some(tag) => self.memory.storage.enumeration(tag, values)?,
+                None => self.memory.storage.aggregate(values)?,
+            }
         };
         self.write(frame, &Place::root(destination), value)?;
         self.memory.construct(&self.memory.address(
