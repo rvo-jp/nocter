@@ -311,6 +311,17 @@ impl Types {
                 self.insert(data, Type::Unavailable, false);
                 continue;
             };
+            // A destructor-bearing nominal cannot inhabit evaluator-owned storage. Its
+            // reservation is already a lifecycle obligation in an early header snapshot.
+            // Enclosing shapes still decide whether a component actually exists.
+            if program
+                .nominal_identity(data.data())
+                .and_then(|owner| program.reserved_destructor(owner))
+                .is_some()
+            {
+                self.insert(data, Type::Unavailable, false);
+                continue;
+            }
             let alternatives = data.alternatives(program)?;
             let is_alternatives = alternatives.is_some();
             let mut enum_cases = None;

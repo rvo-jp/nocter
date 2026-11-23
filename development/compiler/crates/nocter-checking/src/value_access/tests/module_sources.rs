@@ -7,6 +7,7 @@ use nocter_declarations::value_access::PayloadSchema;
 
 mod primitives;
 mod reuse;
+mod user_destruction;
 
 #[test]
 fn authored_enum_payload_types_reconcile_required_counts_and_opaque_copy() {

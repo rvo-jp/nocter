@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Use the reserved destructor identity during required evaluation to exclude user destruction
-while retaining empty arrays and inactive enum payloads. Keep ordinary executable admission
-behind effect and ordered component-cleanup checks.
+Enforce complete ownership for user-destructible values. Reject component transfers that would
+leave a destructor's receiver incomplete, including transfers through enum patterns, temporary
+projections and indexed paths. Whole-value transfers and Copy snapshots retain their meaning.
 
 ## Remaining Contextual Representation Qualification
 
@@ -777,8 +777,10 @@ not a language restriction derived from the current realization boundary.
   definitions, and retain the executable admission boundary.
 - [x] Expose the exact destructor reservation before header readiness. Include its nominal owner
   in retained-header layout validation.
+- [x] Exclude live user-destructible nominal values from required evaluation and final-value
+  publication. Preserve zero-length storage and inactive payloads in enclosing shapes.
 - [ ] Infer destructor effects and integrate the complete-self body with exactly-once component
-  cleanup. Make early header and required-value queries recognize reserved lifecycle obligations.
+  cleanup.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

@@ -1771,6 +1771,9 @@ construction, taking inputs, forwarding, assertion, success propagation, frozen 
 execution, including absent `error?` and `(error!)?` values. Live error graphs, their destruction
 and runtime primitive calls remain unavailable. Final publication also excludes representable
 callable payloads; an unavailable opposite case does not erase that restriction.
+The evaluator consults the reserved nominal destructor before admitting a stored value,
+including during required header evaluation. Empty arrays and enum cases with no affected
+payload remain representable.
 Selecting an unavailable payload from a represented carrier cannot produce an evaluator value.
 The domain check retains this projection through ordinary value boundaries, allowing
 the lowered failure arm of `?` without creating error data. A conditionally supported carrier
