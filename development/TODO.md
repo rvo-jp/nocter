@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Require a qualified body when a represented nominal receiver reaches executable retirement.
-Carry the declaration's lifecycle obligation alongside the matched frame so missing context
-cannot silently bypass an authored destructor.
+Prepare effect qualification for exact contextual receivers. Use the accepted body's canonical
+operations for semantic effect checks and bind source locations through a separate diagnostic
+projection.
 
 ## Remaining Contextual Representation Qualification
 
@@ -797,6 +797,8 @@ not a language restriction derived from the current realization boundary.
   dependencies from executable MIR. Qualify zero-size receivers and cancellation without drive.
 - [x] Bind destructor frames through the exact receiver contract and preserve distinct contextual
   receiver keys. Derive structural cleanup components from their shared declaration projection.
+- [x] Require a matched qualified frame for a reached authored destructor. Preserve the nominal
+  obligation through stored data projection even when no executable body is ready.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

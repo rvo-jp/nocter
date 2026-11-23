@@ -34,6 +34,16 @@ impl Prepared {
     pub fn into_environment(self) -> RuntimeEnvironment {
         self.runtime
     }
+    /// Positive stored shapes whose nominal contracts require an authored destructor.
+    /// This is a cleanup obligation, independent of whether a body has been qualified.
+    pub fn destructor_receivers<'a>(
+        &'a self,
+        program: &'a Program,
+    ) -> impl Iterator<Item = RuntimeDataId> + 'a {
+        self.ids.iter().filter_map(|(key, &data)| {
+            (!key.is_uninhabited() && program.data_destructor(key.data()).is_some()).then_some(data)
+        })
+    }
     /// Resolve an already materialized contextual payload without rebuilding its caller frame.
     /// # Errors
     /// Rejects unresolved or absent positive data identities.

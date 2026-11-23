@@ -26,6 +26,64 @@ fn runtime(entries: impl IntoIterator<Item = (RuntimeDataId, RuntimeType)>) -> R
 }
 
 #[test]
+fn reached_destructor_receivers_require_their_qualified_body() {
+    let [receiver, array] = [0, 1].map(RuntimeDataId::Instance);
+    let mut types = RuntimeTypeTableBuilder::new();
+    types.insert(receiver, RuntimeType::Aggregate).unwrap();
+    types
+        .insert(
+            array,
+            RuntimeType::FixedArray {
+                element: receiver,
+                length: 1,
+            },
+        )
+        .unwrap();
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::new(
+            [(
+                receiver,
+                RuntimeTypeRepresentation::ValueAggregate {
+                    fields: Box::new([]),
+                },
+            )]
+            .into(),
+        ),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let mut cache = BTreeMap::new();
+    assert!(matches!(
+        super::required(
+            &runtime,
+            &[(receiver, None)].into(),
+            array,
+            &mut cache,
+            |_| {}
+        ),
+        Err(InvalidSchema)
+    ));
+    assert!(!cache.contains_key(&receiver));
+    assert!(!cache.contains_key(&array));
+
+    let body = nocter_model::ArenaBuilder::<AccessInstanceId, ()>::new().insert(());
+    let mut reached = Vec::new();
+    assert!(
+        super::required(
+            &runtime,
+            &[(receiver, Some(body))].into(),
+            array,
+            &mut cache,
+            |entry| reached.push(entry)
+        )
+        .unwrap()
+    );
+    assert_eq!(reached, [body]);
+    assert_eq!(cache, BTreeMap::from([(receiver, true), (array, true)]));
+}
+
+#[test]
 fn choice_dependencies_retain_all_possible_helpers_without_repeating_shared_environments() {
     let [error, empty, owned, other, choice, array]: [RuntimeDataId; 6] =
         std::array::from_fn(|i| RuntimeDataId::Instance(u32::try_from(i).unwrap()));

@@ -15,7 +15,7 @@ pub(super) fn close(
     root: AccessInstanceId,
     bodies: &BTreeMap<AccessInstanceId, Body>,
     runtime: &RuntimeEnvironment,
-    destructors: &BTreeMap<RuntimeDataId, AccessInstanceId>,
+    destructors: &BTreeMap<RuntimeDataId, Option<AccessInstanceId>>,
 ) -> Result<Closed, Failure> {
     let mut pending = BTreeSet::from([root]);
     let mut reached = BTreeSet::new();
@@ -89,7 +89,7 @@ struct InvalidSchema;
 
 fn required(
     runtime: &RuntimeEnvironment,
-    destructors: &BTreeMap<RuntimeDataId, AccessInstanceId>,
+    destructors: &BTreeMap<RuntimeDataId, Option<AccessInstanceId>>,
     data: RuntimeDataId,
     cache: &mut BTreeMap<RuntimeDataId, bool>,
     mut on_destructor: impl FnMut(AccessInstanceId),
@@ -158,7 +158,10 @@ fn required(
             _ => return Err(InvalidSchema),
         };
         if expanded {
-            let authored = destructors.get(&data).copied();
+            let authored = destructors
+                .get(&data)
+                .map(|body| body.ok_or(InvalidSchema))
+                .transpose()?;
             if let Some(body) = authored {
                 on_destructor(body);
             }

@@ -522,20 +522,30 @@ impl Program {
                 ))
             })
             .collect::<Result<_, Failure>>()?;
-        let mut destructors = BTreeMap::new();
+        let mut destructor_receivers: BTreeMap<_, _> = storage
+            .destructor_receivers(program.instance_program().unit().program())
+            .map(|data| (data, None))
+            .collect();
         for id in program.instance_program().destructors() {
             let body = bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
             let [receiver] = body.signature().explicit() else {
                 return Err(Failure::InvalidBody(id));
             };
-            if destructors.insert(receiver.data, id).is_some() {
+            let destination = destructor_receivers
+                .get_mut(&receiver.data)
+                .ok_or(Failure::InvalidBody(id))?;
+            if destination.replace(id).is_some() {
                 return Err(Failure::InvalidBody(id));
             }
         }
         let root = program.instance_program().root();
-        let closed = cleanup::close(root, &bodies, storage.environment(), &destructors)?;
+        let closed = cleanup::close(root, &bodies, storage.environment(), &destructor_receivers)?;
         bodies.retain(|id, _| closed.bodies.contains(id));
-        destructors.retain(|data, _| closed.cleanup.contains(data));
+        let destructors = destructor_receivers
+            .into_iter()
+            .filter(|(data, _)| closed.cleanup.contains(data))
+            .map(|(data, body)| Ok((data, body.ok_or(Failure::InvalidBody(root))?)))
+            .collect::<Result<_, Failure>>()?;
         let mut statics = BTreeMap::new();
         for body in bodies.values() {
             for &(slot, id) in &body.statics {

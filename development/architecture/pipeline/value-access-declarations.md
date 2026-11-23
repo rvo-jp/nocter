@@ -225,6 +225,8 @@ the body and projects only that case.
 MIR closes ordinary invocation and destructor edges from the executable entry. Reached retirement
 schemas contribute the cleanup helpers and any anonymous bodies they call. Machine consumes that
 set alongside the already selected bodies and static objects.
+Storage projection retains the nominal destructor obligation independently of body qualification.
+MIR rejects a reached retirement whose represented receiver lacks its matching qualified frame.
 
 ### Tuple Bindings
 
