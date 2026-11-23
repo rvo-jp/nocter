@@ -108,6 +108,13 @@ const ERROR_CONTEXT: PrimitiveValueSignature = PrimitiveValueSignature {
     ],
     result: PrimitiveValueResult::Builtin(BuiltinType::Error),
 };
+const ERROR_HAS_CODE: PrimitiveValueSignature = PrimitiveValueSignature {
+    inputs: &[
+        PrimitiveValueInput::new(BuiltinType::Error, ValueInputOperation::Read),
+        PrimitiveValueInput::new(BuiltinType::Str, ValueInputOperation::Read),
+    ],
+    result: PrimitiveValueResult::Builtin(BuiltinType::Bool),
+};
 const ALLOCATION_FAILURE_ERROR: PrimitiveValueSignature = PrimitiveValueSignature {
     inputs: &[],
     result: PrimitiveValueResult::Builtin(BuiltinType::Error),
@@ -148,6 +155,7 @@ impl PrimitiveRole {
         match self {
             Self::NewError => Some(&NEW_ERROR),
             Self::ErrorContext => Some(&ERROR_CONTEXT),
+            Self::ErrorHasCode => Some(&ERROR_HAS_CODE),
             Self::AllocationFailureError => Some(&ALLOCATION_FAILURE_ERROR),
             Self::ProcessArgumentCount | Self::ProcessEnvironmentCount => Some(&PROCESS_COUNT),
             Self::ProcessArgument

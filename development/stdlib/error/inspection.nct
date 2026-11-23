@@ -1,0 +1,8 @@
+see ./index.nct
+use /internal/errors
+
+impl error {
+    method self.has_code(code: str): bool {
+        errors.has_code(self, code)
+    }
+}

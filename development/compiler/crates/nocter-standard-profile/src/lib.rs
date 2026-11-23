@@ -131,6 +131,11 @@ pub fn development_value_access_toolchain(package: &PackageIdentity) -> Toolchai
             "context",
         ),
         PrimitiveRoleLocator::new(
+            PrimitiveRole::ErrorHasCode,
+            module(package, &["internal", "errors"]),
+            "has_code",
+        ),
+        PrimitiveRoleLocator::new(
             PrimitiveRole::StringByteAt,
             module(package, &["internal", "text"]),
             "byte_at",
@@ -596,7 +601,7 @@ fn bundled_primitive_source_location(
         Role::Syscall6 => (&["internal", "os", "darwin"], "syscall6"),
         Role::Trap => (&["internal", "os", "darwin"], "trap"),
         Role::Unreachable => (&["internal", "os", "darwin"], "unreachable"),
-        Role::StringByteAt | Role::StandardOutputWrite => {
+        Role::StringByteAt | Role::StandardOutputWrite | Role::ErrorHasCode => {
             unreachable!("unpublished primitive has no bundled source")
         }
     }

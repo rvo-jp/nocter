@@ -661,6 +661,7 @@ pub(crate) fn emit_instruction(
             crate::error_code::emit_construct_context(function, buffer, code)
         }
         Arm64SelectedInstruction::ReadErrorCode => crate::error_code::emit_read_code(code),
+        Arm64SelectedInstruction::MatchErrorCode => crate::error_code::emit_match_code(code),
         Arm64SelectedInstruction::ReadErrorMessage => {
             crate::error_code::emit_read_message(code);
             Ok(())

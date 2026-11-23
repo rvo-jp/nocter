@@ -195,8 +195,21 @@ fn installed_v2_error_members_require_the_exact_builtin_authority() {
     let home = tree.value_access_installation();
     let source = tree.0.join("app.nct");
     let program = "func main(): i32! {\n\
+        let empty = error.new(\"\", \"empty code\")\n\
+        if empty.has_code(\"\") == false { return 2 }\n\
+        if empty.has_code(\"x\") { return 3 }\n\
+        let unicode = error.new(\"app.夜\", \"Unicode code\")\n\
+        if unicode.has_code(\"app.夜\") == false { return 4 }\n\
+        if unicode.has_code(\"app.夜x\") { return 5 }\n\
+        if unicode.has_code(\"app.雨\") { return 6 }\n\
         let cause = error.new(\"app.config.missing\", \"missing key\")\n\
-        throw cause^.context(\"reading config\")\n\
+        if cause.has_code(\"app.config.missing\") == false { return 7 }\n\
+        if cause.has_code(\"App.config.missing\") { return 8 }\n\
+        if cause.has_code(\"app.config.missinG\") { return 9 }\n\
+        let enriched = cause^.context(\"reading config\").context(\"starting up\")\n\
+        if enriched.has_code(\"app.config.missing\") == false { return 10 }\n\
+        if enriched.has_code(\"reading config\") { return 11 }\n\
+        throw enriched^\n\
         }\n";
     fs::write(&source, program).unwrap();
     let execute = |args| execute_invocation(invocation(args, &tree.0, &home, "arm64-darwin"));
@@ -225,7 +238,7 @@ fn installed_v2_error_members_require_the_exact_builtin_authority() {
     assert!(output.stdout.is_empty());
     assert_eq!(
         output.stderr,
-        b"app.config.missing: reading config: missing key\n"
+        b"app.config.missing: starting up: reading config: missing key\n"
     );
 
     for (replacement, code) in [

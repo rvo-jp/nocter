@@ -152,23 +152,79 @@ fn emit_copy_loop(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializatio
 
 pub(crate) fn emit_read_code(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
     let schema = Arm64NocterAbi::error();
-    load_node_word(code, argument(0), argument(0), 0);
+    let node = argument(0);
+    load_node_word(code, node, node, 0);
+    emit_find_leaf(code, node, scratch(0))?;
+    load_node_word(code, argument(1), node, schema.node_code_length_offset());
+    add_immediate(code, node, node, schema.node_payload_offset());
+    Ok(())
+}
+
+pub(crate) fn emit_match_code(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let schema = Arm64NocterAbi::error();
+    // The value-access primitive receives the error handle itself, followed by the text view.
+    let actual = argument(0);
+    let expected = argument(1);
+    let remaining = argument(2);
+    let left = scratch(0);
+    let right = scratch(1);
+    emit_find_leaf(code, actual, left)?;
+    load_node_word(code, left, actual, schema.node_code_length_offset());
+    let different = code.create_label();
+    let equal = code.create_label();
+    let compare_byte = code.create_label();
+    let done = code.create_label();
+
+    compare_registers(code, left, remaining);
+    code.branch_conditional(different, Arm64BranchCondition::NotEqual);
+    compare_zero(code, remaining);
+    code.branch_conditional(equal, Arm64BranchCondition::Equal);
+    add_immediate(code, actual, actual, schema.node_payload_offset());
+    code.bind(compare_byte)?;
+    for (destination, base) in [(left, actual), (right, expected)] {
+        code.append(Arm64Instruction::LoadUnsigned {
+            size: Arm64LoadStoreSize::Byte,
+            destination: Arm64DataRegister::General(destination),
+            base: Arm64BaseRegister::General(base),
+            offset: 0,
+        });
+    }
+    compare_registers(code, left, right);
+    code.branch_conditional(different, Arm64BranchCondition::NotEqual);
+    add_immediate(code, actual, actual, 1);
+    add_immediate(code, expected, expected, 1);
+    subtract_one(code, remaining);
+    code.branch_conditional(compare_byte, Arm64BranchCondition::NotEqual);
+    code.bind(equal)?;
+    crate::frame_access::load_immediate(code, actual, 1, Arm64DataSize::Bits64);
+    code.branch(done, false);
+    code.bind(different)?;
+    crate::frame_access::load_immediate(code, actual, 0, Arm64DataSize::Bits64);
+    code.bind(done)?;
+    Ok(())
+}
+
+fn emit_find_leaf(
+    code: &mut Arm64CodeBuilder,
+    node: crate::Arm64Register,
+    next: crate::Arm64Register,
+) -> Result<(), Arm64MaterializationError> {
     let find_leaf = code.create_label();
     let complete = code.create_label();
     code.bind(find_leaf)?;
-    load_node_word(code, scratch(0), argument(0), schema.node_cause_offset());
-    compare_zero(code, scratch(0));
-    code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    add_immediate(code, argument(0), scratch(0), 0);
-    code.branch(find_leaf, false);
-    code.bind(complete)?;
     load_node_word(
         code,
-        argument(1),
-        argument(0),
-        schema.node_code_length_offset(),
+        next,
+        node,
+        Arm64NocterAbi::error().node_cause_offset(),
     );
-    add_immediate(code, argument(0), argument(0), schema.node_payload_offset());
+    compare_zero(code, next);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    add_immediate(code, node, next, 0);
+    code.branch(find_leaf, false);
+    code.bind(complete)?;
     Ok(())
 }
 
@@ -220,19 +276,9 @@ pub(crate) fn emit_report(
 
     crate::frame_access::load_immediate(code, node, SEPARATOR_AND_NEWLINE, Arm64DataSize::Bits64);
     store_stack(code, node, separator);
-    store_stack(code, handle, current_node);
     store_stack(code, handle, root_handle);
-
-    let find_leaf = code.create_label();
-    let leaf_found = code.create_label();
-    code.bind(find_leaf)?;
-    load_stack(code, node, current_node);
-    load_node_word(code, temporary, node, schema.node_cause_offset());
-    compare_zero(code, temporary);
-    code.branch_conditional(leaf_found, Arm64BranchCondition::Equal);
-    store_stack(code, temporary, current_node);
-    code.branch(find_leaf, false);
-    code.bind(leaf_found)?;
+    add_immediate(code, node, handle, 0);
+    emit_find_leaf(code, node, temporary)?;
 
     emit_leaf_code(node, code);
     emit_stack_bytes(separator, 2, code);
@@ -446,6 +492,21 @@ fn subtract_one(code: &mut Arm64CodeBuilder, value: crate::Arm64Register) {
 
 fn compare_zero(code: &mut Arm64CodeBuilder, value: crate::Arm64Register) {
     compare_immediate(code, value, 0);
+}
+
+fn compare_registers(
+    code: &mut Arm64CodeBuilder,
+    left: crate::Arm64Register,
+    right: crate::Arm64Register,
+) {
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64DataRegister::Zero,
+        left: Arm64DataRegister::General(left),
+        right: Arm64DataRegister::General(right),
+    });
 }
 
 fn compare_immediate(code: &mut Arm64CodeBuilder, value: crate::Arm64Register, immediate: u64) {

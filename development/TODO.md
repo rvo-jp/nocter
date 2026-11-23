@@ -18,8 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify `error.has_code` through the same built-in behavior authority. Compare the original
-stable code without copying the error, materializing text backing or returning a retained view.
+Qualify exact-data `as` construction through the ordinary value-supply boundary. Preserve
+evaluation order, existing access and retirement rules, callable identity and outcome layers.
+Continue into source-owned `coerce` selection after exact identity has ordinary source evidence.
 
 ## Remaining Contextual Representation Qualification
 
@@ -905,6 +906,9 @@ not a language restriction derived from the current realization boundary.
   examples and user/contributor documentation coherently. Prepare specification promotion by moving
   authoritative contracts at the authorized release transition, without keeping editable duplicates
   or silently replacing released behavior and qualified artifacts.
+- [x] Qualify standard `error.has_code` as a non-consuming comparison of the original code,
+  including nested context, empty text, UTF-8, and a deferred body. Preserve the same error graph
+  for propagation. Retained code/message views still require the general origin contract.
 - [ ] Implement and qualify the [optimization experiments](design/optimization.md) through ordinary
   source and executable paths. Establish correctness and generated operations before repeatable timing;
   preserve the language goals without an unsupported universal performance claim.
@@ -914,6 +918,10 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [x] Admit direct v2 Boolean equality in ARM64 instruction selection. Use the ordinary
+  comparison emission with no integer arithmetic contract. Qualify actual dynamic results
+  in the installed standard error inspection path.
 
 - [x] Write each shared native fixture launch to its own executable, including different images
   that use the same test label. Verify the nullable captured-input variants and the complete

@@ -115,6 +115,7 @@ impl PrimitiveRole {
             RuntimeAbiIdentity::Arm64DarwinV1 => match self {
                 Self::AllocationFailureError
                 | Self::StringByteAt
+                | Self::ErrorHasCode
                 | Self::ProcessArgumentCount
                 | Self::ProcessArgument
                 | Self::ProcessEnvironmentName
@@ -146,7 +147,9 @@ impl PrimitiveRole {
     )]
     const fn runtime_profile(self) -> PrimitiveRuntimeProfile {
         match self {
-            Self::NewError | Self::ErrorContext | Self::StringByteAt => PRESERVES_CALLER_STORAGE,
+            Self::NewError | Self::ErrorContext | Self::StringByteAt | Self::ErrorHasCode => {
+                PRESERVES_CALLER_STORAGE
+            }
             Self::DropValueAtPointer => ALLOCATING_TRAPPING,
             Self::StandardOutputWrite
             | Self::TimeoutWait
@@ -364,7 +367,8 @@ mod tests {
             [
                 PrimitiveRole::NewError,
                 PrimitiveRole::ErrorContext,
-                PrimitiveRole::StringByteAt
+                PrimitiveRole::StringByteAt,
+                PrimitiveRole::ErrorHasCode,
             ]
         );
     }

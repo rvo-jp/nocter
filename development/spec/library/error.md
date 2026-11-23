@@ -2,7 +2,8 @@
 
 ## Construction and Context
 
-The [standard type contract](../../stdlib/error/index.nct) provides `error.new` and `context`.
+The [standard type contract](../../stdlib/error/index.nct) defines construction, context and code
+inspection.
 Use `throw` to deliver the resulting payload as a failure.
 
 ```text
@@ -10,8 +11,8 @@ let cause = error.new("app.config.missing", "missing key")
 throw cause^.context("reading config")
 ```
 
-The context becomes the outer message on the failure graph. The original code and cause remain
-available under the error contract.
+The context becomes the outer message on the failure graph. Use `has_code` to branch on the
+original failure code while keeping the error available for propagation or further context.
 
 ## Value Access
 

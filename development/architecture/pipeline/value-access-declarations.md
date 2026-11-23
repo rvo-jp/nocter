@@ -50,6 +50,9 @@ For the built-in `error` type, the toolchain's exact type locator authorizes the
 to declare type-owned behavior. Nominal records and this built-in share lexical `Self` binding,
 contract pairing, member resolution and the ordinary call path. The
 [standard error declaration](../../stdlib/error/index.nct) supplies the wrapper bodies' contracts.
+Code inspection follows the same immutable cause chain as reporting. Its selected ARM64
+primitive receives the existing error handle and the compared text descriptor, and returns a
+Boolean without allocating, retiring the handle, or granting an escaping access.
 
 For a receiver that eliminates or recovers an outcome, the carrier's data and the field or array
 schema identify the member before materializing the projection. The selected input operation

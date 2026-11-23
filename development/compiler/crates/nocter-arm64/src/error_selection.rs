@@ -94,6 +94,11 @@ pub(crate) fn select_primitive(
             validate_result(operation, target, 2)?;
             Arm64SelectedInstruction::ReadErrorCode
         }
+        PrimitiveRole::ErrorHasCode => {
+            validate_arguments(operation, target, &[(0, 1), (1, 2)])?;
+            validate_result(operation, target, 1)?;
+            Arm64SelectedInstruction::MatchErrorCode
+        }
         PrimitiveRole::ErrorMessage => {
             validate_arguments(operation, target, &[(0, 1)])?;
             validate_result(operation, target, 2)?;

@@ -410,6 +410,7 @@ pub enum Arm64SelectedInstruction {
         buffer: crate::Arm64FrameObjectId,
     },
     ReadErrorCode,
+    MatchErrorCode,
     ReadErrorMessage,
     LoadAllocationFailureError,
     /// Borrows and reports one initialized built-in error place without allocation or a fallible
@@ -1224,14 +1225,15 @@ fn select_unary(
         });
         return Ok(());
     }
-    let (size, _) = scalar_value(scope.0, scope.1, operand)?;
+    let scalar = machine_scalar(scope.0, scope.1, operand)?;
+    let size = scalar_register_size(scalar, operand)?;
     selected.push(Arm64SelectedInstruction::Unary {
         size,
         operation: match operation {
             MachineUnaryOperation::LogicalNot => Arm64SelectedUnaryOperation::LogicalNot,
             MachineUnaryOperation::Negate => Arm64SelectedUnaryOperation::Negate,
         },
-        arithmetic: match machine_scalar(scope.0, scope.1, operand)? {
+        arithmetic: match scalar {
             MachineScalar::Integer { bits, signed } => Some(Arm64IntegerArithmetic {
                 bits,
                 signed,
@@ -1346,61 +1348,26 @@ fn select_binary(
         .value(left)
         .ok_or(Arm64SelectionError::UnknownValue(left))?;
     if matches!(left_storage, Arm64ValueStorage::Floating { .. }) {
-        let (left_register, size) = floating_value(values, left)?;
-        let (right_register, right_size) = floating_value(values, right)?;
-        if right_size != size {
-            return Err(Arm64SelectionError::UnsupportedScalar(right));
-        }
-        match operation {
-            MachineBinaryOperation::Add
-            | MachineBinaryOperation::Subtract
-            | MachineBinaryOperation::Multiply
-            | MachineBinaryOperation::Divide => {
-                let (destination, result_size) = floating_value(values, result)?;
-                if result_size != size {
-                    return Err(Arm64SelectionError::UnsupportedScalar(result));
-                }
-                let operation = match operation {
-                    MachineBinaryOperation::Add => crate::Arm64FloatBinary::Add,
-                    MachineBinaryOperation::Subtract => crate::Arm64FloatBinary::Subtract,
-                    MachineBinaryOperation::Multiply => crate::Arm64FloatBinary::Multiply,
-                    MachineBinaryOperation::Divide => crate::Arm64FloatBinary::Divide,
-                    _ => unreachable!(),
-                };
-                selected.push(Arm64SelectedInstruction::FloatBinary {
-                    size,
-                    operation,
-                    destination,
-                    left: left_register,
-                    right: right_register,
-                });
-            }
-            MachineBinaryOperation::Equal | MachineBinaryOperation::Less => {
-                selected.push(Arm64SelectedInstruction::FloatCompare {
-                    size,
-                    operation: if operation == MachineBinaryOperation::Equal {
-                        Arm64SelectedFloatComparisonOperation::Equal
-                    } else {
-                        Arm64SelectedFloatComparisonOperation::Less
-                    },
-                    destination: one_word(values, result)?,
-                    left: left_register,
-                    right: right_register,
-                });
-            }
-            MachineBinaryOperation::Remainder
-            | MachineBinaryOperation::ShiftLeft
-            | MachineBinaryOperation::ShiftRightSigned
-            | MachineBinaryOperation::ShiftRightUnsigned => {
-                return Err(Arm64SelectionError::UnsupportedScalar(left));
-            }
-        }
+        selected.push(select_float_binary(operation, operands, result, values)?);
         return Ok(());
     }
-    let (size, signed) = scalar_value(scope.0, scope.1, left)?;
-    let MachineScalar::Integer { bits, .. } = machine_scalar(scope.0, scope.1, left)? else {
-        return Err(Arm64SelectionError::UnsupportedScalar(left));
+    let scalar = machine_scalar(scope.0, scope.1, left)?;
+    let size = scalar_register_size(scalar, left)?;
+    let arithmetic = match scalar {
+        MachineScalar::Integer { bits, signed } => Some(Arm64IntegerArithmetic {
+            bits,
+            signed,
+            check,
+        }),
+        MachineScalar::Bool
+            if operation == MachineBinaryOperation::Equal
+                && check == nocter_machine::MachineArithmeticCheck::NotRequired =>
+        {
+            None
+        }
+        _ => return Err(Arm64SelectionError::UnsupportedScalar(left)),
     };
+    let signed = arithmetic.is_some_and(|arithmetic| arithmetic.signed);
     let selected_operation = match operation {
         MachineBinaryOperation::Add => Arm64SelectedBinaryOperation::Add,
         MachineBinaryOperation::Subtract => Arm64SelectedBinaryOperation::Subtract,
@@ -1420,16 +1387,56 @@ fn select_binary(
     selected.push(Arm64SelectedInstruction::Binary {
         size,
         operation: selected_operation,
-        arithmetic: Some(Arm64IntegerArithmetic {
-            bits,
-            signed,
-            check,
-        }),
+        arithmetic,
         destination: one_word(values, result)?,
         left: one_word(values, left)?,
         right: one_word(values, right)?,
     });
     Ok(())
+}
+
+fn select_float_binary(
+    operation: MachineBinaryOperation,
+    (left, right): (MachineValueId, MachineValueId),
+    result: MachineValueId,
+    values: &Arm64ValuePlan,
+) -> Result<Arm64SelectedInstruction, Arm64SelectionError> {
+    let (left_register, size) = floating_value(values, left)?;
+    let (right_register, right_size) = floating_value(values, right)?;
+    if right_size != size {
+        return Err(Arm64SelectionError::UnsupportedScalar(right));
+    }
+    let operation = match operation {
+        MachineBinaryOperation::Add => crate::Arm64FloatBinary::Add,
+        MachineBinaryOperation::Subtract => crate::Arm64FloatBinary::Subtract,
+        MachineBinaryOperation::Multiply => crate::Arm64FloatBinary::Multiply,
+        MachineBinaryOperation::Divide => crate::Arm64FloatBinary::Divide,
+        MachineBinaryOperation::Equal | MachineBinaryOperation::Less => {
+            return Ok(Arm64SelectedInstruction::FloatCompare {
+                size,
+                operation: if operation == MachineBinaryOperation::Equal {
+                    Arm64SelectedFloatComparisonOperation::Equal
+                } else {
+                    Arm64SelectedFloatComparisonOperation::Less
+                },
+                destination: one_word(values, result)?,
+                left: left_register,
+                right: right_register,
+            });
+        }
+        _ => return Err(Arm64SelectionError::UnsupportedScalar(left)),
+    };
+    let (destination, result_size) = floating_value(values, result)?;
+    if result_size != size {
+        return Err(Arm64SelectionError::UnsupportedScalar(result));
+    }
+    Ok(Arm64SelectedInstruction::FloatBinary {
+        size,
+        operation,
+        destination,
+        left: left_register,
+        right: right_register,
+    })
 }
 
 fn select_comparison(
@@ -1723,30 +1730,15 @@ pub(crate) fn floating_value(
     }
 }
 
-fn scalar_value(
-    program: &nocter_machine::MachineProgram,
-    owner: MachineFunctionId,
+fn scalar_register_size(
+    scalar: MachineScalar,
     value: MachineValueId,
-) -> Result<(Arm64DataSize, bool), Arm64SelectionError> {
-    let ty = program
-        .function(owner)
-        .and_then(|function| function.body().value(value))
-        .map(nocter_machine::MachineValue::ty)
-        .ok_or(Arm64SelectionError::UnknownValue(value))?;
-    match program
-        .layouts()
-        .get(ty)
-        .map(nocter_machine::MachineLayout::kind)
-    {
-        Some(MachineLayoutKind::Scalar(MachineScalar::Bool)) => Ok((Arm64DataSize::Bits32, false)),
-        Some(MachineLayoutKind::Scalar(MachineScalar::Integer { bits, signed })) => {
-            let size = match bits {
-                1..=32 => Arm64DataSize::Bits32,
-                33..=64 => Arm64DataSize::Bits64,
-                _ => return Err(Arm64SelectionError::UnsupportedScalar(value)),
-            };
-            Ok((size, *signed))
+) -> Result<Arm64DataSize, Arm64SelectionError> {
+    match scalar {
+        MachineScalar::Bool | MachineScalar::Integer { bits: 1..=32, .. } => {
+            Ok(Arm64DataSize::Bits32)
         }
+        MachineScalar::Integer { bits: 33..=64, .. } => Ok(Arm64DataSize::Bits64),
         _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
     }
 }

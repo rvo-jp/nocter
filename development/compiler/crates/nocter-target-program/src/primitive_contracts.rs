@@ -1398,7 +1398,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::ProcessAbort | PrimitiveRole::Unreachable => {
             make(0, vec![], never(), private, arm64_darwin, vec![])
         }
-        PrimitiveRole::StringByteAt | PrimitiveRole::StandardOutputWrite => {
+        PrimitiveRole::StringByteAt
+        | PrimitiveRole::StandardOutputWrite
+        | PrimitiveRole::ErrorHasCode => {
             unreachable!("unpublished primitive has no released contract")
         }
     }

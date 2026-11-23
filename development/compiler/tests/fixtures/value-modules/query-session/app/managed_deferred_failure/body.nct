@@ -8,7 +8,9 @@ async func discard_later(): i32! {
 async func fail_later(): error {
     let unused = error.new("discarded", "discarded leaf")
     drop unused
-    error.new("managed", "leaf").context("after await")
+    let result = error.new("managed", "leaf").context("after await")
+    if result.has_code("managed") == false { return error.new("wrong-code", "before receipt") }
+    result^
 }
 
 async func stop_with_errors(take first: error, take divisor: i32, take last: error): i32 {

@@ -404,6 +404,8 @@ closed_role_enum! {
         StringByteAt,
         /// Delivers a v2 text value to standard output and reports complete delivery.
         StandardOutputWrite,
+        /// Compares a v2 failure's original code with a text value.
+        ErrorHasCode,
     }
 }
 
@@ -622,6 +624,7 @@ impl PrimitiveRole {
             Self::Unreachable => "unreachable",
             Self::StringByteAt => "string_byte_at",
             Self::StandardOutputWrite => "standard_output_write",
+            Self::ErrorHasCode => "error_has_code",
         }
     }
 
@@ -676,7 +679,10 @@ impl PrimitiveRole {
 
     #[must_use]
     pub const fn in_published_profile(self) -> bool {
-        !matches!(self, Self::StringByteAt | Self::StandardOutputWrite)
+        !matches!(
+            self,
+            Self::StringByteAt | Self::StandardOutputWrite | Self::ErrorHasCode
+        )
     }
 }
 

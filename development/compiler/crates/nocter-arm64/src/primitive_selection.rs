@@ -60,6 +60,7 @@ pub(crate) fn select(
         PrimitiveRole::NewError
         | PrimitiveRole::ErrorContext
         | PrimitiveRole::ErrorCode
+        | PrimitiveRole::ErrorHasCode
         | PrimitiveRole::ErrorMessage
         | PrimitiveRole::AllocationFailureError => {
             crate::error_selection::select_primitive(operation, target, frame, selected)

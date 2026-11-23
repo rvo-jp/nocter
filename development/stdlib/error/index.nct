@@ -1,4 +1,5 @@
 see ./construction.nct
+see ./inspection.nct
 
 /// The uniform recoverable failure payload carried by `T!`.
 primitive type error
@@ -9,4 +10,7 @@ impl error {
 
     /// Retains the failure and code and adds a new outer message.
     method take self.context(message: str): Self
+
+    /// Compares the original failure code byte for byte, including after adding context.
+    method self.has_code(code: str): bool
 }
