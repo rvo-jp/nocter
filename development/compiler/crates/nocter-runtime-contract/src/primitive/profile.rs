@@ -116,6 +116,8 @@ impl PrimitiveRole {
                 Self::AllocationFailureError
                 | Self::ProcessArgumentCount
                 | Self::ProcessArgument
+                | Self::ProcessEnvironmentName
+                | Self::ProcessEnvironmentValue
                 | Self::ProcessEnvironmentCount => Some(ValueDriveBacking::Existing),
                 Self::NewError | Self::ErrorContext => {
                     Some(ValueDriveBacking::PrivateAnonymousMapping)

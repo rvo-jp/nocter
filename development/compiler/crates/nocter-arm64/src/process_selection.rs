@@ -6,9 +6,10 @@ use nocter_machine::{
 use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{
-    Arm64FunctionFrame, Arm64NocterAbi, Arm64ProcessContextFrame, Arm64SelectedInstruction,
-    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
-    Arm64SelectedStackAddress, Arm64SelectionError,
+    Arm64FunctionFrame, Arm64NocterAbi, Arm64ProcessContextFrame, Arm64ProcessTextResult,
+    Arm64ProcessTextSource, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
+    Arm64SelectedMemoryAddress, Arm64SelectedRegister, Arm64SelectedStackAddress,
+    Arm64SelectionError,
 };
 
 pub(crate) fn select_entry(
@@ -128,28 +129,26 @@ pub(crate) fn select_primitive(
             validate_abi(operation, target, false, 1)?;
             selected.push(Arm64SelectedInstruction::ReadProcessArgumentCount);
         }
-        PrimitiveRole::ProcessArgument => {
-            validate_arguments(operation, target, true)?;
-            if let Some(instruction) = checked_argument_result(program, target) {
-                selected.push(instruction);
-            } else {
-                validate_direct_result(operation, target, 2)?;
-                selected.push(Arm64SelectedInstruction::ReadProcessArgument);
-            }
-        }
         PrimitiveRole::ProcessEnvironmentCount => {
             validate_abi(operation, target, false, 1)?;
             selected.push(Arm64SelectedInstruction::ReadProcessEnvironmentCount);
         }
-        PrimitiveRole::ProcessEnvironmentName => {
-            validate_abi(operation, target, true, 2)?;
-            selected.push(Arm64SelectedInstruction::ReadProcessEnvironmentName);
+        role => {
+            let source = match role {
+                PrimitiveRole::ProcessArgument => Arm64ProcessTextSource::Argument,
+                PrimitiveRole::ProcessEnvironmentName => Arm64ProcessTextSource::EnvironmentName,
+                PrimitiveRole::ProcessEnvironmentValue => Arm64ProcessTextSource::EnvironmentValue,
+                _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+            };
+            validate_arguments(operation, target, true)?;
+            let result = if let Some(result) = checked_text_result(program, target) {
+                result
+            } else {
+                validate_direct_result(operation, target, 2)?;
+                Arm64ProcessTextResult::RawView
+            };
+            selected.push(Arm64SelectedInstruction::ReadProcessText { source, result });
         }
-        PrimitiveRole::ProcessEnvironmentValue => {
-            validate_abi(operation, target, true, 2)?;
-            selected.push(Arm64SelectedInstruction::ReadProcessEnvironmentValue);
-        }
-        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
     Ok(())
 }
@@ -216,10 +215,10 @@ fn validate_direct_result(
     Ok(())
 }
 
-fn checked_argument_result(
+fn checked_text_result(
     program: &nocter_machine::MachineProgram,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
-) -> Option<Arm64SelectedInstruction> {
+) -> Option<Arm64ProcessTextResult> {
     let MachineResultAbi::Value(result) = target.abi().result() else {
         return None;
     };
@@ -241,7 +240,7 @@ fn checked_argument_result(
         } => Some((*tag_offset, *payload_offset, *payload)),
         _ => None,
     };
-    let (argument_tag, encoding, payload) = optional(result.ty())?;
+    let (entry_tag, encoding, payload) = optional(result.ty())?;
     let (encoding_tag, text, payload) = optional(payload)?;
     let MachineLayoutKind::View {
         pointer_offset,
@@ -251,8 +250,8 @@ fn checked_argument_result(
         return None;
     };
     let text = encoding.checked_add(text)?;
-    Some(Arm64SelectedInstruction::ReadCheckedProcessArgument {
-        argument_tag,
+    Some(Arm64ProcessTextResult::Checked {
+        entry_tag,
         encoding_tag: encoding.checked_add(encoding_tag)?,
         pointer: text.checked_add(*pointer_offset)?,
         length: text.checked_add(*length_offset)?,

@@ -679,28 +679,12 @@ pub(crate) fn emit_instruction(
             crate::process_code::emit_argument_count(code);
             Ok(())
         }
-        Arm64SelectedInstruction::ReadProcessArgument => crate::process_code::emit_argument(code),
-        Arm64SelectedInstruction::ReadCheckedProcessArgument {
-            argument_tag,
-            encoding_tag,
-            pointer,
-            length,
-        } => crate::process_code::emit_checked_argument(
-            code,
-            argument_tag,
-            encoding_tag,
-            pointer,
-            length,
-        ),
+        Arm64SelectedInstruction::ReadProcessText { source, result } => {
+            crate::process_code::emit_text(source, result, code)
+        }
         Arm64SelectedInstruction::ReadProcessEnvironmentCount => {
             crate::process_code::emit_environment_count(code);
             Ok(())
-        }
-        Arm64SelectedInstruction::ReadProcessEnvironmentName => {
-            crate::process_code::emit_environment_name(code)
-        }
-        Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
-            crate::process_code::emit_environment_value(code)
         }
     }
 }

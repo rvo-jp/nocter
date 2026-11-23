@@ -1,0 +1,29 @@
+use /error as errors
+see ./index.nct
+
+struct EnvironmentEntry {
+    name: str
+    value: str
+}
+
+func decoded(take encoding: str?): str! {
+    encoding^ otherwise {
+        throw errors.operation(
+            "std.process.invalid_encoding",
+            "process text or requested environment name is invalid",
+        )
+    }
+}
+
+func arg(index: usize): str?! {
+    let encoding = arg_checked(index) otherwise { return none }
+    decoded(encoding^)?
+}
+
+func environment(index: usize): EnvironmentEntry?! {
+    let name_encoding = env_name_checked(index) otherwise { return none }
+    let name = decoded(name_encoding^)?
+    let value_encoding = env_value_checked(index) otherwise { return none }
+    let value = decoded(value_encoding^)?
+    EnvironmentEntry { name: name^, value: value^ }
+}

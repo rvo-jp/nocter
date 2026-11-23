@@ -116,12 +116,12 @@ const PROCESS_COUNT: PrimitiveValueSignature = PrimitiveValueSignature {
     inputs: &[],
     result: PrimitiveValueResult::Builtin(BuiltinType::Usize),
 };
-const PROCESS_ARGUMENT: PrimitiveValueSignature = PrimitiveValueSignature {
+const PROCESS_TEXT: PrimitiveValueSignature = PrimitiveValueSignature {
     inputs: &[PrimitiveValueInput::new(
         BuiltinType::Usize,
         ValueInputOperation::Read,
     )],
-    // Outer absence means no argument; inner absence means invalid encoding.
+    // Outer absence means no indexed entry; inner absence means invalid encoding.
     result: PrimitiveValueResult::Optional(&PrimitiveValueResult::Optional(
         &PrimitiveValueResult::Builtin(BuiltinType::Str),
     )),
@@ -136,7 +136,9 @@ impl PrimitiveRole {
             Self::ErrorContext => Some(&ERROR_CONTEXT),
             Self::AllocationFailureError => Some(&ALLOCATION_FAILURE_ERROR),
             Self::ProcessArgumentCount | Self::ProcessEnvironmentCount => Some(&PROCESS_COUNT),
-            Self::ProcessArgument => Some(&PROCESS_ARGUMENT),
+            Self::ProcessArgument
+            | Self::ProcessEnvironmentName
+            | Self::ProcessEnvironmentValue => Some(&PROCESS_TEXT),
             _ => None,
         }
     }

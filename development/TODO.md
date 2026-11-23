@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify indexed v2 environment entries through the same checked process text boundary.
-Separate each entry at its first equals sign, retain an empty value, and validate both name
-and value before constructing the entry. Verify absence and invalid UTF-8 under independent
-native process environments. Keep name-based lookup separate until its source comparison
-and name validation are qualified.
+Qualify read-only checked text byte access for name-based v2 environment lookup. Keep the
+trusted operation separate from the released primitive profile and leave text operator semantics
+to their own specification. Use the checked bytes to validate a requested name and compare it
+against indexed entries in source order. Verify absence, empty values and error propagation
+through the selected process profile.
 
 ## Remaining Contextual Representation Qualification
 
@@ -736,9 +736,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify indexed arguments under the selected v2 process profile. Check the exact nested
   optional trusted result through source, target and ABI. Verify absence, empty and adjacent
   arguments, valid multibyte scalars and invalid encoding through native launches.
-- [ ] Qualify indexed environment entries and name-based environment lookup under the selected
-  v2 standard profile. Preserve absent and empty values, native entry boundaries, and validate
-  encoding before raw OS bytes become user text.
+- [x] Qualify indexed environment entries under the selected v2 process profile. Reuse the
+  argument lookup's bounds, checked layout and UTF-8 scan. Verify absent and empty values, the
+  first equals sign as the boundary, and failures in either field on native launches.
+- [ ] Qualify name-based environment lookup under the selected v2 standard profile. Verify the
+  requested name, preserve the distinction between missing and empty values, and keep the
+  original validation order across visited entries.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

@@ -1,3 +1,15 @@
+see ./text.nct
+
 primitive func arg_count(): usize
 primitive func arg_checked(index: usize): str??
 primitive func environment_count(): usize
+primitive func env_name_checked(index: usize): str??
+primitive func env_value_checked(index: usize): str??
+
+struct EnvironmentEntry {
+    name: str
+    value: str
+}
+
+func arg(index: usize): str?!
+func environment(index: usize): EnvironmentEntry?!

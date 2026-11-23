@@ -1,8 +1,11 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LabelId,
-    Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
+    Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi, Arm64ProcessTextResult,
+    Arm64ProcessTextSource, Arm64SelectedFunction,
 };
+
+const ENVIRONMENT_SEPARATOR: u8 = b'=';
 
 pub(crate) fn emit_initialize(
     function: &Arm64SelectedFunction,
@@ -80,13 +83,34 @@ pub(crate) fn emit_argument_count(code: &mut Arm64CodeBuilder) {
     );
 }
 
-pub(crate) fn emit_argument(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
-    emit_indexed_view(ProcessVector::Arguments, code)
+pub(crate) fn emit_text(
+    source: Arm64ProcessTextSource,
+    result: Arm64ProcessTextResult,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    match result {
+        Arm64ProcessTextResult::RawView => {
+            compare_index(source.vector(), code);
+            let valid = code.create_label();
+            code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
+            emit_index_trap(code);
+            code.bind(valid)?;
+            select_text_pointer(source, code)?;
+            emit_string_length(code, source.name_boundary())
+        }
+        Arm64ProcessTextResult::Checked {
+            entry_tag,
+            encoding_tag,
+            pointer,
+            length,
+        } => emit_checked_text(source, code, entry_tag, encoding_tag, pointer, length),
+    }
 }
 
-pub(crate) fn emit_checked_argument(
+fn emit_checked_text(
+    source: Arm64ProcessTextSource,
     code: &mut Arm64CodeBuilder,
-    argument_tag: u64,
+    entry_tag: u64,
     encoding_tag: u64,
     pointer: u64,
     length: u64,
@@ -94,12 +118,11 @@ pub(crate) fn emit_checked_argument(
     let missing = code.create_label();
     let invalid = code.create_label();
     let done = code.create_label();
-    let vector = ProcessVector::Arguments;
-    compare_index(vector, code);
+    compare_index(source.vector(), code);
     code.branch_conditional(missing, Arm64BranchCondition::CarrySet);
-    load_string_pointer(vector, code);
-    store_optional_tag(code, argument_tag, true)?;
-    emit_checked_string_length(code, invalid)?;
+    select_text_pointer(source, code)?;
+    store_optional_tag(code, entry_tag, true)?;
+    emit_checked_string_length(code, invalid, source.name_boundary())?;
     store_optional_tag(code, encoding_tag, true)?;
     store_result(code, Arm64LoadStoreSize::Double, argument(0), pointer)?;
     store_result(code, Arm64LoadStoreSize::Double, argument(1), length)?;
@@ -110,7 +133,7 @@ pub(crate) fn emit_checked_argument(
     code.branch(done, false);
 
     code.bind(missing)?;
-    store_optional_tag(code, argument_tag, false)?;
+    store_optional_tag(code, entry_tag, false)?;
     code.bind(done)?;
     Ok(())
 }
@@ -199,24 +222,27 @@ impl ProcessVector {
     }
 }
 
-fn emit_indexed_view(
-    vector: ProcessVector,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    load_indexed_string(vector, code)?;
-    emit_string_length(code)
+impl Arm64ProcessTextSource {
+    const fn vector(self) -> ProcessVector {
+        match self {
+            Self::Argument => ProcessVector::Arguments,
+            Self::EnvironmentName | Self::EnvironmentValue => ProcessVector::Environment,
+        }
+    }
+
+    const fn name_boundary(self) -> bool {
+        matches!(self, Self::EnvironmentName)
+    }
 }
 
-fn load_indexed_string(
-    vector: ProcessVector,
+fn select_text_pointer(
+    source: Arm64ProcessTextSource,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    compare_index(vector, code);
-    let valid = code.create_label();
-    code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
-    emit_index_trap(code);
-    code.bind(valid)?;
-    load_string_pointer(vector, code);
+    load_string_pointer(source.vector(), code);
+    if source == Arm64ProcessTextSource::EnvironmentValue {
+        skip_environment_name(code)?;
+    }
     Ok(())
 }
 
@@ -241,62 +267,36 @@ fn load_string_pointer(vector: ProcessVector, code: &mut Arm64CodeBuilder) {
     load_word(argument(0), address, 0, code);
 }
 
-pub(crate) fn emit_environment_name(
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    load_indexed_string(ProcessVector::Environment, code)?;
-    let result = argument(0);
-    let length = argument(1);
-    let cursor = scratch(0);
-    let byte = scratch(1);
-    let loop_ = code.create_label();
-    let complete = code.create_label();
-    move_register(result, cursor, code);
-    load_immediate(length, 0, code);
-    code.bind(loop_)?;
-    load_byte(byte, cursor, code);
-    compare_immediate(byte, u64::from(b'='), Arm64DataSize::Bits32, code);
-    code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    compare_immediate(byte, 0, Arm64DataSize::Bits32, code);
-    code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    add_immediate(cursor, cursor, 1, code);
-    add_immediate(length, length, 1, code);
-    code.branch(loop_, false);
-    code.bind(complete)?;
-    Ok(())
-}
-
-pub(crate) fn emit_environment_value(
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), Arm64MaterializationError> {
-    load_indexed_string(ProcessVector::Environment, code)?;
-    let result = argument(0);
-    let cursor = scratch(0);
+fn skip_environment_name(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+    let cursor = argument(0);
     let byte = scratch(1);
     let loop_ = code.create_label();
     let found = code.create_label();
-    let missing = code.create_label();
-    let measure = code.create_label();
-    move_register(result, cursor, code);
+    let complete = code.create_label();
     code.bind(loop_)?;
     load_byte(byte, cursor, code);
-    compare_immediate(byte, u64::from(b'='), Arm64DataSize::Bits32, code);
+    compare_immediate(
+        byte,
+        u64::from(ENVIRONMENT_SEPARATOR),
+        Arm64DataSize::Bits32,
+        code,
+    );
     code.branch_conditional(found, Arm64BranchCondition::Equal);
     compare_immediate(byte, 0, Arm64DataSize::Bits32, code);
-    code.branch_conditional(missing, Arm64BranchCondition::Equal);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
     add_immediate(cursor, cursor, 1, code);
     code.branch(loop_, false);
 
     code.bind(found)?;
-    add_immediate(result, cursor, 1, code);
-    code.branch(measure, false);
-    code.bind(missing)?;
-    move_register(cursor, result, code);
-    code.bind(measure)?;
-    emit_string_length(code)
+    add_immediate(cursor, cursor, 1, code);
+    code.bind(complete)?;
+    Ok(())
 }
 
-fn emit_string_length(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
+fn emit_string_length(
+    code: &mut Arm64CodeBuilder,
+    name_boundary: bool,
+) -> Result<(), Arm64MaterializationError> {
     let result = argument(0);
     let length = argument(1);
     let cursor = scratch(0);
@@ -309,6 +309,15 @@ fn emit_string_length(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializ
     load_byte(byte, cursor, code);
     compare_immediate(byte, 0, Arm64DataSize::Bits32, code);
     code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    if name_boundary {
+        compare_immediate(
+            byte,
+            u64::from(ENVIRONMENT_SEPARATOR),
+            Arm64DataSize::Bits32,
+            code,
+        );
+        code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    }
     add_immediate(cursor, cursor, 1, code);
     add_immediate(length, length, 1, code);
     code.branch(loop_, false);
@@ -319,6 +328,7 @@ fn emit_string_length(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializ
 fn emit_checked_string_length(
     code: &mut Arm64CodeBuilder,
     invalid: Arm64LabelId,
+    name_boundary: bool,
 ) -> Result<(), Arm64MaterializationError> {
     use Arm64BranchCondition::{CarryClear, CarrySet, Equal, UnsignedHigher};
     let cursor = scratch(0);
@@ -345,6 +355,9 @@ fn emit_checked_string_length(
     code.bind(head)?;
     load_byte(byte, cursor, code);
     compare(code, 0, complete, Equal);
+    if name_boundary {
+        compare(code, u64::from(ENVIRONMENT_SEPARATOR), complete, Equal);
+    }
     add_immediate(cursor, cursor, 1, code);
     compare(code, 0x80, head, CarryClear);
     compare(code, 0xC2, invalid, CarryClear);

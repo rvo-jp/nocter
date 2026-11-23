@@ -89,6 +89,25 @@ pub enum Arm64SelectedMemoryAddress {
     },
 }
 
+/// One process-entry text view selected at an indexed primitive call.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64ProcessTextSource {
+    Argument,
+    EnvironmentName,
+    EnvironmentValue,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64ProcessTextResult {
+    RawView,
+    Checked {
+        entry_tag: u64,
+        encoding_tag: u64,
+        pointer: u64,
+        length: u64,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedInstruction {
     LoadImmediate {
@@ -404,16 +423,11 @@ pub enum Arm64SelectedInstruction {
         context: crate::Arm64FrameObjectId,
     },
     ReadProcessArgumentCount,
-    ReadProcessArgument,
-    ReadCheckedProcessArgument {
-        argument_tag: u64,
-        encoding_tag: u64,
-        pointer: u64,
-        length: u64,
+    ReadProcessText {
+        source: Arm64ProcessTextSource,
+        result: Arm64ProcessTextResult,
     },
     ReadProcessEnvironmentCount,
-    ReadProcessEnvironmentName,
-    ReadProcessEnvironmentValue,
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

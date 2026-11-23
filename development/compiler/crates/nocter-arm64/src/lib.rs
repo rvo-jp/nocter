@@ -288,13 +288,13 @@ pub use register_allocation::{
 pub use selected_code::Arm64MaterializationError;
 pub(crate) use selection::Arm64SelectionContext;
 pub use selection::{
-    Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
-    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFloatComparisonOperation,
-    Arm64SelectedFloatCopy, Arm64SelectedFloatRegister, Arm64SelectedFunction,
-    Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
-    Arm64SelectedMemoryAddress, Arm64SelectedMemoryCopy, Arm64SelectedRegister,
-    Arm64SelectedStackAddress, Arm64SelectedSwitchCase, Arm64SelectedTerminator,
-    Arm64SelectedUnaryOperation,
+    Arm64ProcessTextResult, Arm64ProcessTextSource, Arm64SelectedBinaryOperation,
+    Arm64SelectedBlock, Arm64SelectedComparisonOperation, Arm64SelectedCopy, Arm64SelectedEdge,
+    Arm64SelectedFloatComparisonOperation, Arm64SelectedFloatCopy, Arm64SelectedFloatRegister,
+    Arm64SelectedFunction, Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction,
+    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedMemoryCopy,
+    Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedSwitchCase,
+    Arm64SelectedTerminator, Arm64SelectedUnaryOperation,
 };
 pub use selection_error::Arm64SelectionError;
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};

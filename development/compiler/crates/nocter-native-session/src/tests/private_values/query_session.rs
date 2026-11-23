@@ -14,6 +14,10 @@ use nocter_session::{
 use nocter_syntax::ParseGoal;
 use std::fs;
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const INVALID_PROCESS_TEXT: &[u8] =
+    b"std.process.invalid_encoding: process text or requested environment name is invalid\n";
+
 fn copy_fixture(directory: &TempPackage) {
     let fixture = nocter_test_support::repository_root()
         .join("development/compiler/tests/fixtures/value-modules/query-session");
@@ -77,8 +81,18 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         ),
         PrimitiveRoleLocator::new(
             PrimitiveRole::ProcessEnvironmentCount,
-            ModuleIdentity::new(std, ["process"]),
+            ModuleIdentity::new(std.clone(), ["process"]),
             "environment_count",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessEnvironmentName,
+            ModuleIdentity::new(std.clone(), ["process"]),
+            "env_name_checked",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessEnvironmentValue,
+            ModuleIdentity::new(std, ["process"]),
+            "env_value_checked",
         ),
     ])
 }
@@ -277,8 +291,55 @@ fn v2_argument_text_preserves_boundaries_and_rejects_invalid_utf8() {
     ] {
         assert_eq!(
             launch("invalid-utf8", Some(bytes)),
-            b"std.process.invalid_encoding: process text or requested environment name is invalid\n",
+            INVALID_PROCESS_TEXT,
             "{bytes:?}"
+        );
+    }
+}
+
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn v2_environment_text_keeps_the_first_separator_and_checks_each_part() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
+    let (session, _) = analyze_package(&directory, CompilationTarget::Arm64Darwin);
+    assert!(
+        session.diagnostics().is_empty(),
+        "{:#?}",
+        session.diagnostics()
+    );
+    let image =
+        crate::compile_value_access_image(&session, &ExecutableSelector::named("environment"))
+            .unwrap();
+    let launch = |name: &str, binding: Option<(&[u8], &[u8])>| {
+        let mut command = super::super::native_command(image.image(), &directory.0, name);
+        command.env_clear();
+        if let Some((key, value)) = binding {
+            command.env(OsStr::from_bytes(key), OsStr::from_bytes(value));
+        }
+        let output = command.output().unwrap();
+        assert_eq!(output.status.code(), Some(1), "{name}");
+        assert!(output.stdout.is_empty());
+        output.stderr
+    };
+    assert_eq!(launch("no-entry", None), b"env: absent\n");
+    for (key, value) in [("NOCTER", ""), ("NOCTER", "prefix=value"), ("Å", "✓🦉")] {
+        assert_eq!(
+            launch("valid-entry", Some((key.as_bytes(), value.as_bytes()))),
+            format!("{key}: {value}\n").as_bytes(),
+        );
+    }
+    for (key, value) in [
+        (&b"\xff"[..], &b"valid"[..]),
+        (&b"prefix\xe2\x82"[..], &b"valid"[..]),
+        (&b"NOCTER"[..], &b"prefix\xed\xa0\x80"[..]),
+    ] {
+        assert_eq!(
+            launch("invalid-entry", Some((key, value))),
+            INVALID_PROCESS_TEXT
         );
     }
 }
@@ -358,7 +419,12 @@ fn assert_selected_future_cleanup(
 fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence() {
     let directory = TempPackage::new();
     copy_fixture(&directory);
-    for module in ["managed_deferred_failure", "compound_deferred", "arguments"] {
+    for module in [
+        "managed_deferred_failure",
+        "compound_deferred",
+        "arguments",
+        "environment",
+    ] {
         directory.source(
             &format!("app/{module}/body.nct"),
             "see ./index.nct\nasync func main(): i32! { 0 }",

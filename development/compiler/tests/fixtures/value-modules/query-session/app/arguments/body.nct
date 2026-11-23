@@ -2,19 +2,8 @@ use std/error as errors
 use std/process
 see ./index.nct
 
-func argument(index: usize): str?! {
-    let encoded = process.arg_checked(index) otherwise { return none }
-    let text = encoded^ otherwise {
-        throw errors.operation(
-            "std.process.invalid_encoding",
-            "process text or requested environment name is invalid",
-        )
-    }
-    text^
-}
-
 async func inspect(): str?! {
-    argument(1)
+    process.arg(1)
 }
 
 async func main(): i32! {
