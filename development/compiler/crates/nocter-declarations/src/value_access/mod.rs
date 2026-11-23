@@ -441,7 +441,21 @@ impl Program {
         namespace: Namespace,
         path: &[Option<Symbol>],
     ) -> Result<DeclarationId, QualifiedNameError> {
-        self.namespace.lookup_path(scope, namespace, path)
+        self.namespace.lookup_path(scope, namespace, path, None)
+    }
+    /// Resolve the same authored path, requiring each selected binding to cover the audience.
+    /// This checks path access; canonical declarations retain their own exposure rules.
+    /// # Errors
+    /// Reports the first failed path position, including a narrower binding at any component.
+    pub fn declaration_path_for_audience(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: &[Option<Symbol>],
+        audience: &nocter_model::ModuleAudience,
+    ) -> Result<DeclarationId, QualifiedNameError> {
+        self.namespace
+            .lookup_path(scope, namespace, path, Some(audience))
     }
     /// Resolve the namespace/declaration prefix once, leaving record/tuple components to typing.
     /// An uninterned spelling is `None`; suffix spellings are never required to name declarations.

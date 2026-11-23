@@ -170,11 +170,11 @@ filename or admits the other's root. Single-source semantic preparation returns
 `ModuleSources::pair` closes source-structural contract/definition pairs through the same matcher
 as released surfaces, using the qualified grammar's root eligibility. Only direct reciprocal
 `see` edges supply candidates; missing, duplicate and complete-header mismatches retain both real
-source locations where applicable. Bounded v2 root structs require a complete representation,
-including when selected fields are visible; visible fields match their types and relative order
-and share their source representative with the corresponding definition field. Hidden fields
-remain independent occurrences in representation order. No structural grant is admitted by this
-bounded grammar.
+source locations where applicable. Visible fields in an incomplete root struct match their types
+and relative order and share their source representative with the corresponding definition field.
+Hidden fields remain independent occurrences in representation order. The
+[structural literal handoff](../../../architecture/pipeline/value-access-declarations.md#structural-record-literals)
+describes when a root owns the complete representation.
 `PairedModuleSources` still proves neither resolved header equality nor normalized representation/
 Copy validity. `PairedModuleSources::reserve_names` allocates one semantic identity for each
 canonical declaration through the value-access reservation owner. One shared immutable spelling
@@ -182,8 +182,8 @@ prefix feeds all source scopes, including exact active body-import spellings fro
 resolution; executable local names stay outside that prefix. The lexical name domain is part of
 this current module authority; the guarded reuse product below validates it across revisions. The compiler does not
 clone a symbol domain per file. Current and directly seen authored names bind those same identities, with set semantics for repeated edges
-and contract/definition occurrences. Top-level selected record-type imports bind those same
-nominal identities into their exact source scope. Root imports also re-export their selected
+and contract/definition occurrences. Top-level selected type imports bind existing
+declaration identities into their exact source scope. Root imports also re-export their selected
 names, including aliases, in the topology owner's dependency order. Missing/private selections,
 non-type selections, reserved/duplicate local names and widening re-exports diagnose at the import
 with related authored origins where applicable. Ordinary imports do not propagate through `see`.
@@ -220,12 +220,15 @@ retain the same audience objects for signature and visible-field checks,
 and supply their original logical caller module at scope construction. A scoped lookup grants no
 header readiness. Qualified header data paths normalize in their own physical scopes through
 that same namespace authority before repeated contracts are compared. Equal path spelling cannot
-merge distinct targets; inaccessible/unknown type paths reject before publication.
+merge distinct targets; inaccessible/unknown type paths reject before publication. Signature
+validation traverses that same selected path and checks each binding against the signature's
+full audience, including lexical root imports and intermediate namespace re-exports. The resolved
+data and canonical type declarations still receive their own exposure checks.
 `Context::complete_record_visible` and `record_field_visible` use the same physical source binding:
 only an own/directly seen complete definition grants the representation view. Otherwise a field
 needs an audience-qualified root field contract. Record/field identities, data schemas and field
 slots still come from the semantic program; compiler knowledge of a hidden payload grants no
-source permission. These queries do not add structural grants to the bounded grammar.
+source permission.
 Raw header projection reads the immutable declaration program with an explicit physical syntax
 and lookup scope. The same projection serves single-source definition loading and every physical
 occurrence of a module header. Nominal names resolve to reserved identities before payload readiness;

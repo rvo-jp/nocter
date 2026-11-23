@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry exported signature audiences through every selected type-path binding. Qualify a
-restricted selected name, a restricted namespace alias and a restriction reached through an
-intermediate re-export using the ordinary namespace authority.
+Bind nominal equality and strict comparison as fixed type-owned entries. Qualify direct
+`==`, `!=` and `<` through the ordered read-input lifecycle, required evaluation and ordinary
+native execution. Reversed and inclusive comparisons also need the original prepared pair
+to survive reordering and the conditional second invocation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -928,9 +929,9 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Qualify the audience of each authored type-path binding in an exported signature. A
-  narrowed `use` or namespace qualifier can select public data while its own name has a
-  narrower audience. Check the elected path in the same namespace authority as ordinary lookup.
+- [x] Qualify each authored type-path binding in an exported signature through ordinary lookup.
+  Verify selected names, namespace aliases and intermediate re-exports against the signature's
+  full audience, including an admissible narrower signature and public native use.
 
 - [x] Resolve same-shape conversion-header dependencies through the current required-value query.
   A length computation can depend on a different fixed-array conversion of the same owner.

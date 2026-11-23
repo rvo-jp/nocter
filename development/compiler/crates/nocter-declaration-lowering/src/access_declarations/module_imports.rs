@@ -195,6 +195,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
             );
         }
         let selected_names = authored.selected.ok_or_else(integrity)?;
+        let reexport_audience = inventory.audiences.import_handle(import.node);
         for selected in selected_names {
             let exported = symbol(paired, import.source, selected.exported)?;
             let local = symbol(paired, import.source, selected.local)?;
@@ -222,7 +223,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                     ImportViolation::inaccessible_imported_name(exported_origin, target_origin),
                 ));
             }
-            if let Some(audience) = inventory.import_audience(import.node)
+            if let Some(audience) = reexport_audience.as_deref()
                 && !audience.is_within(target_audience)
             {
                 return Err(import_failure(
@@ -243,10 +244,10 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
             let ExportTarget::Declaration(declaration) = target else {
                 return Err(integrity());
             };
-            reservations
-                .bind(import.scope, local, declaration)
-                .map_err(|_| integrity())?;
-            if inventory.import_audience(import.node).is_some() {
+            if let Some(audience) = &reexport_audience {
+                reservations
+                    .bind_export(import.scope, local, declaration, Arc::clone(audience))
+                    .map_err(|_| integrity())?;
                 insert_export(
                     paired,
                     &mut self.exports[module_index],
@@ -257,6 +258,10 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                         name: selected.local,
                     },
                 )?;
+            } else {
+                reservations
+                    .bind(import.scope, local, declaration)
+                    .map_err(|_| integrity())?;
             }
         }
         Ok(())
@@ -288,10 +293,16 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
             name,
             ExportNamespace::Qualifier,
         )?;
+        let reexport_audience = inventory.audiences.import_handle(import.node);
         reservations
-            .bind_namespace(import.scope, local, self.module_scopes[target_module], None)
+            .bind_namespace(
+                import.scope,
+                local,
+                self.module_scopes[target_module],
+                reexport_audience.clone(),
+            )
             .map_err(|_| integrity())?;
-        if inventory.import_audience(import.node).is_some() {
+        if reexport_audience.is_some() {
             insert_export(
                 paired,
                 &mut self.exports[module_index],

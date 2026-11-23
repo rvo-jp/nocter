@@ -509,6 +509,101 @@ fn installed_v2_aliases_preserve_identity_visibility_and_required_data() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_exported_type_paths_require_the_signature_audience_at_each_binding() {
+    let tree = TempTree::new("signature-audience");
+    let home = tree.value_access_installation();
+    let index = tree.0.join("index.nct");
+    fs::write(
+        &index,
+        "#package: { name: \"audiences\", version: \"2.0.0\" }\n\
+         #executable: { name: \"audiences\" }\n\
+         see ./main.nct\nfunc main(): i32\n",
+    )
+    .unwrap();
+    fs::write(
+        tree.0.join("main.nct"),
+        "see ./index.nct\nuse ./facade\nfunc main(): i32 { 42 }\n",
+    )
+    .unwrap();
+    for module in ["catalog", "bridge", "facade"] {
+        fs::create_dir(tree.0.join(module)).unwrap();
+    }
+    fs::write(tree.0.join("catalog/index.nct"), "type Number = i32\n").unwrap();
+    fs::write(
+        tree.0.join("bridge/index.nct"),
+        "#visibility: \"/\"\nuse ../catalog as part\n",
+    )
+    .unwrap();
+    let facade = tree.0.join("facade/index.nct");
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    for (imports, name, first_restricted_component) in [
+        (
+            "#visibility: \"./\"\nuse ../catalog.Number as LocalNumber\n",
+            "LocalNumber",
+            "LocalNumber",
+        ),
+        (
+            "#visibility: \"./\"\nuse ../catalog as local_catalog\n",
+            "local_catalog.Number",
+            "local_catalog",
+        ),
+        ("use ../bridge\n", "bridge.part.Number", "part"),
+    ] {
+        // Test a nested type path in the alias, not the canonical public i32 identity.
+        let signature = format!("type PublicNumber = ({name}?, i32)\n");
+        fs::write(&facade, format!("{imports}{signature}")).unwrap();
+        let failure = execute("check").unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        let line = imports.lines().count() + 1;
+        let column = signature.find(first_restricted_component).unwrap() + 1;
+        assert!(
+            diagnostic.starts_with("error[E0244]: this type path component")
+                && diagnostic.contains(&format!("facade/index.nct:{line}:{column}\n")),
+            "{diagnostic}"
+        );
+
+        // The same path is usable over an audience contained in every step's boundary.
+        fs::write(
+            &facade,
+            format!("{imports}#visibility: \"./\"\n{signature}"),
+        )
+        .unwrap();
+        execute("check").unwrap_or_else(|error| {
+            panic!(
+                "{}",
+                error
+                    .render_source_diagnostics()
+                    .unwrap()
+                    .unwrap_or_else(|| error.to_string())
+            )
+        });
+    }
+    fs::write(
+        &facade,
+        "use ../catalog as source\ntype PublicNumber = source.Number\n",
+    )
+    .unwrap();
+    fs::write(
+        tree.0.join("main.nct"),
+        "see ./index.nct\nuse ./facade\nfunc main(): i32 {\n\
+             let number: facade.PublicNumber = 42\n    number\n}\n",
+    )
+    .unwrap();
+    let InvocationOutcome::Run(executed) = execute("run").unwrap() else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
     let tree = TempTree::new("coercions");
     let home = tree.value_access_installation();

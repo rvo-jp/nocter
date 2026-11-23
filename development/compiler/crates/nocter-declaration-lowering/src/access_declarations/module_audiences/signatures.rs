@@ -3,10 +3,10 @@ use super::{ModuleAudience, ModuleAudiences, VisibilityDiagnostic, VisibilityRul
 use crate::access_declarations::{Failure, module_scopes::ParsedHeader};
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
 use nocter_declarations::value_access::{
-    AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, ScopeId,
+    AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, QualifiedNameError, ScopeId,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessFieldId, TypeId};
+use nocter_model::{AccessFieldId, BuiltinType, TypeId};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxOrigin, direct_node};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -137,7 +137,7 @@ impl Signatures<'_, '_> {
         primary: NodeId,
         data: TypeId,
     ) -> Result<(), Failure> {
-        self.check_alias_names(audience, syntax, scope, primary)?;
+        self.check_type_paths(audience, syntax, scope, primary)?;
         let mut seen = BTreeSet::new();
         let mut pending = vec![data];
         while let Some(data) = pending.pop() {
@@ -181,7 +181,7 @@ impl Signatures<'_, '_> {
         }
         Ok(())
     }
-    fn check_alias_names(
+    fn check_type_paths(
         &self,
         audience: &ModuleAudience,
         syntax: BoundSyntax<'_>,
@@ -198,7 +198,9 @@ impl Signatures<'_, '_> {
         let source = crate::access_declarations::project_type_syntax(syntax, root)?;
         for path in source.named_paths() {
             if let [token] = path
-                && syntax.text_at(token.range()) == Some("Self")
+                && syntax.text_at(token.range()).is_some_and(|name| {
+                    name == "Self" || BuiltinType::from_spelling(name).is_some()
+                })
             {
                 continue;
             }
@@ -210,13 +212,33 @@ impl Signatures<'_, '_> {
                         .and_then(|name| self.program.symbols().get(name))
                 })
                 .collect::<Vec<_>>();
-            if let Ok(alias @ DeclarationId::Alias(_)) =
-                self.program
-                    .declaration_path_in(scope, Namespace::Type, &names)
-                && !self.visible_to(audience, alias)
-            {
-                let name = *path.last().ok_or(Failure::InconsistentSyntax)?;
-                return self.reject(syntax, SyntaxOrigin::Token(name), alias);
+            match self.program.declaration_path_for_audience(
+                scope,
+                Namespace::Type,
+                &names,
+                audience,
+            ) {
+                Ok(alias @ DeclarationId::Alias(_)) if !self.visible_to(audience, alias) => {
+                    let name = *path.last().ok_or(Failure::InconsistentSyntax)?;
+                    return self.reject(syntax, SyntaxOrigin::Token(name), alias);
+                }
+                Ok(_) => {}
+                Err(QualifiedNameError::Inaccessible { position }) => {
+                    let name = *path.get(position).ok_or(Failure::InconsistentSyntax)?;
+                    let primary = SourceOrigin::from_token(syntax.tree(), name)
+                        .map_err(|_| Failure::InconsistentSyntax)?;
+                    return Err(Failure::Visibility(Box::new(VisibilityDiagnostic {
+                        rule: VisibilityRule::SignatureExposure,
+                        source: SourceDiagnostic::new(
+                            DiagnosticCode::E0244,
+                            "this type path component has a narrower audience than its exported signature",
+                            primary,
+                            [],
+                            None::<&str>,
+                        ),
+                    })));
+                }
+                Err(_) => return Err(Failure::InconsistentSyntax),
             }
         }
         Ok(())

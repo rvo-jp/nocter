@@ -121,8 +121,9 @@ impl Names {
         scope: ScopeId,
         namespace: Namespace,
         path: &[Option<Symbol>],
+        exposure: Option<&ModuleAudience>,
     ) -> Result<DeclarationId, QualifiedNameError> {
-        self.walk_path(scope, namespace, path.iter().copied(), false)
+        self.walk_path(scope, namespace, path.iter().copied(), false, exposure)
             .map(|(declaration, _)| declaration)
     }
     pub fn lookup_prefix(
@@ -131,7 +132,7 @@ impl Names {
         namespace: Namespace,
         path: &[Option<Symbol>],
     ) -> Result<(DeclarationId, usize), QualifiedNameError> {
-        self.walk_path(scope, namespace, path.iter().copied(), true)
+        self.walk_path(scope, namespace, path.iter().copied(), true, None)
     }
     fn walk_path(
         &self,
@@ -139,6 +140,7 @@ impl Names {
         namespace: Namespace,
         path: impl ExactSizeIterator<Item = Option<Symbol>>,
         permit_components: bool,
+        exposure: Option<&ModuleAudience>,
     ) -> Result<(DeclarationId, usize), QualifiedNameError> {
         if !self.contains_scope(scope) {
             return Err(QualifiedNameError::UnknownScope);
@@ -150,6 +152,12 @@ impl Names {
         let caller = self
             .lineage(scope)
             .find_map(|scope| self.modules.get(&scope));
+        let accessible = |boundary: Option<&ModuleAudience>| {
+            visible(boundary, caller)
+                && boundary.is_none_or(|boundary| {
+                    exposure.is_none_or(|required| required.is_within(boundary))
+                })
+        };
         let mut current = scope;
         for (position, name) in path.enumerate() {
             let last = position + 1 == length;
@@ -166,7 +174,7 @@ impl Names {
                 .ok_or_else(unknown)?
             {
                 Entry::Qualifier(qualifier) => {
-                    if !visible(qualifier.audience.as_deref(), caller) {
+                    if !accessible(qualifier.audience.as_deref()) {
                         return Err(QualifiedNameError::Inaccessible { position });
                     }
                     if last {
@@ -178,7 +186,7 @@ impl Names {
                     if !last && !permit_components {
                         return Err(QualifiedNameError::UnknownNamespace { position });
                     }
-                    if !visible(binding.audience.as_deref(), caller) {
+                    if !accessible(binding.audience.as_deref()) {
                         return Err(QualifiedNameError::Inaccessible { position });
                     }
                     return Ok((binding.declaration, position + 1));
