@@ -264,13 +264,11 @@ impl Checker<'_, '_> {
             (input.operation, &plan.action),
             (ValueInputOperation::Take, _)
                 | (
-                    ValueInputOperation::Read,
-                    ArgumentAction::ReserveRead(_) | ArgumentAction::AccessOwnedValue
+                    ValueInputOperation::Read | ValueInputOperation::Edit,
+                    ArgumentAction::AccessOwnedValue
                 )
-                | (
-                    ValueInputOperation::Edit,
-                    ArgumentAction::ReserveUpdate(super::Referent::Place(_))
-                )
+                | (ValueInputOperation::Read, ArgumentAction::ReserveRead(_))
+                | (ValueInputOperation::Edit, ArgumentAction::ReserveUpdate(_))
         );
         supported
             && super::flow::resources::local_future_input(

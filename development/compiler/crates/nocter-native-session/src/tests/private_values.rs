@@ -114,19 +114,26 @@ fn local_future_read_inputs_use_the_original_place_and_release_it() {
 }
 
 #[test]
-fn local_future_read_selection_checks_bounds_before_cancellation() {
-    let source = r"
-        func outside(): usize { 2 }
-        async func observe(source: i32): i32 { source }
-        func run(): i32 {
-            let values = [3, 5]
-            let pending = observe(values[outside()])
-            drop pending
-            42
-        }
-    ";
+fn local_future_access_checks_selection_bounds_before_cancellation() {
     let package = TempPackage::new();
-    execute_native_signal(&compile(source), &package.0, "local-future-read-bounds", 5);
+    for (name, mode) in [("read", ""), ("edit", "edit ")] {
+        let source = format!(
+            "func outside(): usize {{ 2 }}
+             async func child({mode}source: i32): i32 {{ source }}
+             func run(): i32 {{
+                 var values = [3, 5]
+                 let pending = child(values[outside()])
+                 drop pending
+                 42
+             }}"
+        );
+        execute_native_signal(
+            &compile(&source),
+            &package.0,
+            &format!("local-future-{name}-bounds"),
+            5,
+        );
+    }
 }
 
 #[test]
@@ -198,6 +205,37 @@ fn local_future_edit_invalidates_the_previous_index_at_await() {
         "local-future-edit-new-bound",
         5,
     );
+}
+
+#[test]
+fn local_future_edit_inputs_keep_selected_addresses_and_caller_temporaries() {
+    let source = r"
+        func first(): usize { 0 }
+        func make(): i32 { 5 }
+        async func change(edit value: i32): i32 {
+            value += 7
+            value
+        }
+        async func abandon(edit value: i32): i32 {
+            value = 100
+            value / (value - value)
+        }
+        async func run(): i32 {
+            var values = [11, 12]
+            var index = first()
+            let pending = change(values[index])
+            let carried = pending^
+            index += 1
+            let edited = await carried^
+            if edited != 18 || values[index] != 12 { return 3 }
+            let temporary = await change(make())
+            let _ = abandon(make())
+            if temporary != 12 { return 4 }
+            values[0] + values[index] + temporary
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "local-future-edit-places", 42);
 }
 
 #[test]

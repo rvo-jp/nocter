@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify evaluated scalar edit places and fresh caller-owned edit temporaries as local future inputs.
-Preserve the address chosen during argument preparation and the original evaluation frame.
-Verify exclusive access, the bounds check, immediate drives and cancellation, and diagnose a
-temporary whose owner would otherwise expire while the future survives.
+Qualify compound edit inputs that have one closed representation and no retained data
+dependencies. Keep the caller's original place initialized across drive, and qualify cleanup of
+replaced components separately from unstarted cancellation. Verify whole and component writes
+through the saved address and keep contextual carrier changes outside this proof.
 
 ## Remaining Contextual Representation Qualification
 
@@ -827,6 +827,9 @@ not a language restriction derived from the current realization boundary.
   source conflict after moving the activation, writes through the selected address on await,
   release without writes on explicit and scoped cancellation, and bounds checks after a
   nested drive edits the caller's index.
+- [x] Retain evaluated scalar edit places and fresh caller-owned edit temporaries. Verify that the
+  original array element receives the update, an invalid selection traps before cancellation,
+  and a stored future cannot outlive its temporary while immediate await and cancellation work.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

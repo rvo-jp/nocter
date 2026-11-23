@@ -118,43 +118,68 @@ fn retained_future_reads_reject_updates_after_moving_the_activation() {
 }
 
 #[test]
-fn a_stored_future_cannot_extend_a_fresh_read_input() {
-    let (sources, tree) = input(
-        "func make(): i32 { 42 }\nasync func observe(source: i32): i32 { source }\n\
-         async func root(): i32 { let pending = observe(make())\nawait pending^ }",
-    );
-    let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) =
-        SourceUnit::prepare(bound(&sources, &tree))
-    else {
-        panic!("expected an expired temporary diagnostic");
-    };
-    let [diagnostic] = &*diagnostics else {
-        panic!("{diagnostics:?}")
-    };
-    assert_eq!(diagnostic.code(), "E0398");
-    let span = diagnostic.primary().span();
-    assert_eq!(
-        sources.get(span.source()).unwrap().text_at(span.range()),
-        Some("observe(make())")
-    );
-    assert!(diagnostic.notes().iter().any(|note| {
-        let span = note.origin().span();
-        sources.get(span.source()).unwrap().text_at(span.range()) == Some("make()")
-    }));
+fn a_stored_future_cannot_extend_a_fresh_read_or_edit_input() {
+    for mode in ["", "edit "] {
+        let source = format!(
+            "func make(): i32 {{ 42 }}\nasync func child({mode}input: i32): i32 {{ input }}\n\
+             async func root(): i32 {{ let pending = child(make())\nawait pending^ }}"
+        );
+        let (sources, tree) = input(&source);
+        let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) =
+            SourceUnit::prepare(bound(&sources, &tree))
+        else {
+            panic!("expected an expired temporary diagnostic for {mode:?}");
+        };
+        let [diagnostic] = &*diagnostics else {
+            panic!("{diagnostics:?}")
+        };
+        assert_eq!(diagnostic.code(), "E0398");
+        let span = diagnostic.primary().span();
+        assert_eq!(
+            sources.get(span.source()).unwrap().text_at(span.range()),
+            Some("child(make())")
+        );
+        assert!(diagnostic.notes().iter().any(|note| {
+            let span = note.origin().span();
+            sources.get(span.source()).unwrap().text_at(span.range()) == Some("make()")
+        }));
+    }
 }
 
 #[test]
 fn a_moved_future_keeps_its_edit_exclusive_until_drive_or_cancellation() {
-    for (interruption, code, primary) in [
-        ("let value = state.left", "E0396", "state.left"),
-        ("state.left += 1", "E0397", "state.left += 1"),
-        ("drop state", "E0397", "drop state"),
+    let pair = "var state = Pair { left: 42, right: 0 }";
+    for (binding, place, interruption, code, primary) in [
+        (
+            pair,
+            "state.left",
+            "let value = state.left",
+            "E0396",
+            "state.left",
+        ),
+        (
+            pair,
+            "state.left",
+            "state.left += 1",
+            "E0397",
+            "state.left += 1",
+        ),
+        (pair, "state.left", "drop state", "E0397", "drop state"),
+        (
+            "var state = [42, 0]\nlet index = first()",
+            "state[index]",
+            "let value = state[0]",
+            "E0396",
+            "state[0]",
+        ),
     ] {
+        let construction = format!("increment({place})");
         let text = format!(
             "struct Pair {{ left: i32\nright: i32 }}\n\
+             func first(): usize {{ 0 }}\n\
              async func increment(edit value: i32): i32 {{ value += 1\nvalue }}\n\
-             async func root(): i32 {{ var state = Pair {{ left: 42, right: 0 }}\n\
-             let pending = increment(state.left)\nlet moved = pending^\n\
+             async func root(): i32 {{ {binding}\n\
+             let pending = {construction}\nlet moved = pending^\n\
              {interruption}\nawait moved^ }}"
         );
         let (sources, tree) = input(&text);
@@ -174,8 +199,7 @@ fn a_moved_future_keeps_its_edit_exclusive_until_drive_or_cancellation() {
         );
         assert!(diagnostic.notes().iter().any(|note| {
             let span = note.origin().span();
-            sources.get(span.source()).unwrap().text_at(span.range())
-                == Some("increment(state.left)")
+            sources.get(span.source()).unwrap().text_at(span.range()) == Some(construction.as_str())
         }));
     }
 }

@@ -671,9 +671,10 @@ impl Context<'_, '_> {
                 }
                 ActivationAccessSource::Existing(*referent)
             }
-            (ValueInputOperation::Read, ArgumentAction::AccessOwnedValue)
-                if region.root == (super::Root::Temporary { call, index }) =>
-            {
+            (
+                ValueInputOperation::Read | ValueInputOperation::Edit,
+                ArgumentAction::AccessOwnedValue,
+            ) if region.root == (super::Root::Temporary { call, index }) => {
                 self.commit_temporary_input(
                     call,
                     index,
