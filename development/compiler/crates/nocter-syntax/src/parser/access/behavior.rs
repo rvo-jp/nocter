@@ -73,6 +73,7 @@ fn method(parser: &mut Parser<'_>, method: crate::parser::Marker) {
     receiver(parser, true);
     parser.expect_punctuation(Punctuation::Dot);
     parser.expect_name();
+    super::callable_generic_parameters(parser);
     callable_tail(parser);
     if parser.at_punctuation(Punctuation::LeftBrace) {
         required_block(parser);

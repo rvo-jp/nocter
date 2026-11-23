@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_model::{GenericApplication, GenericParameterId, GenericValue};
+use nocter_model::{AccessCodeId, GenericApplication, GenericParameterId, GenericValue};
 
 use crate::{DeclarationArenaBuilder, DeclarationArenas, GenericParameterDomain};
 
@@ -11,6 +11,7 @@ pub enum GenericApplicationError {
         expected: usize,
         actual: usize,
     },
+    UnknownCallable(AccessCodeId),
     UnknownParameter(GenericParameterId),
     Domain {
         parameter: GenericParameterId,
@@ -25,7 +26,7 @@ impl GenericApplicationError {
     pub const fn position(self) -> Option<usize> {
         match self {
             Self::Domain { position, .. } => Some(position),
-            Self::Arity { .. } | Self::UnknownParameter(_) => None,
+            Self::Arity { .. } | Self::UnknownCallable(_) | Self::UnknownParameter(_) => None,
         }
     }
 }
@@ -37,6 +38,12 @@ impl fmt::Display for GenericApplicationError {
                 formatter,
                 "generic application has {actual} values but its declaration requires {expected}"
             ),
+            Self::UnknownCallable(code) => {
+                write!(
+                    formatter,
+                    "generic application names unknown callable {code:?}"
+                )
+            }
             Self::UnknownParameter(parameter) => {
                 write!(
                     formatter,
@@ -58,6 +65,20 @@ impl fmt::Display for GenericApplicationError {
 
 impl std::error::Error for GenericApplicationError {}
 
+/// Check the complete explicit argument count before performing argument work.
+/// # Errors
+/// Reports the declaration's required count and the authored count when they differ.
+pub fn validate_generic_arity(
+    expected: usize,
+    actual: usize,
+) -> Result<(), GenericApplicationError> {
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(GenericApplicationError::Arity { expected, actual })
+    }
+}
+
 impl DeclarationArenas {
     /// Validates one application against an owner-provided ordered parameter schema.
     ///
@@ -73,16 +94,12 @@ impl DeclarationArenas {
         parameters: &[GenericParameterId],
         application: &GenericApplication,
     ) -> Result<(), GenericApplicationError> {
-        self.validate_generic_domains(
-            parameters,
-            &application
-                .iter()
-                .map(|value| match value {
-                    GenericValue::Type(_) => GenericParameterDomain::Type,
-                    GenericValue::Usize(_) => GenericParameterDomain::UsizeConstant,
-                })
-                .collect::<Vec<_>>(),
-        )
+        validate_generic_application(parameters, application, |id| {
+            self.generic_parameters()
+                .get(id)
+                .copied()
+                .map(crate::GenericParameter::domain)
+        })
     }
 
     /// Validates a pre-normalization argument-domain sequence against one parameter schema.
@@ -99,7 +116,7 @@ impl DeclarationArenas {
         parameters: &[GenericParameterId],
         domains: &[GenericParameterDomain],
     ) -> Result<(), GenericApplicationError> {
-        validate_generic_domains(parameters, domains, |parameter| {
+        validate_generic_domains(parameters, domains.iter().copied(), |parameter| {
             self.generic_parameters()
                 .get(parameter)
                 .copied()
@@ -122,30 +139,35 @@ impl DeclarationArenaBuilder {
         parameters: &[GenericParameterId],
         domains: &[GenericParameterDomain],
     ) -> Result<(), GenericApplicationError> {
-        validate_generic_domains(parameters, domains, |parameter| {
+        validate_generic_domains(parameters, domains.iter().copied(), |parameter| {
             self.generic_parameter(parameter)
                 .map(crate::GenericParameter::domain)
         })
     }
 }
 
+pub(crate) fn validate_generic_application(
+    parameters: &[GenericParameterId],
+    application: &GenericApplication,
+    domain_for: impl FnMut(GenericParameterId) -> Option<GenericParameterDomain>,
+) -> Result<(), GenericApplicationError> {
+    validate_generic_domains(
+        parameters,
+        application.iter().map(|value| match value {
+            GenericValue::Type(_) => GenericParameterDomain::Type,
+            GenericValue::Usize(_) => GenericParameterDomain::UsizeConstant,
+        }),
+        domain_for,
+    )
+}
+
 fn validate_generic_domains(
     parameters: &[GenericParameterId],
-    domains: &[GenericParameterDomain],
+    domains: impl ExactSizeIterator<Item = GenericParameterDomain>,
     mut domain_for: impl FnMut(GenericParameterId) -> Option<GenericParameterDomain>,
 ) -> Result<(), GenericApplicationError> {
-    if parameters.len() != domains.len() {
-        return Err(GenericApplicationError::Arity {
-            expected: parameters.len(),
-            actual: domains.len(),
-        });
-    }
-    for (position, (parameter, actual)) in parameters
-        .iter()
-        .copied()
-        .zip(domains.iter().copied())
-        .enumerate()
-    {
+    validate_generic_arity(parameters.len(), domains.len())?;
+    for (position, (parameter, actual)) in parameters.iter().copied().zip(domains).enumerate() {
         let expected =
             domain_for(parameter).ok_or(GenericApplicationError::UnknownParameter(parameter))?;
         if expected != actual {

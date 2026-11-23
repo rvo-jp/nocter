@@ -126,7 +126,7 @@ impl Checker<'_, '_> {
                 }
             }
             TypeSyntax::Array { element, length } => {
-                let length = self.required_length(*length)?;
+                let length = self.required_usize(*length)?;
                 let element =
                     self.annotation_data_in(element, metadata_only || length == 0, input)?;
                 self.types
@@ -152,14 +152,39 @@ impl Checker<'_, '_> {
             Vec::new(),
         )
     }
+    pub(super) fn type_syntax(
+        &self,
+        node: NodeId,
+    ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
+        use nocter_declaration_lowering::access_declarations::{
+            Failure as ProjectionFailure, project_type_syntax,
+        };
+        match project_type_syntax(self.syntax(), node) {
+            Ok(ty) => Ok(ty),
+            Err(ProjectionFailure::Syntax(diagnostics)) => {
+                let [source] = diagnostics.as_ref() else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                let rule = Rule::UnqualifiedGenericType;
+                if source.code() != rule.diagnostic().0.as_str() {
+                    return Err(Failure::InconsistentSyntax);
+                }
+                Err(Failure::Rejected(Box::new(super::BodyDiagnostic {
+                    rule,
+                    source: source.clone(),
+                })))
+            }
+            Err(_) => Err(Failure::InconsistentSyntax),
+        }
+    }
+
     fn annotation_syntax(
         &self,
         node: NodeId,
         local_future: bool,
     ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
-        use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
-        let ty =
-            project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
+        use nocter_declaration_lowering::access_declarations::TypeSyntax;
+        let ty = self.type_syntax(node)?;
         let mut pending = match &ty {
             TypeSyntax::Future { output, .. } if local_future => vec![(output.as_ref(), false)],
             _ => vec![(&ty, false)],

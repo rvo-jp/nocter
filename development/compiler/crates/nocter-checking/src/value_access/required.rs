@@ -1,8 +1,10 @@
 //! Ordinary lexical snapshots for body-local required evaluation; no alternate expression checker.
 use super::{Failure, checker::Checker, ir::Boundary};
 use nocter_declaration_lowering::access_declarations::BodySource;
-use nocter_model::{BuiltinType, ConstantValue, FrozenNode, ValueCodeRoot};
-use nocter_syntax::{BodySyntaxProjection, NodeId};
+use nocter_model::{
+    AccessCodeId, BuiltinType, ConstantValue, FrozenData, FrozenNode, ValueCodeRoot,
+};
+use nocter_syntax::{BodySyntaxProjection, NodeId, SyntaxOrigin};
 use std::{collections::BTreeSet, sync::Arc};
 
 /// An unpublished request captured at its ordinary checking site, with its lexical exclusions.
@@ -19,7 +21,7 @@ impl RequiredExpression {
 }
 
 impl Checker<'_, '_> {
-    pub(super) fn required_length(&mut self, node: NodeId) -> Result<u64, Failure> {
+    pub(super) fn required_usize(&mut self, node: NodeId) -> Result<u64, Failure> {
         if self.required_roots.is_none() {
             self.required_roots = Some(self.context.body_expressions(self.source.owner())?);
         }
@@ -32,10 +34,7 @@ impl Checker<'_, '_> {
             .ok_or(Failure::InconsistentSyntax)?;
         let code = ValueCodeRoot::Expression(id);
         if let Some(value) = self.values.value(code) {
-            let FrozenNode::Scalar(ConstantValue::Integer(value)) = value.node() else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            return u64::try_from(*value).map_err(|_| Failure::InconsistentSyntax);
+            return frozen_usize(value);
         }
         let mut unavailable = self.unavailable.clone();
         unavailable.extend(self.scopes.iter().flat_map(|scope| scope.keys().cloned()));
@@ -44,6 +43,26 @@ impl Checker<'_, '_> {
             unavailable,
         })))
     }
+
+    pub(super) fn required_initializer_value(
+        &self,
+        initializer: AccessCodeId,
+        origin: SyntaxOrigin,
+    ) -> Result<&FrozenData, Failure> {
+        self.values
+            .value(initializer.into())
+            .ok_or(Failure::RequiredConstant {
+                initializer,
+                origin,
+            })
+    }
+}
+
+pub(super) fn frozen_usize(value: &FrozenData) -> Result<u64, Failure> {
+    let FrozenNode::Scalar(ConstantValue::Integer(value)) = value.node() else {
+        return Err(Failure::InconsistentSyntax);
+    };
+    u64::try_from(*value).map_err(|_| Failure::InconsistentSyntax)
 }
 
 pub(super) fn prepare(

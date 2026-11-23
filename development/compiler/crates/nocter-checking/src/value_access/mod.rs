@@ -99,6 +99,7 @@ pub enum Rule {
     AnnotatedDiscard,
     RequiredValueScope,
     UnqualifiedGenericCallable,
+    UnqualifiedGenericType,
     OpenArrayLength,
 }
 impl Rule {
@@ -157,6 +158,10 @@ impl Rule {
             Self::UnqualifiedGenericCallable => (
                 DiagnosticCode::E0291,
                 "this generic callable needs a checked body and specialization",
+            ),
+            Self::UnqualifiedGenericType => (
+                DiagnosticCode::E0291,
+                "this type does not have a qualified generic specialization",
             ),
             Self::OpenArrayLength => (
                 DiagnosticCode::E0291,

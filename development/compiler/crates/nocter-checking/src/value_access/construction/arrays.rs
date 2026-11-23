@@ -145,7 +145,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let (seed, count) = nocter_syntax::array_repetition_parts(self.syntax().tree(), node)
             .ok_or(Failure::InconsistentSyntax)?;
-        let length = self.required_length(count)?;
+        let length = self.required_usize(count)?;
         let context = self.array_context(node, hint)?;
         if context.is_some_and(|(_, array)| array.length() != length) {
             return self.reject(Rule::TypeMismatch, node);

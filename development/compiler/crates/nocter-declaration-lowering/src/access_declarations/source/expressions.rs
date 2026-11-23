@@ -1,10 +1,9 @@
 //! Body-local required roots, paired through one full-body source guard rather than header slots.
 use super::{BodyRoot, BodySource, Context, SourceMismatch};
-use crate::access_declarations::project_type_syntax;
 use nocter_model::{AccessCodeId, ValueExpression};
 use nocter_syntax::{
     BodySyntaxLocator, BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, SyntaxElement,
-    SyntaxOrigin,
+    SyntaxOrigin, direct_node,
 };
 use std::collections::BTreeMap;
 
@@ -46,9 +45,9 @@ impl BodyExpressions<'_> {
 }
 
 impl<'source> Context<'source> {
-    /// Register array annotation/repetition count roots in this body without reserving declarations.
+    /// Register required array counts and expression-shaped generic argument roots in this body.
     /// # Errors
-    /// Rejects an unknown/inconsistent body, unsupported type syntax or an exhausted local ID domain.
+    /// Rejects an unknown or inconsistent body, or an exhausted local ID domain.
     pub fn body_expressions(
         &self,
         owner: AccessCodeId,
@@ -79,20 +78,22 @@ impl<'source> Context<'source> {
                 }
                 roots.push((code, locator));
             }
-            if syntax
+            let kind = syntax
                 .tree()
                 .node(node)
                 .ok_or(SourceMismatch::InconsistentSyntax)?
-                .kind()
-                == NodeKind::Type
+                .kind();
+            if kind == NodeKind::FixedArrayType {
+                let count = direct_node(syntax.tree(), node, NodeKind::Expression)
+                    .ok_or(SourceMismatch::InconsistentSyntax)?;
+                let element = direct_node(syntax.tree(), node, NodeKind::Type)
+                    .ok_or(SourceMismatch::InconsistentSyntax)?;
+                pending.push((count, true));
+                pending.push((element, false));
+            } else if kind == NodeKind::GenericArgument
+                && let Some(expression) = direct_node(syntax.tree(), node, NodeKind::Expression)
             {
-                let ty = project_type_syntax(syntax, node)
-                    .map_err(|_| SourceMismatch::InconsistentSyntax)?;
-                let mut lengths = Vec::new();
-                ty.length_expressions(&mut lengths);
-                // The shared type projection already visited nested data/callable types. Only
-                // the count bodies can contain additional local annotations of their own.
-                pending.extend(lengths.into_iter().rev().map(|length| (length, true)));
+                pending.push((expression, true));
             } else if let Some((seed, count)) =
                 nocter_syntax::array_repetition_parts(syntax.tree(), node)
             {

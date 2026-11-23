@@ -329,6 +329,25 @@ impl Program {
         self.generic_parameters.named(code, name)
     }
 
+    /// Validate the ordered values against the selected callable's parameter identities.
+    /// # Errors
+    /// Reports mismatched arity, unknown identities or a wrong positional domain.
+    pub fn validate_generic_application(
+        &self,
+        code: AccessCodeId,
+        application: &nocter_model::GenericApplication,
+    ) -> Result<(), crate::GenericApplicationError> {
+        let parameters = self
+            .codes
+            .get(code)
+            .filter(|header| header.kind().is_callable())
+            .map(|_| self.generic_parameters.ids(code))
+            .ok_or(crate::GenericApplicationError::UnknownCallable(code))?;
+        crate::generic_application::validate_generic_application(parameters, application, |id| {
+            self.generic_parameter(id).map(GenericParameter::domain)
+        })
+    }
+
     /// The original execution mode and, for a deferred callable, its body output.
     #[must_use]
     pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {

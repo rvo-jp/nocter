@@ -10,6 +10,24 @@ mod reuse;
 mod user_destruction;
 
 #[test]
+fn a_generic_method_selects_its_own_schema_before_evaluating_arguments() {
+    let root = "see ./body.nct\nstruct Buffer\nfunc run(): void\nimpl Buffer {\nfunc create(): Self\nmethod self.transform<T, const N: usize>(): void\n}";
+    let body = "see ./index.nct\nstruct Buffer {}\nfunc run(): void { let buffer = Buffer.create()\nbuffer.transform<i32, 1 / 0>() }\nimpl Buffer {\nfunc create(): Self { Self {} }\nmethod self.transform<T, const N: usize>(): void {}\n}";
+    let fixture = Fixture::new(
+        &[
+            ("/app/index.nct", Root, root),
+            ("/app/body.nct", Implementation, body),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let failure = ModuleSourceUnit::prepare(&fixture.input()).unwrap_err();
+    let SourceFailure::Checking(accepted::Failure::Evaluation { diagnostic, .. }) = failure else {
+        panic!("expected a required evaluator error within the generic method call: {failure:?}");
+    };
+    assert_eq!(diagnostic.source().code(), "E0325");
+}
+
+#[test]
 fn authored_enum_payload_types_reconcile_required_counts_and_opaque_copy() {
     let root = "see ./body.nct\nconst WIDTH: usize\nenum Packet { empty\ndata(values: [i32; WIDTH]) }\ncopy enum Secret";
     let body =

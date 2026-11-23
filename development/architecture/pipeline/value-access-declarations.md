@@ -16,10 +16,13 @@ The [realization plan](../../design/compiler-realization.md) owns remaining inte
 
 Named and member calls retain a joint, complete generic argument list within the normal call
 suffix. The parser shares angle delimiters and the argument tree with named type applications. A
-token-boundary probe limits speculative work on comparisons and incomplete source. The current
-declaration and call checkers diagnose explicit arguments pending elaboration against the
-selected parameter kinds.
-Named function heads retain an ordered generic parameter list. The shared source projection
+token-boundary probe limits speculative work on comparisons and incomplete source. Calls select
+their declaration before checking a complete argument list against its ordered parameter kinds.
+Type inputs use ordinary type resolution. Expression-shaped `usize` inputs use the same required
+value coordinator as array counts. A bare or grouped name in a constant slot resolves in the
+value namespace. These rules check generic applications without yet admitting their execution.
+Named type applications still require specialization support.
+Named function and method heads retain an ordered generic parameter list. The shared source projection
 preserves original names and constant type annotations. A repeated name is diagnosed at its
 second occurrence with the first declaration attached. A paired module contract and implementation
 share the representative's ordered parameter identities. Reserved slots expose their owner, name,

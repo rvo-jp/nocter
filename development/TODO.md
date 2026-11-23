@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Elaborate explicit call arguments against the selected callable's ordered generic schema. Reuse
-ordinary type resolution and required-value evaluation from the original source expressions.
-Keep generic body proof and executable admission behind their own obligations.
+Check generic bodies under their declaration's own symbolic type assumptions. Use the ordinary
+typing and access-operation rules, preserving the source decision to transfer a value even when a
+later concrete argument is Copy. Separate definition proof from executable specialization.
 
 ## Remaining Contextual Representation Qualification
 
@@ -682,6 +682,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Preserve direct symbolic constant parameters in callable fixed-array signatures. Qualify
   paired grouped references, closed evaluation, and rejection of computed symbolic counts even
   when a same-spelled global value exists.
+- [x] Elaborate supported explicit type and `usize` arguments against the selected function or
+  method schema. Verify the complete argument count, type/value namespace selection, ordinary
+  required evaluation and exact argument diagnostics. Keep executable specialization closed.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

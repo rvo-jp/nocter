@@ -81,7 +81,7 @@ impl Checker<'_, '_> {
                 self.callable_data_pattern(payload, metadata_only)?,
             )),
             TypeSyntax::Array { element, length } => {
-                let length = self.required_length(*length)?;
+                let length = self.required_usize(*length)?;
                 FunctionDataPattern::Array {
                     element: Box::new(
                         self.callable_data_pattern(element, metadata_only || length == 0)?,

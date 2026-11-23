@@ -51,7 +51,7 @@ pub use declaration::{
     NominalTypeDeclaration, OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration,
     VariantDeclaration,
 };
-pub use generic_application::GenericApplicationError;
+pub use generic_application::{GenericApplicationError, validate_generic_arity};
 pub use import::{ExportedEntity, ImportDeclaration, ImportTarget, ImportedName};
 pub use interface_capability::{InterfaceCapability, InterfaceCapabilityGraph};
 pub use namespace::{DuplicateNamespaceName, FallbackEntry, ModuleNamespace, NamespaceEntry};

@@ -122,9 +122,7 @@ fn function_with_prefix(parser: &mut Parser<'_>, marker: super::Marker, kind: No
     let primitive = parser.eat_keyword(Keyword::Primitive);
     parser.expect_keyword(Keyword::Func);
     parser.expect_name();
-    if parser.at_punctuation(Punctuation::Less) {
-        super::types::generic_parameters_with(parser, type_);
-    }
+    callable_generic_parameters(parser);
     callable_tail(parser);
     if primitive {
         if parser.at_punctuation(Punctuation::LeftBrace) {
@@ -134,6 +132,12 @@ fn function_with_prefix(parser: &mut Parser<'_>, marker: super::Marker, kind: No
         required_block(parser);
     }
     parser.complete(marker, kind);
+}
+
+fn callable_generic_parameters(parser: &mut Parser<'_>) {
+    if parser.at_punctuation(Punctuation::Less) {
+        super::types::generic_parameters_with(parser, type_);
+    }
 }
 
 fn callable_modifier(parser: &mut Parser<'_>) {

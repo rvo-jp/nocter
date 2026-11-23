@@ -106,6 +106,87 @@ fn generic_headers_do_not_admit_unchecked_bodies_or_unspecialized_calls() {
 }
 
 #[test]
+fn explicit_generic_arguments_follow_the_selected_callable_schema() {
+    for (arguments, code, origin, message) in [
+        (
+            "Missing, 1 / 0, 2",
+            "E0390",
+            "<Missing, 1 / 0, 2>",
+            "requires 2",
+        ),
+        ("42, 2", "E0370", "42", "requires a type"),
+        ("i32, true", "E0370", "true", "usize"),
+        ("i32, 1 / 0", "E0325", "1 / 0", "invalid checked arithmetic"),
+        ("i32, local", "E0421", "local", "unavailable"),
+        (
+            "i32, WIDTH",
+            "E0291",
+            "<i32, WIDTH>",
+            "checked body and specialization",
+        ),
+        (
+            "i32, (WIDTH)",
+            "E0291",
+            "<i32, (WIDTH)>",
+            "checked body and specialization",
+        ),
+        (
+            "WIDTH, WIDTH",
+            "E0291",
+            "<WIDTH, WIDTH>",
+            "checked body and specialization",
+        ),
+        (
+            "i32, width()",
+            "E0291",
+            "<i32, width()>",
+            "checked body and specialization",
+        ),
+        (
+            "i32, FIXED",
+            "E0291",
+            "<i32, FIXED>",
+            "checked body and specialization",
+        ),
+        (
+            "Buffer<i32>, 4",
+            "E0291",
+            "<i32>",
+            "explicit generic arguments",
+        ),
+    ] {
+        let text = format!(
+            "struct WIDTH {{}}\nconst WIDTH: usize = 2 + 2\nstatic FIXED: usize = 4\nconst func width(): usize {{ WIDTH }}\nfunc run(): void {{ let local: usize = 2\ntemplate<{arguments}>() }}\nfunc template<T, const N: usize>(): void {{}}"
+        );
+        let (sources, tree) = input(&text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let diagnostic = match &failure {
+            SourceFailure::Checking(Failure::Body {
+                failure: BodyFailure::Rejected(error),
+                ..
+            }) => error.source(),
+            SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) => diagnostic.source(),
+            _ => panic!(
+                "expected an authored generic argument diagnostic for {arguments}: {failure:?}"
+            ),
+        };
+        assert_eq!(diagnostic.code(), code, "{arguments}: {failure:?}");
+        assert!(
+            diagnostic.message().contains(message),
+            "{arguments}: {failure:?}"
+        );
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.primary().span().range()),
+            Some(origin),
+            "{arguments}: {failure:?}"
+        );
+    }
+}
+
+#[test]
 fn closed_deferred_drive_handles_pure_recursive_code_without_executing_it() {
     let unit = accepted("func recurse(): i32 { recurse() }\nasync func root(): i32 { recurse() }");
     let root = named(&unit, "root").typed().source_owner();
