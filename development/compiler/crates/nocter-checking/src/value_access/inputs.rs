@@ -144,12 +144,7 @@ impl Checker<'_, '_> {
             {
                 self.require_writable_referent(referent, syntax, Rule::InvalidUpdate)?;
             }
-            super::checker::payload_requirements::data(
-                self.program(),
-                self.syntax(),
-                actual.data(),
-                nocter_syntax::SyntaxOrigin::Node(syntax),
-            )?;
+            self.require_body_payload(actual.data(), nocter_syntax::SyntaxOrigin::Node(syntax))?;
             if let Some((place, adapters)) = transfer {
                 ArgumentAction::ReserveTransfer { place, adapters }
             } else if let Some(place) = place {

@@ -67,12 +67,7 @@ impl super::checker::Checker<'_, '_> {
                 Some(nocter_declarations::value_access::PayloadSchema::Future(_))
             ))
         {
-            super::checker::payload_requirements::data(
-                self.program(),
-                self.syntax(),
-                actual.data(),
-                SyntaxOrigin::Node(node),
-            )?;
+            self.require_body_payload(actual.data(), SyntaxOrigin::Node(node))?;
         }
         match expected.mode() {
             Mode::Read => Ok(BoundaryAction::ReadPlace),

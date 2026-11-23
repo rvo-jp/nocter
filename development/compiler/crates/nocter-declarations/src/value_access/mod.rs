@@ -319,6 +319,14 @@ impl Program {
         self.generic_parameters.get(id)
     }
 
+    /// The canonical type of a reserved type parameter once its signature is published.
+    #[must_use]
+    pub fn generic_parameter_type(&self, id: GenericParameterId) -> Option<TypeId> {
+        self.types
+            .store()
+            .identity(&nocter_model::TypeKind::GenericParameter(id))
+    }
+
     /// Resolve a binder in exactly this callable's own generic scope.
     #[must_use]
     pub fn generic_parameter_named(

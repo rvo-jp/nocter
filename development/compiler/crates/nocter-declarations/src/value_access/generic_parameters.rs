@@ -1,6 +1,8 @@
 //! Ordered compile-time slots, independent of typed header and runtime input readiness.
 use crate::{DefinitionError, GenericParameter, GenericParameterDomain};
-use nocter_model::{AccessCodeId, Arena, ArenaBuilder, GenericParameterId, Symbol};
+use nocter_model::{
+    AccessCodeId, Arena, ArenaBuilder, GenericParameterId, Symbol, TypeKind, TypeTransaction,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Default)]
@@ -62,6 +64,19 @@ pub(super) struct Parameters {
 }
 
 impl Parameters {
+    pub(super) fn intern_types(&self, code: AccessCodeId, types: &mut TypeTransaction) {
+        for &id in self.ids(code) {
+            if self
+                .get(id)
+                .is_some_and(|slot| slot.domain() == GenericParameterDomain::Type)
+            {
+                types
+                    .intern(TypeKind::GenericParameter(id))
+                    .expect("reserved type parameter");
+            }
+        }
+    }
+
     pub(super) fn ids(&self, code: AccessCodeId) -> &[GenericParameterId] {
         self.by_code.get(&code).map_or(&[], Box::as_ref)
     }

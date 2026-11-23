@@ -1,6 +1,58 @@
 use super::*;
 use nocter_model::{ValueClosure, ValueFunctionOrigin};
 
+#[test]
+fn symbolic_array_suffix_replays_only_its_own_length_parameter() {
+    use nocter_model::{TypeKind, UsizeTerm};
+    let symbols = SymbolTable::from_spellings(["first", "second", "N"]);
+    let name = |text| symbols.get(text).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let first = reservations.reserve(name("first"), 0);
+    let second = reservations.reserve(name("second"), 0);
+    for code in [first, second] {
+        reservations
+            .reserve_callable_generics(
+                code,
+                vec![(name("N"), crate::GenericParameterDomain::UsizeConstant)],
+            )
+            .unwrap();
+    }
+    let mut headers = reservations.finish().unwrap().into_publication();
+    for code in [first, second] {
+        headers
+            .define_generic(
+                code,
+                CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                [],
+                BuiltinType::Void,
+            )
+            .unwrap();
+    }
+    let program = headers.finish().unwrap();
+    let length = |code| UsizeTerm::Parameter(program.generic_parameter_ids(code).unwrap()[0]);
+    let data = program.data_type(BuiltinType::I32).unwrap();
+    let mut body = program.body_types(first).unwrap();
+    assert_eq!(
+        body.array(data, length(second)),
+        Err(BodyTypeError::InvalidExtension)
+    );
+    let array = body.array(data, length(first)).unwrap();
+    let body = body.finish();
+    let canonical = program
+        .canonical_body_types(BTreeMap::from([(first.into(), &body)]))
+        .unwrap();
+    let array = canonical.project(first, array).unwrap();
+    let canonical = canonical.finish();
+    assert_eq!(
+        canonical.type_kind(array),
+        Some(&TypeKind::FixedArray {
+            element: data,
+            length: length(first)
+        })
+    );
+    assert!(canonical.data_schema(array).is_none());
+}
+
 fn headers() -> (HeaderPublication, AccessCodeId, AccessCodeId, NominalTypeId) {
     let symbols = SymbolTable::from_spellings(["Data", "values", "first", "second"]);
     let mut reservations = Reservations::new(symbols.clone());

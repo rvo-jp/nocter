@@ -474,7 +474,8 @@ impl Program {
         })?;
         (ordinal == contracts.len()).then_some(resolved)
     }
-    /// Structural Copy evidence for the payload, never permission to duplicate an access.
+    /// Structural Copy evidence for the descriptor, never permission to duplicate an access.
+    /// A type parameter without a Copy guarantee supplies no positive evidence.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
         // Structural tuples can share child types exponentially. Visit each shape once, just as
@@ -485,46 +486,56 @@ impl Program {
             if copyable.contains_key(&current) {
                 continue;
             }
-            let children = match self.data_schema(current)? {
-                PayloadSchema::Builtin(builtin) => {
-                    copyable.insert(current, builtin_copyable(builtin)?);
-                    continue;
-                }
-                PayloadSchema::Enumeration(schema) => {
-                    copyable.insert(current, schema.copyable());
-                    continue;
-                }
-                PayloadSchema::Optional(payload) => vec![payload],
-                PayloadSchema::Fallible(_) | PayloadSchema::Future(_) => {
+            let children = match self.type_kind(current)? {
+                TypeKind::GenericParameter(_) => {
                     copyable.insert(current, false);
                     continue;
                 }
-                PayloadSchema::Array(array) => {
-                    if array.is_empty() {
-                        copyable.insert(current, true);
+                TypeKind::FixedArray {
+                    element,
+                    length: UsizeTerm::Parameter(_),
+                } => vec![*element],
+                _ => match self.data_schema(current)? {
+                    PayloadSchema::Builtin(builtin) => {
+                        copyable.insert(current, builtin_copyable(builtin)?);
                         continue;
                     }
-                    vec![array.element()]
-                }
-                PayloadSchema::Aggregate(schema) => match schema.form() {
-                    AggregateForm::Record(record) => {
-                        copyable.insert(current, record.copyable());
+                    PayloadSchema::Enumeration(schema) => {
+                        copyable.insert(current, schema.copyable());
                         continue;
                     }
-                    AggregateForm::Tuple(fields) => fields.to_vec(),
-                },
-                PayloadSchema::Function(witness) => match witness.origin {
-                    nocter_model::ValueFunctionOrigin::Declaration(_) => {
-                        copyable.insert(current, true);
-                        continue;
-                    }
-                    nocter_model::ValueFunctionOrigin::Closure(id) => {
-                        vec![self.closure(id)?.environment()]
-                    }
-                    _ => {
+                    PayloadSchema::Optional(payload) => vec![payload],
+                    PayloadSchema::Fallible(_) | PayloadSchema::Future(_) => {
                         copyable.insert(current, false);
                         continue;
                     }
+                    PayloadSchema::Array(array) => {
+                        if array.is_empty() {
+                            copyable.insert(current, true);
+                            continue;
+                        }
+                        vec![array.element()]
+                    }
+                    PayloadSchema::Aggregate(schema) => match schema.form() {
+                        AggregateForm::Record(record) => {
+                            copyable.insert(current, record.copyable());
+                            continue;
+                        }
+                        AggregateForm::Tuple(fields) => fields.to_vec(),
+                    },
+                    PayloadSchema::Function(witness) => match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Declaration(_) => {
+                            copyable.insert(current, true);
+                            continue;
+                        }
+                        nocter_model::ValueFunctionOrigin::Closure(id) => {
+                            vec![self.closure(id)?.environment()]
+                        }
+                        _ => {
+                            copyable.insert(current, false);
+                            continue;
+                        }
+                    },
                 },
             };
             if expanded {

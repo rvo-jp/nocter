@@ -35,6 +35,20 @@ impl Checker<'_, '_> {
         token: SyntaxToken,
         metadata_only: bool,
     ) -> Result<TypeId, Failure> {
+        if let Some((id, parameter)) = self.generic_parameter_at(token)? {
+            if parameter.domain() != nocter_declarations::GenericParameterDomain::Type {
+                return self.reject_message(
+                    Rule::UnknownType,
+                    token,
+                    "this name is a constant parameter".into(),
+                    Vec::new(),
+                );
+            }
+            return self
+                .program()
+                .generic_parameter_type(id)
+                .ok_or(Failure::InconsistentSyntax);
+        }
         let scope = self.scope_at(token)?;
         let spelling = self.text(token)?;
         if !metadata_only {
@@ -126,9 +140,12 @@ impl Checker<'_, '_> {
                 }
             }
             TypeSyntax::Array { element, length } => {
-                let length = self.required_usize(*length)?;
-                let element =
-                    self.annotation_data_in(element, metadata_only || length == 0, input)?;
+                let length = self.type_array_length(*length)?;
+                let element = self.annotation_data_in(
+                    element,
+                    metadata_only || length.closed_value() == Some(0),
+                    input,
+                )?;
                 self.types
                     .array(element, length)
                     .map_err(|_| Failure::InconsistentSyntax)
@@ -143,6 +160,24 @@ impl Checker<'_, '_> {
                     .map_err(|_| Failure::InconsistentSyntax)
             }
         }
+    }
+
+    fn type_array_length(&mut self, length: NodeId) -> Result<nocter_model::UsizeTerm, Failure> {
+        if let Some(token) = self.name_token(length)?
+            && let Some((id, parameter)) = self.generic_parameter_at(token)?
+        {
+            if parameter.domain() == nocter_declarations::GenericParameterDomain::UsizeConstant {
+                return Ok(nocter_model::UsizeTerm::Parameter(id));
+            }
+            return self.reject_message(
+                Rule::UnknownName,
+                token,
+                "a type parameter does not supply an array length value".into(),
+                Vec::new(),
+            );
+        }
+        self.required_usize(length)
+            .map(nocter_model::UsizeTerm::Value)
     }
     fn reject_repeated_failure<T>(&self, marker: SyntaxToken) -> Result<T, Failure> {
         self.reject_message(

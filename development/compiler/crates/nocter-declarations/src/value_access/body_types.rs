@@ -1,6 +1,10 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::{Program, TypeScope};
-use nocter_model::{TypeCursor, TypeId, TypeKind, ValueCode, ValueCodeRoot, ValueFunctionOrigin};
+use crate::GenericParameterDomain;
+use nocter_model::{
+    GenericParameterId, TypeCursor, TypeId, TypeKind, UsizeTerm, ValueCode, ValueCodeRoot,
+    ValueFunctionOrigin,
+};
 use std::collections::BTreeMap;
 mod applications;
 mod containment;
@@ -193,17 +197,20 @@ impl BodyTypes {
     }
     /// Intern a homogeneous fixed-array descriptor without expanding its cardinality.
     /// # Errors
-    /// Rejects an element outside this authority's structural descriptor domain.
-    pub fn array(&mut self, element: TypeId, length: u64) -> Result<TypeId, BodyTypeError> {
-        if !structural_component(&self.program, element) {
+    /// Rejects an element outside the structural descriptor domain or a foreign length parameter.
+    pub fn array(
+        &mut self,
+        element: TypeId,
+        length: impl Into<UsizeTerm>,
+    ) -> Result<TypeId, BodyTypeError> {
+        let length = length.into();
+        if !structural_component(&self.program, element) || !length_in_scope(&self.program, length)
+        {
             return Err(BodyTypeError::InvalidExtension);
         }
         let mut types = self.program.types.transaction();
         let data = types
-            .intern(TypeKind::FixedArray {
-                element,
-                length: length.into(),
-            })
+            .intern(TypeKind::FixedArray { element, length })
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         self.program.types = types
             .commit(&self.program.types)
@@ -543,6 +550,25 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
         if !seen.insert(data) || program.nominal_identity(data).is_some() {
             continue;
         }
+        match program.type_kind(data) {
+            Some(TypeKind::GenericParameter(id)) => {
+                if !parameter_in_scope(program, *id, GenericParameterDomain::Type) {
+                    return false;
+                }
+                continue;
+            }
+            Some(TypeKind::FixedArray {
+                element,
+                length: length @ UsizeTerm::Parameter(_),
+            }) => {
+                if !length_in_scope(program, *length) {
+                    return false;
+                }
+                pending.push(*element);
+                continue;
+            }
+            _ => {}
+        }
         match program.data_schema(data) {
             Some(super::PayloadSchema::Builtin(_)) => {}
             Some(super::PayloadSchema::Aggregate(schema)) => {
@@ -563,6 +589,21 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
         }
     }
     true
+}
+
+fn length_in_scope(program: &Program, length: UsizeTerm) -> bool {
+    length
+        .parameter()
+        .is_none_or(|id| parameter_in_scope(program, id, GenericParameterDomain::UsizeConstant))
+}
+
+fn parameter_in_scope(
+    program: &Program,
+    id: GenericParameterId,
+    domain: GenericParameterDomain,
+) -> bool {
+    matches!(program.type_scope, TypeScope::Body(owner)
+        if program.generic_parameter(id).is_some_and(|slot| slot.owner() == owner.source_owner() && slot.domain() == domain))
 }
 
 // A named signature can retain a reserved nominal identity without demanding its payload.
@@ -644,7 +685,7 @@ fn replay_types(
             }
             TypeKind::Tuple(fields) => fields.iter().all(|data| structural_component(body, data)),
             TypeKind::FixedArray { element, length } => {
-                length.closed_value().is_some() && structural_component(body, *element)
+                length_in_scope(body, *length) && structural_component(body, *element)
             }
             _ => false,
         };

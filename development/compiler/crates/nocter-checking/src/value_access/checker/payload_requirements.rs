@@ -1,16 +1,18 @@
 //! Actual body, invocation and static access payloads are independent of signature publication.
 use crate::value_access::{Failure, Rule, diagnostics};
 use nocter_declaration_lowering::access_declarations::CodeSource;
+use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
     AggregateForm, Code, FunctionConstraint, PayloadSchema, Program,
 };
-use nocter_model::{NominalTypeId, TypeId};
+use nocter_model::{AccessCodeId, NominalTypeId, TypeId, TypeKind, UsizeTerm};
 use nocter_syntax::{BoundSyntax, SyntaxOrigin};
 use std::collections::BTreeSet;
 
 pub(super) fn body(
     program: &Program,
     syntax: BoundSyntax<'_>,
+    owner: AccessCodeId,
     code: &Code,
     result: TypeId,
     source: &CodeSource,
@@ -27,7 +29,7 @@ pub(super) fn body(
             .ok_or(Failure::InconsistentSyntax)?;
         pending.push((data, origin));
     }
-    require_roots(program, syntax, &pending)
+    require_roots(program, syntax, &pending, Some(owner))
 }
 
 pub(in crate::value_access) fn invocation(
@@ -45,7 +47,7 @@ pub(in crate::value_access) fn invocation(
                 .map(|input| (input.data, origin)),
         )
         .collect::<Vec<_>>();
-    require_roots(program, syntax, &roots)
+    require_roots(program, syntax, &roots, None)
 }
 
 pub(in crate::value_access) fn data(
@@ -54,15 +56,32 @@ pub(in crate::value_access) fn data(
     data: TypeId,
     origin: SyntaxOrigin,
 ) -> Result<(), Failure> {
-    require_roots(program, syntax, &[(data, origin)])
+    require_roots(program, syntax, &[(data, origin)], None)
+}
+
+impl super::Checker<'_, '_> {
+    /// Validate a value boundary within the current declaration's lexical type assumptions.
+    pub(in crate::value_access) fn require_body_payload(
+        &self,
+        data: TypeId,
+        origin: SyntaxOrigin,
+    ) -> Result<(), Failure> {
+        require_roots(
+            self.program(),
+            self.syntax(),
+            &[(data, origin)],
+            Some(self.code.source_owner()),
+        )
+    }
 }
 
 fn require_roots(
     program: &Program,
     syntax: BoundSyntax<'_>,
     roots: &[(TypeId, SyntaxOrigin)],
+    owner: Option<AccessCodeId>,
 ) -> Result<(), Failure> {
-    if let Some((record, origin)) = unready(program, roots.iter().copied())? {
+    if let Some((record, origin)) = unready(program, roots.iter().copied(), owner)? {
         return Err(Failure::RequiredHeader {
             declaration: record.into(),
             origin,
@@ -98,12 +117,14 @@ pub(in crate::value_access) fn ready(
     program: &Program,
     roots: impl IntoIterator<Item = TypeId>,
 ) -> Result<bool, Failure> {
-    unready(program, roots.into_iter().map(|data| (data, ()))).map(|missing| missing.is_none())
+    unready(program, roots.into_iter().map(|data| (data, ())), None)
+        .map(|missing| missing.is_none())
 }
 
 fn unready<Origin: Copy>(
     program: &Program,
     roots: impl IntoIterator<Item = (TypeId, Origin)>,
+    owner: Option<AccessCodeId>,
 ) -> Result<Option<(NominalTypeId, Origin)>, Failure> {
     let mut pending = roots.into_iter().collect::<Vec<_>>();
     let mut seen = BTreeSet::new();
@@ -116,6 +137,26 @@ fn unready<Origin: Copy>(
                 return Ok(Some((record, origin)));
             }
             // Publication already closed this record's positive payload dependencies.
+            continue;
+        }
+        let symbolic = match program.type_kind(data) {
+            Some(TypeKind::GenericParameter(id)) => Some((*id, GenericParameterDomain::Type)),
+            Some(TypeKind::FixedArray {
+                element,
+                length: UsizeTerm::Parameter(id),
+            }) => {
+                pending.push((*element, origin));
+                Some((*id, GenericParameterDomain::UsizeConstant))
+            }
+            _ => None,
+        };
+        if let Some((id, domain)) = symbolic {
+            if program
+                .generic_parameter(id)
+                .is_none_or(|slot| Some(slot.owner()) != owner || slot.domain() != domain)
+            {
+                return Err(Failure::InconsistentSyntax);
+            }
             continue;
         }
         match program

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Check generic bodies under their declaration's own symbolic type assumptions. Use the ordinary
-typing and access-operation rules, preserving the source decision to transfer a value even when a
-later concrete argument is Copy. Separate definition proof from executable specialization.
+Prove generic bodies' definite initialization over the ordinary control graph before choosing a
+concrete payload. Preserve the original transfers and the reaching causes of any failure.
+Qualify access, symbolic cleanup and executable specialization through their own evidence.
 
 ## Remaining Contextual Representation Qualification
 
@@ -685,6 +685,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Elaborate supported explicit type and `usize` arguments against the selected function or
   method schema. Verify the complete argument count, type/value namespace selection, ordinary
   required evaluation and exact argument diagnostics. Keep executable specialization closed.
+- [x] Type whole-value generic transfers and body-local symbolic array annotations under their
+  original binder scope. Verify missing Copy evidence, read-only sources, source transfer
+  operations, and canonical replay that rejects foreign length parameters.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

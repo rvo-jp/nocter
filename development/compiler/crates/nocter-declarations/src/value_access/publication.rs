@@ -331,6 +331,9 @@ impl HeaderPublication {
             self.types = functions::publish_witnesses(&self.types, std::iter::once(id));
         }
         let mut types = self.types.transaction();
+        self.definitions
+            .generic_parameters
+            .intern_types(id, &mut types);
         let parameters: Vec<_> = reservation
             .parameters
             .iter()

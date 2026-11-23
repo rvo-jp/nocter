@@ -106,6 +106,69 @@ fn generic_headers_do_not_admit_unchecked_bodies_or_unspecialized_calls() {
 }
 
 #[test]
+fn generic_body_typing_keeps_the_source_transfers_on_abstract_data() {
+    for text in [
+        "func transfer<T>(take value: T): T { let result: T = value^\nresult^ }",
+        "func transfer<T, const N: usize>(take value: [T; N]): [T; N] { let result: [T; (N)] = value^\nresult^ }",
+    ] {
+        let (sources, tree) = input(text);
+        let syntax = bound(&sources, &tree);
+        let headers = declarations::Query::prepare(syntax).unwrap();
+        let context = headers.bind(syntax).unwrap();
+        let (owner, header) = headers.program().codes().iter().next().unwrap();
+        let data = header.result();
+        let draft = crate::value_access::checker::type_body(&context, owner, &()).unwrap();
+        let moves = draft
+            .body()
+            .expressions()
+            .iter()
+            .filter(|(_, value)| matches!(value.kind, crate::value_access::ExpressionKind::Move(_)))
+            .map(|(_, value)| value.ty.access().unwrap().data())
+            .collect::<Vec<_>>();
+        assert_eq!(moves, [data, data]);
+        assert!(draft.program().data_schema(data).is_none());
+        assert_eq!(draft.program().data_copyable(data), Some(false));
+    }
+}
+
+#[test]
+fn generic_body_typing_rejects_copy_or_movement_without_the_declared_access() {
+    use crate::value_access::Rule::{MissingTransfer, TypeMismatch};
+    for (text, rule, message) in [
+        (
+            "func identity<T>(take value: T): T { value }",
+            MissingTransfer,
+            "transfer",
+        ),
+        (
+            "func identity<T>(value: T): T { value^ }",
+            MissingTransfer,
+            "owning source",
+        ),
+        (
+            "func identity<T>(take value: T): i32 { value^ }",
+            TypeMismatch,
+            "T",
+        ),
+    ] {
+        let (sources, tree) = input(text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(error),
+            ..
+        }) = &failure
+        else {
+            panic!("expected a generic body rejection: {failure:?}");
+        };
+        assert_eq!(error.rule(), rule, "{failure:?}");
+        assert!(
+            error.source().message().contains(message),
+            "{text}: {error:?}"
+        );
+    }
+}
+
+#[test]
 fn explicit_generic_arguments_follow_the_selected_callable_schema() {
     for (arguments, code, origin, message) in [
         (

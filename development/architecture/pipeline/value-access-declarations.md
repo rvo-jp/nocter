@@ -20,23 +20,26 @@ token-boundary probe limits speculative work on comparisons and incomplete sourc
 their declaration before checking a complete argument list against its ordered parameter kinds.
 Type inputs use ordinary type resolution. Expression-shaped `usize` inputs use the same required
 value coordinator as array counts. A bare or grouped name in a constant slot resolves in the
-value namespace. These rules check generic applications without yet admitting their execution.
-Named type applications still require specialization support.
-Named function and method heads retain an ordered generic parameter list. The shared source projection
-preserves original names and constant type annotations. A repeated name is diagnosed at its
+value namespace. Executable generic calls and named type applications require specialization.
+Named function and method heads retain an ordered generic parameter list. The shared source
+projection preserves original names and constant type annotations. A repeated name is diagnosed at its
 second occurrence with the first declaration attached. A paired module contract and implementation
 share the representative's ordered parameter identities. Reserved slots expose their owner, name,
-ordinal and kind before signature publication. They cannot admit an ordinary callable definition.
+ordinal and kind before signature publication and admit only a generic definition.
 Constant parameter annotations use ordinary header type lookup, including transparent aliases
 that resolve to `usize`. A different type is diagnosed on the annotation before any generic
 body checking. A non-name type constructor cannot request value evaluation to establish this domain.
 Callable signatures can retain references to their own type parameters in the common type store.
 Paired headers normalize both occurrences, and public signature checks still verify referenced
-ordinary types and aliases. A symbolic signature grants no function witness, body proof, or
-execution. Whole-source checking diagnoses a generic body or unspecialized use at its source.
+ordinary types and aliases. Executable calls require a checked body and specialization in addition
+to the symbolic signature. Whole-source checking diagnoses unsupported use at its source.
 An array count that consists of a constant parameter retains its symbolic identity in the same
 type store. Closed array counts still use required evaluation. Computed counts reject reads of
 an unbound constant parameter at its source without substituting another value of the same name.
+The body typer shares those parameter identities with local annotations and their canonical type
+extensions. An implicit snapshot of a type parameter requires Copy evidence in the declaration.
+The typed body retains explicit transfers. Generic ownership-flow proof and executable specialization
+remain open.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

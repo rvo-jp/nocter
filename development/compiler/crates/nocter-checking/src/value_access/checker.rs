@@ -8,16 +8,16 @@ use super::{
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
     AggregateForm, BehaviorOwner, CodeKind, DeclarationId, Namespace, ParameterBinding,
     PayloadSchema, Program, TypeExpressionSource,
 };
+use nocter_declarations::{GenericParameter, GenericParameterDomain};
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId,
     AccessParameterId, AccessPlaceId, AccessStatementId, ArenaBuilder, BuiltinType, FieldPath,
-    TypeId, ValueAccess as Ty, ValueAccessMode as Mode,
+    GenericParameterId, TypeId, TypeKind, UsizeTerm, ValueAccess as Ty, ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
@@ -68,25 +68,17 @@ pub(super) fn prepare(
     callable: AccessCodeId,
     values: &dyn super::evaluation::Values,
 ) -> Result<Query, Failure> {
-    let selected = context.for_code(callable)?;
-    let context = &selected;
-    let declaration = context
-        .program()
-        .codes()
-        .get(callable)
-        .ok_or(Failure::UnknownCallable)?;
-    let source = context
-        .code_source(callable)
-        .ok_or(Failure::UnknownCallable)?;
-    if !context
+    let draft = type_body(context, callable, values)?;
+    if !draft
         .program()
         .generic_parameter_ids(callable)
         .ok_or(Failure::InconsistentSyntax)?
         .is_empty()
     {
+        let context = context.for_code(callable)?;
         let origin = SyntaxOrigin::Node(
-            source
-                .generic_parameter_origin()
+            context.code_source(callable)
+                .and_then(nocter_declaration_lowering::access_declarations::CodeSource::generic_parameter_origin)
                 .ok_or(Failure::InconsistentSyntax)?,
         );
         let rule = Rule::UnqualifiedGenericCallable;
@@ -98,12 +90,38 @@ pub(super) fn prepare(
             Vec::new(),
         ));
     }
+    Ok(draft)
+}
+
+/// Type the original body using its declaration-owned assumptions, without accepting its flow.
+pub(super) fn type_body(
+    context: &DeclarationContext<'_>,
+    callable: AccessCodeId,
+    values: &dyn super::evaluation::Values,
+) -> Result<Query, Failure> {
+    let selected = context.for_code(callable)?;
+    let context = &selected;
+    let declaration = context
+        .program()
+        .codes()
+        .get(callable)
+        .ok_or(Failure::UnknownCallable)?;
+    let source = context
+        .code_source(callable)
+        .ok_or(Failure::UnknownCallable)?;
     let result = context
         .program()
         .code_body_result(callable)
         .ok_or(Failure::InconsistentSyntax)?;
     let syntax = context.syntax();
-    payload_requirements::body(context.program(), syntax, declaration, result, source)?;
+    payload_requirements::body(
+        context.program(),
+        syntax,
+        callable,
+        declaration,
+        result,
+        source,
+    )?;
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
     let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)
         .ok_or(Failure::InconsistentSyntax)?;
@@ -429,11 +447,7 @@ impl<'a, 's> Checker<'a, 's> {
         }
         *remaining -= 1;
         let Some(schema) = self.program().data_schema(data) else {
-            return self
-                .program()
-                .nominal_identity(data)
-                .and_then(|id| self.program().declaration_label(id.into()))
-                .expect("declared data authority");
+            return self.label_unclosed_data(data, remaining);
         };
         match schema {
             PayloadSchema::Optional(payload) => {
@@ -513,6 +527,34 @@ impl<'a, 's> Checker<'a, 's> {
                 .expect("closed witness source")
             ),
         }
+    }
+
+    fn label_unclosed_data(&self, data: TypeId, remaining: &mut usize) -> String {
+        match self.program().type_kind(data) {
+            Some(TypeKind::GenericParameter(id)) => self.generic_parameter_label(*id).into(),
+            Some(TypeKind::FixedArray {
+                element,
+                length: UsizeTerm::Parameter(id),
+            }) => {
+                format!(
+                    "[{}; {}]",
+                    self.data_label_with_budget(*element, remaining),
+                    self.generic_parameter_label(*id)
+                )
+            }
+            _ => self
+                .program()
+                .nominal_identity(data)
+                .and_then(|id| self.program().declaration_label(id.into()))
+                .expect("declared data authority"),
+        }
+    }
+
+    fn generic_parameter_label(&self, id: GenericParameterId) -> &str {
+        self.program()
+            .generic_parameter(id)
+            .and_then(|slot| self.program().symbols().spelling(slot.name()))
+            .expect("declared parameter name")
     }
 
     pub fn reject_local<T>(
@@ -600,6 +642,19 @@ impl<'a, 's> Checker<'a, 's> {
         }
         self.require_closed_array_term(token)?;
         if self.lookup(spelling).is_none()
+            && let Some((_, parameter)) = self.generic_parameter_at(token)?
+        {
+            return match parameter.domain() {
+                GenericParameterDomain::Type => self.reject(Rule::UnknownName, token),
+                GenericParameterDomain::UsizeConstant => self.reject_message(
+                    Rule::UnqualifiedGenericCallable,
+                    token,
+                    "the value of this constant parameter requires specialization".into(),
+                    Vec::new(),
+                ),
+            };
+        }
+        if self.lookup(spelling).is_none()
             && let Some(declaration) = self
                 .program()
                 .symbols()
@@ -609,6 +664,20 @@ impl<'a, 's> Checker<'a, 's> {
             return self.require_declaration(declaration, token);
         }
         Ok(())
+    }
+
+    pub(super) fn generic_parameter_at(
+        &self,
+        token: SyntaxToken,
+    ) -> Result<Option<(GenericParameterId, GenericParameter<AccessCodeId>)>, Failure> {
+        Ok(self
+            .program()
+            .symbols()
+            .get(self.text(token)?)
+            .and_then(|name| {
+                self.program()
+                    .generic_parameter_named(self.code.source_owner(), name)
+            }))
     }
 
     /// The count body is a required expression in the original declaration's generic scope.
