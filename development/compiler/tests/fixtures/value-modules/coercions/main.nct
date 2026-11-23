@@ -6,10 +6,10 @@ const BASE: i32 = buffer.Buffer.create(20) as i32
 copy struct Sizing { value: usize }
 impl Sizing {
     const coerce self as [usize; LENGTH] { [self.value; LENGTH] }
-    const coerce self as usize { self.value }
+    const coerce self as [usize; 1] { [self.value] }
 }
 
-const LENGTH: usize = Sizing { value: 2 } as usize
+const LENGTH: usize = (Sizing { value: 2 } as [usize; 1])[0]
 const VALUES: [usize; LENGTH] = Sizing { value: 21 } as [usize; LENGTH]
 
 func main(): i32! {

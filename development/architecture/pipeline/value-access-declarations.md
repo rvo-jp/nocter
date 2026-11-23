@@ -69,6 +69,8 @@ structurally incompatible recipes supply no prerequisite, and final declaration 
 checks target uniqueness across all fragments. The selected receiver operation guides
 projection before input preparation. The current fragment supports targets with exact data
 identity, including outcome and fixed-array data.
+If relevant headers remain unresolved, the ordinary dependency query can resolve one candidate
+and retry exact selection, retaining successful source evidence when an earlier candidate cycles.
 
 ### Structural Record Literals
 

@@ -27,6 +27,9 @@ pub trait DependencyComputation<K, V, E> {
 pub enum DependencyStep<K, V> {
     Complete(V),
     Require(Box<[K]>),
+    /// Resolve one unfinished prerequisite before retrying the draft.
+    /// Cyclic candidates may be skipped within this step. A computation failure propagates.
+    RequireOne(Box<[K]>),
     /// Run a bounded re-entrant computation for this already-active key.
     Compute,
 }
@@ -64,13 +67,36 @@ pub trait DependencyProgress<K, V, E> {
     ) -> DependencyQueryError<K, E> {
         failure
     }
+    /// Discard bookkeeping for an unfinished child abandoned in favor of another prerequisite.
+    /// Successfully completed facts survive.
+    fn dependency_abandoned(&mut self, _key: K) {}
 }
 
 #[derive(Debug)]
 struct Active<K> {
     key: K,
-    pending: std::vec::IntoIter<K>,
+    pending: Pending<K>,
     dependencies: RefCell<BTreeSet<usize>>,
+}
+
+#[derive(Debug)]
+enum Pending<K> {
+    All(std::vec::IntoIter<K>),
+    One(std::vec::IntoIter<K>),
+}
+
+impl<K> Pending<K> {
+    fn empty() -> Self {
+        Self::All(Vec::new().into_iter())
+    }
+    fn next(&mut self) -> Option<K> {
+        match self {
+            Self::All(keys) | Self::One(keys) => keys.next(),
+        }
+    }
+    fn has_alternative(&self) -> bool {
+        matches!(self, Self::One(keys) if !keys.as_slice().is_empty())
+    }
 }
 
 #[derive(Debug)]
@@ -155,8 +181,16 @@ where
         loop {
             let frame = self.stack.last_mut().expect("active step frame");
             if let Some(child) = frame.pending.next() {
-                if let Err(error) = self.begin(child.clone()) {
-                    return Err(self.fail_steps(computation, outer_depth, child, error));
+                match self.begin(child.clone()) {
+                    Ok(Some(_)) => self.complete_choice(),
+                    Ok(None) => {}
+                    Err(error) => {
+                        if let Some(failure) =
+                            self.retry_or_fail(computation, outer_depth, child, error)
+                        {
+                            return Err(failure);
+                        }
+                    }
                 }
                 continue;
             }
@@ -167,7 +201,21 @@ where
                 Ok(DependencyStep::Require(dependencies)) => {
                     if dependencies.iter().any(|key| self.completed(key).is_none()) {
                         self.stack.last_mut().expect("current step frame").pending =
-                            dependencies.into_vec().into_iter();
+                            Pending::All(dependencies.into_vec().into_iter());
+                        continue;
+                    }
+                    Err(DependencyQueryError::Computation(
+                        computation.no_progress(key.clone()),
+                    ))
+                }
+                Ok(DependencyStep::RequireOne(dependencies)) => {
+                    let mut dependencies = dependencies.into_vec();
+                    dependencies.retain(|key| {
+                        !matches!(self.states.get(key), Some(QueryState::Complete(_)))
+                    });
+                    if !dependencies.is_empty() {
+                        self.stack.last_mut().expect("current step frame").pending =
+                            Pending::One(dependencies.into_iter());
                         continue;
                     }
                     Err(DependencyQueryError::Computation(
@@ -178,9 +226,12 @@ where
             };
             match self.finish(key.clone(), result) {
                 Ok(value) if self.stack.len() == outer_depth => return Ok(value),
-                Ok(_) => {}
+                Ok(_) => self.complete_choice(),
                 Err(error) => {
-                    return Err(self.fail_steps(computation, outer_depth, key, error));
+                    if let Some(failure) = self.retry_or_fail(computation, outer_depth, key, error)
+                    {
+                        return Err(failure);
+                    }
                 }
             }
         }
@@ -210,7 +261,7 @@ where
         self.states.insert(key.clone(), QueryState::Active);
         self.stack.push(Active {
             key,
-            pending: Vec::new().into_iter(),
+            pending: Pending::empty(),
             dependencies: RefCell::new(BTreeSet::new()),
         });
         Ok(None)
@@ -244,6 +295,37 @@ where
             }
         }
     }
+    fn complete_choice(&mut self) {
+        if let Some(frame) = self.stack.last_mut()
+            && matches!(frame.pending, Pending::One(_))
+        {
+            frame.pending = Pending::empty();
+        }
+    }
+
+    fn retry_or_fail<E>(
+        &mut self,
+        computation: &mut impl DependencyProgress<K, V, E>,
+        outer_depth: usize,
+        child: K,
+        failure: DependencyQueryError<K, E>,
+    ) -> Option<DependencyQueryError<K, E>> {
+        if matches!(failure, DependencyQueryError::Cycle(_))
+            && let Some(index) = self.stack[outer_depth..]
+                .iter()
+                .rposition(|frame| frame.pending.has_alternative())
+        {
+            let keep = outer_depth + index + 1;
+            while self.stack.len() > keep {
+                let frame = self.stack.pop().expect("abandoned dependency frame");
+                self.states.remove(&frame.key);
+                computation.dependency_abandoned(frame.key);
+            }
+            return None;
+        }
+        Some(self.fail_steps(computation, outer_depth, child, failure))
+    }
+
     fn fail_steps<E>(
         &mut self,
         computation: &mut impl DependencyProgress<K, V, E>,

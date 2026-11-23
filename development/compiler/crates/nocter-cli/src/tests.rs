@@ -449,7 +449,10 @@ fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
 
     let reject = |needle| {
         let error = execute(vec!["check", "--offline"]).unwrap_err();
-        let diagnostic = error.render_source_diagnostics().unwrap().unwrap();
+        let diagnostic = error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| panic!("expected {needle}, got {error}"));
         assert!(diagnostic.contains(needle), "{diagnostic}");
     };
     for (old, new, diagnostic) in [
@@ -457,6 +460,11 @@ fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
         ("var pending", "let pending", "E0387"),
         ("as buffer.Output!", "as buffer.Output", "no conversion"),
         ("output.value", "owner as i32", "E0378"),
+        (
+            "    const coerce self as [usize; 1] { [self.value] }\n",
+            "",
+            "E0324",
+        ),
     ] {
         fs::write(&source, program.replace(old, new)).unwrap();
         reject(diagnostic);

@@ -36,6 +36,13 @@ may attach authored causes or classify that cycle without maintaining their own 
 still owns detection, frame removal and successful dependency evidence. A failure of the requested
 root has no parent callback inside that invocation.
 
+A `RequireOne` step asks for one completed prerequisite before the draft advances again.
+Within the same iterative invocation, a cyclic candidate can give way to the next candidate.
+The query removes that candidate's unfinished frames, calls `dependency_abandoned` for their
+bookkeeping and keeps all completed facts. A successful child returns control to the draft for
+semantic selection. Computation failures propagate through the normal failure callbacks, and
+the last active cycle propagates when the group runs out of candidates.
+
 The read-only active-key path lets consumers classify request roles for an execution-depth budget
 without another stack; the query does not interpret those roles. Each completed value is allocated
 once and shared across requests. The query has no `Clone` implementation, so a construction cannot

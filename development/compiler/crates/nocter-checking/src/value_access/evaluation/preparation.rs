@@ -29,7 +29,20 @@ struct Preparation<'a, 'source> {
     condition_work: state::WorkBudget,
     plan_work: state::WorkBudget,
     expressions: BTreeMap<ValueExpression, crate::value_access::RequiredExpression>,
-    causes: HashMap<Request, (Request, DependencyCause)>,
+    causes: HashMap<Request, (DependencyTarget, DependencyCause)>,
+}
+#[derive(Clone, Copy)]
+enum DependencyTarget {
+    Exact(Request),
+    CandidateHeader,
+}
+impl DependencyTarget {
+    fn includes(self, request: Request) -> bool {
+        match self {
+            Self::Exact(target) => target == request,
+            Self::CandidateHeader => matches!(request, Request::Header(_)),
+        }
+    }
 }
 enum DependencyCause {
     Header(SyntaxOrigin),
@@ -269,6 +282,22 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Request::Header(declaration),
                 DependencyCause::Header(origin),
             )),
+            Err(BodyFailure::RequiredHeaderCandidates { candidates, origin }) => {
+                let parent = Request::Body(id);
+                let cause = DependencyCause::Header(origin);
+                if let [code] = candidates.as_ref() {
+                    return Ok(self.require_step(parent, Request::Header((*code).into()), cause));
+                }
+                self.causes
+                    .insert(parent, (DependencyTarget::CandidateHeader, cause));
+                Ok(DependencyStep::RequireOne(
+                    candidates
+                        .into_vec()
+                        .into_iter()
+                        .map(|code| Request::Header(code.into()))
+                        .collect(),
+                ))
+            }
             Err(BodyFailure::RequiredConstant {
                 initializer,
                 origin,
@@ -338,7 +367,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
         child: Request,
         cause: DependencyCause,
     ) -> DependencyStep<Request, Fact> {
-        self.causes.insert(parent, (child, cause));
+        self.causes
+            .insert(parent, (DependencyTarget::Exact(child), cause));
         DependencyStep::Require(Box::new([child]))
     }
     fn require_value_step(
@@ -410,9 +440,9 @@ impl<'a, 'source> Preparation<'a, 'source> {
             .iter()
             .map(|&request| {
                 let (name, role) = match request {
-                    Request::Header(id) => (self.context.program().declaration_label(id), "header"),
-                    Request::Body(id) => (self.context.program().root_label(id), "body"),
-                    Request::Value(id) => (self.context.program().root_label(id), "value"),
+                    Request::Header(id) => (self.declaration_label(id), "header"),
+                    Request::Body(id) => (self.root_label(id), "body"),
+                    Request::Value(id) => (self.root_label(id), "value"),
                 };
                 let name = name.ok_or(INVALID)?;
                 Ok(format!("{role} {name}"))
@@ -443,6 +473,47 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 ),
             }),
         })
+    }
+    fn declaration_label(&self, declaration: DeclarationId) -> Option<String> {
+        let program = self.context.program();
+        program.declaration_label(declaration).or_else(|| {
+            let DeclarationId::Code(code) = declaration else {
+                return None;
+            };
+            let source = self.context.code_source(code)?;
+            match source.origin() {
+                SyntaxOrigin::Token(token) => self
+                    .context
+                    .for_code(code)
+                    .ok()?
+                    .syntax()
+                    .text_at(token.range())
+                    .map(str::to_owned),
+                SyntaxOrigin::Node(_) => {
+                    let nocter_declarations::value_access::CodeKind::TypeExpression(origin) =
+                        program.codes().get(code)?.kind()
+                    else {
+                        return None;
+                    };
+                    Some(format!(
+                        "type expression in {}",
+                        self.declaration_label(origin.declaration)?
+                    ))
+                }
+            }
+        })
+    }
+    fn root_label(&self, root: ValueCodeRoot) -> Option<String> {
+        self.context
+            .program()
+            .root_label(root)
+            .or_else(|| match root {
+                ValueCodeRoot::Declaration(id) => self.declaration_label(id.into()),
+                ValueCodeRoot::Expression(id) => Some(format!(
+                    "expression in {}",
+                    self.declaration_label(id.owner.into())?
+                )),
+            })
     }
     fn requirements(
         &self,
@@ -775,7 +846,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     .or_else(|| {
                         path.windows(2).rev().find_map(|edge| {
                             let (target, cause) = self.causes.get(&edge[0])?;
-                            (*target == edge[1]).then(|| authored(cause)).flatten()
+                            target.includes(edge[1]).then(|| authored(cause)).flatten()
                         })
                     })
                     .or_else(|| match child {
@@ -869,12 +940,15 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
         let cause = self.causes.remove(&parent);
         if cause
             .as_ref()
-            .is_some_and(|(expected, _)| *expected != child)
+            .is_some_and(|(expected, _)| !expected.includes(child))
         {
             return QueryError::Computation(INVALID.into());
         }
         self.project_dependency_failure(parent, child, cause.map(|(_, cause)| cause), failure)
             .unwrap_or_else(|failure| QueryError::Computation(failure.into()))
+    }
+    fn dependency_abandoned(&mut self, key: Request) {
+        self.causes.remove(&key);
     }
 }
 

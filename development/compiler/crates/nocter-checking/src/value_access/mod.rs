@@ -236,6 +236,11 @@ pub enum Failure {
         declaration: nocter_declarations::value_access::DeclarationId,
         origin: nocter_syntax::SyntaxOrigin,
     },
+    /// The unpublished draft needs one unresolved header to resume exact target selection.
+    RequiredHeaderCandidates {
+        candidates: Box<[AccessCodeId]>,
+        origin: nocter_syntax::SyntaxOrigin,
+    },
     /// The unpublished body draft needs a completed declaration value before typing continues.
     RequiredConstant {
         initializer: AccessCodeId,

@@ -212,6 +212,82 @@ fn iterative_cycles_keep_completed_siblings_and_unwind_only_unfinished_work() {
     assert_eq!(steps.completions[&3], 1);
 }
 
+struct Choice {
+    steps: Steps,
+    candidates: Box<[usize]>,
+    abandoned: Vec<usize>,
+}
+
+impl DependencyProgress<usize, usize, usize> for Choice {
+    fn advance(
+        &mut self,
+        query: &DependencyQuery<usize, usize>,
+        key: usize,
+    ) -> Result<DependencyStep<usize, usize>, usize> {
+        if key == 0 {
+            return Ok(self
+                .candidates
+                .iter()
+                .find_map(|candidate| query.completed(candidate))
+                .map_or_else(
+                    || DependencyStep::RequireOne(self.candidates.clone()),
+                    |value| DependencyStep::Complete(*value + 1),
+                ));
+        }
+        self.steps.advance(query, key)
+    }
+    fn no_progress(&mut self, key: usize) -> usize {
+        key
+    }
+    fn dependency_abandoned(&mut self, key: usize) {
+        self.abandoned.push(key);
+    }
+}
+
+#[test]
+fn one_prerequisite_skips_a_cyclic_candidate_without_publishing_its_edges() {
+    let mut choice = Choice {
+        steps: Steps::new([(1, vec![4, 2]), (2, vec![0])]),
+        candidates: Box::new([1, 3, 5]),
+        abandoned: Vec::new(),
+    };
+    let mut query = DependencyQuery::default();
+    assert_eq!(query.resolve_steps(&mut choice, 0).as_deref(), Ok(&2));
+    assert_eq!(choice.abandoned, [2, 1]);
+    assert_eq!(query.active_depth(), 0);
+    let facts = query.into_dependencies();
+    assert_eq!(
+        facts.iter().map(|fact| fact.key).collect::<Vec<_>>(),
+        [4, 3, 0]
+    );
+    assert!(facts[0].dependencies.is_empty());
+    assert!(facts[1].dependencies.is_empty());
+    assert_eq!(facts[2].dependencies.as_ref(), &[1]);
+}
+
+#[test]
+fn one_prerequisite_preserves_rejections_and_the_exhausted_cycle_path() {
+    let mut choice = Choice {
+        steps: Steps::new([(1, vec![0]), (2, vec![0])]),
+        candidates: Box::new([1, 2]),
+        abandoned: Vec::new(),
+    };
+    let mut query = DependencyQuery::default();
+    assert_eq!(
+        query.resolve_steps(&mut choice, 0),
+        Err(DependencyQueryError::Cycle(Box::new([0, 2, 0]))),
+    );
+    assert_eq!(choice.abandoned, [1]);
+    assert_eq!(query.active_depth(), 0);
+    choice.steps.reject = Some(1);
+    assert_eq!(
+        query.resolve_steps(&mut choice, 0),
+        Err(DependencyQueryError::Computation(1)),
+    );
+    assert_eq!(choice.abandoned, [1]);
+    assert_eq!(query.active_depth(), 0);
+}
+
 #[test]
 fn iterative_failures_and_stalled_drafts_are_not_published_and_can_be_retried() {
     for stalled in [false, true] {

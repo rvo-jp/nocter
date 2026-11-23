@@ -28,9 +28,11 @@ impl Checker<'_, '_> {
                     self.context.conversion(owner, data)
                 }) {
                 ConversionSelection::Selected(member) => member,
-                ConversionSelection::Require(code) => {
-                    self.require_declaration(code.into(), token)?;
-                    return Err(Failure::InconsistentSyntax);
+                ConversionSelection::Require(candidates) => {
+                    return Err(Failure::RequiredHeaderCandidates {
+                        candidates,
+                        origin: nocter_syntax::SyntaxOrigin::Token(token),
+                    });
                 }
                 ConversionSelection::Missing => {
                     return self.missing_conversion(target, actual, data);

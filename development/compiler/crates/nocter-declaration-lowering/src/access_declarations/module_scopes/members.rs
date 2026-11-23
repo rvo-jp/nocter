@@ -36,10 +36,10 @@ pub struct TypeMember {
     pub accessible: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConversionSelection {
     Missing,
-    Require(AccessCodeId),
+    Require(Box<[AccessCodeId]>),
     Selected(TypeMember),
     Ambiguous,
 }
@@ -175,7 +175,7 @@ impl Members {
         owner: BehaviorOwner,
         target: TypeId,
     ) -> ConversionSelection {
-        let mut pending = None;
+        let mut pending = Vec::new();
         let mut selected = None;
         let target_schema = program.data_schema(target);
         for &id in self.conversions.get(&owner).into_iter().flatten() {
@@ -192,7 +192,7 @@ impl Members {
                         .is_none_or(|schema| could_name_target(&header.result_data, schema))
                 }) =>
                 {
-                    pending.get_or_insert(member.code);
+                    pending.push(member.code);
                 }
                 Some(code) if code.result() == target => {
                     if selected.replace(member).is_some() {
@@ -204,10 +204,13 @@ impl Members {
         }
         // Every completed unit validates uniqueness, including entries whose target still
         // requires a constant computed through a known, exact conversion.
-        selected.map_or_else(
-            || pending.map_or(ConversionSelection::Missing, ConversionSelection::Require),
-            ConversionSelection::Selected,
-        )
+        if let Some(member) = selected {
+            ConversionSelection::Selected(member)
+        } else if pending.is_empty() {
+            ConversionSelection::Missing
+        } else {
+            ConversionSelection::Require(pending.into())
+        }
     }
 
     pub fn verify_conversions(
