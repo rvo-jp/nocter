@@ -631,6 +631,12 @@ impl Context<'_> {
                     }
                     CallTarget::Primitive(role) => {
                         let signature = role.value_signature().ok_or_else(|| self.invalid())?;
+                        if !signature
+                            .result()
+                            .matches_runtime(self.program.runtime.types(), call.answer.data)
+                        {
+                            return Err(self.invalid());
+                        }
                         let data = |builtin| {
                             self.program
                                 .runtime
@@ -644,7 +650,7 @@ impl Context<'_> {
                                 .iter()
                                 .map(|input| Ok((data(input.data())?, input.operation())))
                                 .collect::<Result<Vec<_>, Failure>>()?,
-                            data(signature.result())?,
+                            call.answer.data,
                         )
                     }
                 };

@@ -6,7 +6,7 @@ use nocter_model::CallableId;
 mod profile;
 mod value_signature;
 pub use profile::ValueDriveBacking;
-pub use value_signature::{PrimitiveValueInput, PrimitiveValueSignature};
+pub use value_signature::{PrimitiveValueInput, PrimitiveValueResult, PrimitiveValueSignature};
 
 macro_rules! closed_role_enum {
     (

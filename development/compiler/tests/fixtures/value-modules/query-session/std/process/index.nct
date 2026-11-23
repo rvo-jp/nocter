@@ -1,2 +1,3 @@
 primitive func arg_count(): usize
+primitive func arg_checked(index: usize): str??
 primitive func environment_count(): usize

@@ -7,33 +7,46 @@ use crate::{
 };
 use nocter_mir::value_access::{CallTarget, Operation, Program};
 use nocter_runtime_contract::{PrimitiveRole, RuntimePrimitive};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, btree_map::Entry};
 
 type Plans = (
     BTreeMap<PrimitiveRole, MachinePrimitiveTarget>,
     MachineRuntimeCallAbiTable,
 );
 pub(super) fn prepare(program: &Program, layouts: &MachineLayoutPlan) -> Result<Plans, Failure> {
-    let roles: BTreeSet<_> = program
+    let calls = program
         .bodies()
         .values()
         .flat_map(|body| body.actions().values())
         .flat_map(|action| action.operations.iter())
         .filter_map(|operation| match operation {
             Operation::Call(call) => match call.target {
-                CallTarget::Primitive(role) => Some(role),
+                CallTarget::Primitive(role) => Some((role, call.answer.data)),
                 CallTarget::Body(_) | CallTarget::Selected => None,
             },
             _ => None,
-        })
-        .collect();
+        });
+    let runtime = program.runtime();
+    let mut results = BTreeMap::new();
+    for (role, result) in calls {
+        match results.entry(role) {
+            Entry::Vacant(site) => {
+                site.insert(result);
+            }
+            Entry::Occupied(site) if runtime.has_same_value_representation(*site.get(), result) => {
+            }
+            Entry::Occupied(_) => return Err(Failure::InvalidRoot),
+        }
+    }
     let mut targets = BTreeMap::new();
     let mut abis = Vec::<MachineCallableAbi>::new();
-    for role in roles {
+    for (role, result) in results {
         let signature = role.value_signature().ok_or(Failure::InvalidRoot)?;
+        if !signature.result().matches_runtime(runtime.types(), result) {
+            return Err(Failure::InvalidRoot);
+        }
         let data = |builtin| {
-            program
-                .runtime()
+            runtime
                 .types()
                 .primitive(RuntimePrimitive::for_builtin(builtin))
                 .ok_or(Failure::InvalidRoot)
@@ -43,14 +56,8 @@ pub(super) fn prepare(program: &Program, layouts: &MachineLayoutPlan) -> Result<
             .iter()
             .map(|input| data(input.data()))
             .collect::<Result<Vec<_>, _>>()?;
-        let abi = plan_signature(
-            program.runtime().types(),
-            layouts,
-            &inputs,
-            data(signature.result())?,
-            None,
-        )
-        .map_err(Failure::Abi)?;
+        let abi = plan_signature(runtime.types(), layouts, &inputs, result, None)
+            .map_err(Failure::Abi)?;
         let index = if let Some(index) = abis.iter().position(|existing| existing == &abi) {
             index
         } else {

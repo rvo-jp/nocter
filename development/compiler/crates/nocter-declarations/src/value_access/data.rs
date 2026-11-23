@@ -159,9 +159,14 @@ impl Program {
     pub fn data_type(&self, data: BuiltinType) -> Option<TypeId> {
         supported(data).then(|| self.types.store().builtin(data))
     }
+    /// Access the canonical type descriptor without granting payload or storage evidence.
+    #[must_use]
+    pub fn type_kind(&self, data: TypeId) -> Option<&TypeKind> {
+        self.types.store().get(data)
+    }
     #[must_use]
     pub fn data_kind(&self, data: TypeId) -> Option<BuiltinType> {
-        match self.types.store().get(data)? {
+        match self.type_kind(data)? {
             TypeKind::Builtin(builtin) if supported(*builtin) => Some(*builtin),
             _ => None,
         }

@@ -1,7 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
+    Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LabelId,
+    Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
 };
 
 pub(crate) fn emit_initialize(
@@ -84,6 +84,67 @@ pub(crate) fn emit_argument(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Mate
     emit_indexed_view(ProcessVector::Arguments, code)
 }
 
+pub(crate) fn emit_checked_argument(
+    code: &mut Arm64CodeBuilder,
+    argument_tag: u64,
+    encoding_tag: u64,
+    pointer: u64,
+    length: u64,
+) -> Result<(), Arm64MaterializationError> {
+    let missing = code.create_label();
+    let invalid = code.create_label();
+    let done = code.create_label();
+    let vector = ProcessVector::Arguments;
+    compare_index(vector, code);
+    code.branch_conditional(missing, Arm64BranchCondition::CarrySet);
+    load_string_pointer(vector, code);
+    store_optional_tag(code, argument_tag, true)?;
+    emit_checked_string_length(code, invalid)?;
+    store_optional_tag(code, encoding_tag, true)?;
+    store_result(code, Arm64LoadStoreSize::Double, argument(0), pointer)?;
+    store_result(code, Arm64LoadStoreSize::Double, argument(1), length)?;
+    code.branch(done, false);
+
+    code.bind(invalid)?;
+    store_optional_tag(code, encoding_tag, false)?;
+    code.branch(done, false);
+
+    code.bind(missing)?;
+    store_optional_tag(code, argument_tag, false)?;
+    code.bind(done)?;
+    Ok(())
+}
+
+fn store_optional_tag(
+    code: &mut Arm64CodeBuilder,
+    offset: u64,
+    present: bool,
+) -> Result<(), Arm64MaterializationError> {
+    let optional = nocter_machine::MachineOutcomeKind::Optional;
+    let tag = if present {
+        optional.primary_tag()
+    } else {
+        optional.alternate_tag()
+    };
+    load_immediate(scratch(1), u64::from(tag), code);
+    store_result(code, Arm64LoadStoreSize::Byte, scratch(1), offset)
+}
+
+fn store_result(
+    code: &mut Arm64CodeBuilder,
+    size: Arm64LoadStoreSize,
+    source: crate::Arm64Register,
+    offset: u64,
+) -> Result<(), Arm64MaterializationError> {
+    code.append(Arm64Instruction::StoreUnsigned {
+        size,
+        source: Arm64DataRegister::General(source),
+        base: Arm64BaseRegister::General(Arm64NocterAbi::indirect_result_register()),
+        offset: u32::try_from(offset).map_err(|_| Arm64MaterializationError::OffsetOverflow)?,
+    });
+    Ok(())
+}
+
 pub(crate) fn emit_environment_count(code: &mut Arm64CodeBuilder) {
     load_context_word(
         argument(0),
@@ -150,15 +211,24 @@ fn load_indexed_string(
     vector: ProcessVector,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    let index = argument(0);
-    let base = scratch(0);
-    let address = scratch(1);
-    load_context_word(base, vector.count_offset(), code);
-    compare_register(index, base, code);
+    compare_index(vector, code);
     let valid = code.create_label();
     code.branch_conditional(valid, Arm64BranchCondition::CarryClear);
     emit_index_trap(code);
     code.bind(valid)?;
+    load_string_pointer(vector, code);
+    Ok(())
+}
+
+fn compare_index(vector: ProcessVector, code: &mut Arm64CodeBuilder) {
+    load_context_word(scratch(0), vector.count_offset(), code);
+    compare_register(argument(0), scratch(0), code);
+}
+
+fn load_string_pointer(vector: ProcessVector, code: &mut Arm64CodeBuilder) {
+    let index = argument(0);
+    let base = scratch(0);
+    let address = scratch(1);
     load_context_word(base, vector.vector_offset(), code);
     code.append(Arm64Instruction::AddSubtractExtendedRegister {
         operation: Arm64AddSubtract::Add,
@@ -169,7 +239,6 @@ fn load_indexed_string(
         shift: 3,
     });
     load_word(argument(0), address, 0, code);
-    Ok(())
 }
 
 pub(crate) fn emit_environment_name(
@@ -244,6 +313,104 @@ fn emit_string_length(code: &mut Arm64CodeBuilder) -> Result<(), Arm64Materializ
     add_immediate(length, length, 1, code);
     code.branch(loop_, false);
     code.bind(complete)?;
+    Ok(())
+}
+
+fn emit_checked_string_length(
+    code: &mut Arm64CodeBuilder,
+    invalid: Arm64LabelId,
+) -> Result<(), Arm64MaterializationError> {
+    use Arm64BranchCondition::{CarryClear, CarrySet, Equal, UnsignedHigher};
+    let cursor = scratch(0);
+    let byte = scratch(1);
+    let remaining = argument(2);
+    let minimum = argument(3);
+    let maximum = argument(4);
+    let head = code.create_label();
+    let complete = code.create_label();
+    let two = code.create_label();
+    let three = code.create_label();
+    let default_tail = code.create_label();
+    let tail = code.create_label();
+    let supplementary_start = code.create_label();
+    let unicode_limit = code.create_label();
+    let exclude_overlong = code.create_label();
+    let exclude_surrogate = code.create_label();
+    let compare = |code: &mut Arm64CodeBuilder, immediate, target, condition| {
+        compare_immediate(byte, immediate, Arm64DataSize::Bits32, code);
+        code.branch_conditional(target, condition);
+    };
+
+    move_register(argument(0), cursor, code);
+    code.bind(head)?;
+    load_byte(byte, cursor, code);
+    compare(code, 0, complete, Equal);
+    add_immediate(cursor, cursor, 1, code);
+    compare(code, 0x80, head, CarryClear);
+    compare(code, 0xC2, invalid, CarryClear);
+    compare(code, 0xE0, two, CarryClear);
+    compare(code, 0xF0, three, CarryClear);
+    compare(code, 0xF5, invalid, CarrySet);
+
+    // Four-byte scalar. Restrict the first continuation at both Unicode boundaries.
+    load_immediate(remaining, 3, code);
+    compare(code, 0xF0, supplementary_start, Equal);
+    compare(code, 0xF4, unicode_limit, Equal);
+    code.branch(default_tail, false);
+
+    code.bind(two)?;
+    load_immediate(remaining, 1, code);
+    code.branch(default_tail, false);
+
+    code.bind(three)?;
+    load_immediate(remaining, 2, code);
+    compare(code, 0xE0, exclude_overlong, Equal);
+    compare(code, 0xED, exclude_surrogate, Equal);
+    code.branch(default_tail, false);
+
+    for (label, low, high) in [
+        (supplementary_start, 0x90, 0xBF),
+        (unicode_limit, 0x80, 0x8F),
+        (exclude_overlong, 0xA0, 0xBF),
+        (exclude_surrogate, 0x80, 0x9F),
+    ] {
+        code.bind(label)?;
+        load_immediate(minimum, low, code);
+        load_immediate(maximum, high, code);
+        code.branch(tail, false);
+    }
+
+    code.bind(default_tail)?;
+    load_immediate(minimum, 0x80, code);
+    load_immediate(maximum, 0xBF, code);
+    code.bind(tail)?;
+    load_byte(byte, cursor, code);
+    compare_register(byte, minimum, code);
+    code.branch_conditional(invalid, CarryClear);
+    compare_register(byte, maximum, code);
+    code.branch_conditional(invalid, UnsignedHigher);
+    add_immediate(cursor, cursor, 1, code);
+    code.append(Arm64Instruction::AddSubtractImmediate {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: true,
+        destination: Arm64AddSubtractDestination::General(remaining),
+        source: Arm64BaseRegister::General(remaining),
+        immediate: 1,
+        shift_12: false,
+    });
+    code.branch_conditional(head, Equal);
+    code.branch(default_tail, false);
+
+    code.bind(complete)?;
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: false,
+        destination: Arm64DataRegister::General(argument(1)),
+        left: Arm64DataRegister::General(cursor),
+        right: Arm64DataRegister::General(argument(0)),
+    });
     Ok(())
 }
 
@@ -377,7 +544,7 @@ fn checked_add(left: u64, right: u64) -> Result<u64, Arm64MaterializationError> 
 
 fn argument(index: u8) -> crate::Arm64Register {
     Arm64NocterAbi::argument_register(index)
-        .expect("process primitives use only the two-word argument and result window")
+        .expect("process primitives use caller-saved argument registers")
 }
 
 fn scratch(index: u8) -> crate::Arm64Register {

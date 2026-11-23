@@ -18,10 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify trusted v2 process argument values. Close the exact optional/fallible result shape
-through the primitive signature, accepted source and native ABI. Preserve the process vector's
-argument boundaries, return absence for a missing index, and validate the bytes before
-publishing them as `str`. Verify this path through a selected package and real launches.
+Qualify indexed v2 environment entries through the same checked process text boundary.
+Separate each entry at its first equals sign, retain an empty value, and validate both name
+and value before constructing the entry. Verify absence and invalid UTF-8 under independent
+native process environments. Keep name-based lookup separate until its source comparison
+and name validation are qualified.
 
 ## Remaining Contextual Representation Qualification
 
@@ -732,8 +733,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Admit environment count through the same value signature and native context. Qualify
   independent argument/environment changes under real launches and reject both counts in required
   evaluation.
-- [ ] Qualify argument/environment value access under the selected v2 standard profile. Preserve
-  absence, native argument boundaries, and encoding validation before raw OS bytes become user text.
+- [x] Qualify indexed arguments under the selected v2 process profile. Check the exact nested
+  optional trusted result through source, target and ABI. Verify absence, empty and adjacent
+  arguments, valid multibyte scalars and invalid encoding through native launches.
+- [ ] Qualify indexed environment entries and name-based environment lookup under the selected
+  v2 standard profile. Preserve absent and empty values, native entry boundaries, and validate
+  encoding before raw OS bytes become user text.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

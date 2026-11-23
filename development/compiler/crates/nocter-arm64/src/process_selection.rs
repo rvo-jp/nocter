@@ -1,6 +1,7 @@
 use nocter_machine::{
     MachineArgumentLocation, MachineCallTarget, MachineContextRequirement, MachineFunctionId,
-    MachineOperationId, MachineResultAbi, MachineResultLocation, MachineValueClass,
+    MachineLayoutKind, MachineOperationId, MachineOutcomeKind, MachineResultAbi,
+    MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::PrimitiveRole;
 
@@ -117,6 +118,7 @@ pub(crate) fn select_callback_current(
 }
 
 pub(crate) fn select_primitive(
+    program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
@@ -127,8 +129,13 @@ pub(crate) fn select_primitive(
             selected.push(Arm64SelectedInstruction::ReadProcessArgumentCount);
         }
         PrimitiveRole::ProcessArgument => {
-            validate_abi(operation, target, true, 2)?;
-            selected.push(Arm64SelectedInstruction::ReadProcessArgument);
+            validate_arguments(operation, target, true)?;
+            if let Some(instruction) = checked_argument_result(program, target) {
+                selected.push(instruction);
+            } else {
+                validate_direct_result(operation, target, 2)?;
+                selected.push(Arm64SelectedInstruction::ReadProcessArgument);
+            }
         }
         PrimitiveRole::ProcessEnvironmentCount => {
             validate_abi(operation, target, false, 1)?;
@@ -153,6 +160,15 @@ fn validate_abi(
     has_index: bool,
     result_words: u8,
 ) -> Result<(), Arm64SelectionError> {
+    validate_arguments(operation, target, has_index)?;
+    validate_direct_result(operation, target, result_words)
+}
+
+fn validate_arguments(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    has_index: bool,
+) -> Result<(), Arm64SelectionError> {
     if !target.type_arguments().is_empty()
         || target.abi().pack().is_some()
         || target.abi().stack_argument_size() != 0
@@ -174,6 +190,14 @@ fn validate_abi(
             return Err(Arm64SelectionError::PrimitiveCall(operation));
         }
     }
+    Ok(())
+}
+
+fn validate_direct_result(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    result_words: u8,
+) -> Result<(), Arm64SelectionError> {
     let MachineResultAbi::Value(result) = target.abi().result() else {
         return Err(Arm64SelectionError::PrimitiveCall(operation));
     };
@@ -190,6 +214,49 @@ fn validate_abi(
         return Err(Arm64SelectionError::PrimitiveCall(operation));
     }
     Ok(())
+}
+
+fn checked_argument_result(
+    program: &nocter_machine::MachineProgram,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+) -> Option<Arm64SelectedInstruction> {
+    let MachineResultAbi::Value(result) = target.abi().result() else {
+        return None;
+    };
+    if result.class() != MachineValueClass::Indirect
+        || result.location()
+            != (MachineResultLocation::CallerStorage {
+                pointer_register: Arm64NocterAbi::indirect_result_register().number(),
+            })
+    {
+        return None;
+    }
+    let optional = |data| match program.layouts().get(data)?.kind() {
+        MachineLayoutKind::Outcome {
+            kind: MachineOutcomeKind::Optional,
+            tag_offset,
+            payload_offset,
+            primary: Some(payload),
+            alternate: None,
+        } => Some((*tag_offset, *payload_offset, *payload)),
+        _ => None,
+    };
+    let (argument_tag, encoding, payload) = optional(result.ty())?;
+    let (encoding_tag, text, payload) = optional(payload)?;
+    let MachineLayoutKind::View {
+        pointer_offset,
+        length_offset,
+    } = program.layouts().get(payload)?.kind()
+    else {
+        return None;
+    };
+    let text = encoding.checked_add(text)?;
+    Some(Arm64SelectedInstruction::ReadCheckedProcessArgument {
+        argument_tag,
+        encoding_tag: encoding.checked_add(encoding_tag)?,
+        pointer: text.checked_add(*pointer_offset)?,
+        length: text.checked_add(*length_offset)?,
+    })
 }
 
 fn word_bytes() -> u8 {

@@ -418,8 +418,13 @@ projection resolves pending supplies and preserves operations already selected b
 partial move obtains its physical root from the original receiving carrier while the place's
 data describes the selected payload.
 The selected ARM64 Darwin ABI distinguishes reads of the permanent error leaf and immutable
-process-entry counts from private anonymous mappings for owned error nodes. Node creation can
-trap at its backing request. An independent cleanup certificate covers releasing only the owned
+process-entry data from private anonymous mappings for owned error nodes. A v2 argument lookup
+checks the index before reading the vector and validates UTF-8 while measuring the selected
+NUL-terminated value. Its trusted `str??` result distinguishes a missing index from invalid
+encoding. The call uses the checked layout for both outcome tags and publishes the text view
+only on validation success. An ordinary source wrapper maps invalid encoding to the standard
+process error, independently of absence. Error-node creation can trap at its backing request.
+An independent cleanup certificate covers releasing only the owned
 mappings in the actual chain. That evidence permits reached error disposal during a drive.
 An error can also pass through `throw` and `await` to the process reporter. The ordinary body ABI
 passes the process context through a local drive and the process wrapper uses the closed

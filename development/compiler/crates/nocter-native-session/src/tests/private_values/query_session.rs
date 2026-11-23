@@ -71,6 +71,11 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
             "arg_count",
         ),
         PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessArgument,
+            ModuleIdentity::new(std.clone(), ["process"]),
+            "arg_checked",
+        ),
+        PrimitiveRoleLocator::new(
             PrimitiveRole::ProcessEnvironmentCount,
             ModuleIdentity::new(std, ["process"]),
             "environment_count",
@@ -222,6 +227,62 @@ fn physical_query_session_unit_executes_selected_entries() {
     );
 }
 
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn v2_argument_text_preserves_boundaries_and_rejects_invalid_utf8() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
+    let (session, _) = analyze_package(&directory, CompilationTarget::Arm64Darwin);
+    assert!(
+        session.diagnostics().is_empty(),
+        "{:#?}",
+        session.diagnostics()
+    );
+    let image =
+        crate::compile_value_access_image(&session, &ExecutableSelector::named("arguments"))
+            .unwrap();
+    let launch = |name: &str, value: Option<&[u8]>| {
+        let mut command = super::super::native_command(image.image(), &directory.0, name);
+        if let Some(value) = value {
+            command.arg(OsStr::from_bytes(value));
+            // A malformed neighbor cannot affect the selected argument.
+            command.arg(OsStr::from_bytes(b"\xff"));
+        }
+        let output = command.output().unwrap();
+        assert_eq!(output.status.code(), Some(1), "{name}");
+        assert!(output.stdout.is_empty());
+        output.stderr
+    };
+    assert_eq!(launch("missing", None), b"argv: absent\n");
+    for text in ["", "two words", "Å✓🦉", "\u{80}\u{800}\u{10000}\u{10ffff}"] {
+        assert_eq!(
+            launch("valid-utf8", Some(text.as_bytes())),
+            format!("argv: {text}\n").as_bytes(),
+            "{text:?}"
+        );
+    }
+    for bytes in [
+        &b"\xff"[..],
+        &b"\x80"[..],
+        &b"\xc0\xaf"[..],
+        &b"\xe0\x80\x80"[..],
+        &b"\xed\xa0\x80"[..],
+        &b"\xf0\x80\x80\x80"[..],
+        &b"\xf4\x90\x80\x80"[..],
+        &b"\xe2\x82"[..],
+        &b"valid prefix \xe2 "[..],
+    ] {
+        assert_eq!(
+            launch("invalid-utf8", Some(bytes)),
+            b"std.process.invalid_encoding: process text or requested environment name is invalid\n",
+            "{bytes:?}"
+        );
+    }
+}
+
 fn assert_selected_future_cleanup(
     session: &nocter_session::AnalyzedUnit,
     executable: &str,
@@ -297,7 +358,7 @@ fn assert_selected_future_cleanup(
 fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence() {
     let directory = TempPackage::new();
     copy_fixture(&directory);
-    for module in ["managed_deferred_failure", "compound_deferred"] {
+    for module in ["managed_deferred_failure", "compound_deferred", "arguments"] {
         directory.source(
             &format!("app/{module}/body.nct"),
             "see ./index.nct\nasync func main(): i32! { 0 }",

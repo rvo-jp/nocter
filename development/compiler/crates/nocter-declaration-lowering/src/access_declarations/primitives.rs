@@ -220,10 +220,13 @@ impl PrimitiveBindings {
                 ));
             }
         }
-        if program.data_kind(code.result()) != Some(signature.result()) {
+        if !signature
+            .result()
+            .matches_type(code.result(), |data| program.type_kind(data))
+        {
             let message = format!(
                 "primitive result must have data type {}",
-                signature.result().as_str()
+                signature.result()
             );
             return Err(reject(
                 syntax,

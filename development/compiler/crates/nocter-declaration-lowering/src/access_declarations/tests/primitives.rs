@@ -119,6 +119,33 @@ fn source_names_wrong_modules_and_mismatching_data_or_operations_cannot_acquire_
 }
 
 #[test]
+fn process_argument_authority_requires_both_exact_optional_layers() {
+    let package = PackageIdentity::new("test:standard");
+    let module = ModuleIdentity::new(package.clone(), ["process"]);
+    let toolchain = ToolchainInput::new(package, module.clone(), Vec::new(), Vec::new())
+        .with_primitive_roles(vec![PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessArgument,
+            module.clone(),
+            "argument",
+        )]);
+    let authority = PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
+    for result in ["str??", "str", "str?", "str?!", "str???", "error??"] {
+        let text = format!("primitive func argument(index: usize): {result}");
+        let (sources, tree) = input(&text, ParseGoal::V2CoreUnit);
+        let admitted = Query::prepare_with_primitive_authority(bound(&sources, &tree), &authority);
+        if result == "str??" {
+            assert!(admitted.is_ok());
+        } else {
+            assert!(
+                matches!(admitted, Err(Failure::Primitive(diagnostic))
+                if diagnostic.rule() == PrimitiveRule::Result),
+                "{result}"
+            );
+        }
+    }
+}
+
+#[test]
 fn primitive_roles_select_the_value_namespace_without_reserving_a_type_spelling() {
     let (toolchain, module) = profile("new_error");
     let authority = PrimitiveAuthority::for_module(&toolchain, &module).unwrap();

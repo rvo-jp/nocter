@@ -12,7 +12,7 @@ use nocter_model::{
     CompilationTarget, GenericParameterId, NominalTypeId, NonblockingGuarantee, PackageId,
     TrapGuarantee, TypeId, TypeKind, TypeStore, ValueInputOperation,
 };
-use nocter_runtime_contract::{RuntimeStorageRegistry, RuntimeStorageRole};
+use nocter_runtime_contract::{PrimitiveValueResult, RuntimeStorageRegistry, RuntimeStorageRole};
 
 use crate::{PrimitiveRole, ToolchainSnapshot};
 
@@ -483,6 +483,12 @@ fn validate_supporting_struct(
 
 /// Adapt a shared primitive signature to the published type-qualified input representation.
 fn published_value_primitive(role: PrimitiveRole) -> PrimitiveContract {
+    fn result(expected: PrimitiveValueResult) -> TypeContract {
+        match expected {
+            PrimitiveValueResult::Builtin(value) => TypeContract::Builtin(value),
+            PrimitiveValueResult::Optional(value) => TypeContract::optional(result(*value)),
+        }
+    }
     let signature = role
         .value_signature()
         .expect("selected shared primitive signature");
@@ -501,7 +507,7 @@ fn published_value_primitive(role: PrimitiveRole) -> PrimitiveContract {
     PrimitiveContract {
         generic_count: 0,
         parameters,
-        result: TypeContract::Builtin(signature.result()),
+        result: result(signature.result()),
         exposure: PrimitiveExposure::SourcePrivate,
         target: None,
         provenance_parameters: Vec::new(),

@@ -115,6 +115,7 @@ impl PrimitiveRole {
             RuntimeAbiIdentity::Arm64DarwinV1 => match self {
                 Self::AllocationFailureError
                 | Self::ProcessArgumentCount
+                | Self::ProcessArgument
                 | Self::ProcessEnvironmentCount => Some(ValueDriveBacking::Existing),
                 Self::NewError | Self::ErrorContext => {
                     Some(ValueDriveBacking::PrivateAnonymousMapping)

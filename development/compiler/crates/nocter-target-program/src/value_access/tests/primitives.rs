@@ -48,9 +48,10 @@ fn trusted_calls_have_positional_inputs_without_primitive_instances_or_body_loca
             panic!("runtime operation");
         };
         let signature = role.value_signature().unwrap();
-        assert_eq!(
-            unit.program().data_kind(call.result().data()),
-            Some(signature.result())
+        assert!(
+            signature
+                .result()
+                .matches_type(call.result().data(), |data| unit.program().type_kind(data))
         );
         assert_eq!(call.environment(), Environment::None);
         for (index, (input, expected)) in call.inputs().iter().zip(signature.inputs()).enumerate() {

@@ -386,7 +386,9 @@ fn validate_primitive(
     call: &invocation::Invocation,
 ) -> Result<(), Failure> {
     let signature = role.value_signature().ok_or(Failure::InvalidAcceptedUnit)?;
-    if unit.program().data_kind(call.result().data()) != Some(signature.result())
+    if !signature
+        .result()
+        .matches_type(call.result().data(), |data| unit.program().type_kind(data))
         || call.inputs().len() != signature.inputs().len()
         || call
             .inputs()

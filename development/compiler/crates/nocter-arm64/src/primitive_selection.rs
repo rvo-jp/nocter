@@ -69,7 +69,7 @@ pub(crate) fn select(
         | PrimitiveRole::ProcessEnvironmentCount
         | PrimitiveRole::ProcessEnvironmentName
         | PrimitiveRole::ProcessEnvironmentValue => {
-            crate::process_selection::select_primitive(operation, target, selected)
+            crate::process_selection::select_primitive(program, operation, target, selected)
         }
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
             select_context_reader(operation, target, selected)

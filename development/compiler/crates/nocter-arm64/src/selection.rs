@@ -405,6 +405,12 @@ pub enum Arm64SelectedInstruction {
     },
     ReadProcessArgumentCount,
     ReadProcessArgument,
+    ReadCheckedProcessArgument {
+        argument_tag: u64,
+        encoding_tag: u64,
+        pointer: u64,
+        length: u64,
+    },
     ReadProcessEnvironmentCount,
     ReadProcessEnvironmentName,
     ReadProcessEnvironmentValue,
