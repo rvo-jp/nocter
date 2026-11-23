@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify scoped read/edit tuple bindings using a once-evaluated existing place and separate
-per-leaf access grants. Preserve original field initialization, out-of-bounds handling,
-saved indices, disjoint ignored components, and expiry of the neutral projection.
+Qualify tuple patterns on nongeneric declared inputs. Keep one formal position per argument,
+resolve leaf names and paths from the complete canonical header, and form the leaves at body
+entry through the same scoped or owning tuple operations as local bindings.
 
 ## Remaining Contextual Representation Qualification
 
@@ -693,6 +693,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify nested local `let` and `var` tuple bindings through one supplied carrier and
   ordinary leaf transfers. Verify copy/retirement of the original, interruption, reverse cleanup
   of ignored resources after leaf formation, exact pattern shapes and required/native execution.
+- [x] Qualify scoped `read` and `edit` tuple bindings through a prepared existing place and
+  separate leaf accesses. Verify saved indices, ignored missing or actively accessed siblings,
+  conflicts, bounds failures, annotation, contextual calls, and required/native execution.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

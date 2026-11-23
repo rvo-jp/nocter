@@ -209,6 +209,9 @@ or `take T`. Recognize a contextual input-operation word only when a following p
 completes that production; an identifier such as `edit: T` is an ordinary unmarked name.
 Variadic `...` precedes the input operation and remains limited to an eligible final parameter.
 Pattern recognition does not prove arity, Copy, extraction rights or drop validity.
+At a statement head, a parenthesized tuple pattern after `read` or `edit` is selected by the
+binding delimiter `:` or `=` after its closing parenthesis. Ordinary calls can still use those
+contextual names.
 A keyed pack always names its binding, including in a callable type:
 `func(... entries: K: V): R` or `func(... take entries: K: V): R`.
 `func(... K: V): R` has only the ordinary named-pack interpretation (name K, element type V),

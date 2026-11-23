@@ -334,7 +334,7 @@ impl Context<'_, '_> {
             ExpressionKind::Select {
                 source,
                 ref fields,
-                action: SelectionAction::Access,
+                action: SelectionAction::Access | SelectionAction::PreparedAccess,
             } => self.select(id, source, fields),
             ExpressionKind::Move(place) => {
                 let (region, actor) = self.referent(place)?.ok_or(Failure::Integrity)?;

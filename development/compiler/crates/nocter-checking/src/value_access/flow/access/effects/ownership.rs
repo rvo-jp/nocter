@@ -435,7 +435,7 @@ impl Context<'_, '_> {
         fields: &nocter_model::FieldPath,
         action: SelectionAction,
     ) -> Result<()> {
-        if action == SelectionAction::Access {
+        if action.is_place() {
             return Ok(());
         }
         let selected = Holder::Expression(source).place().project_path(fields);

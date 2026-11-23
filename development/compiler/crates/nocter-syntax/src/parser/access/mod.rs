@@ -242,13 +242,7 @@ fn entry(parser: &mut Parser<'_>) {
             super::block::block_use(parser);
         }
         TokenKind::Keyword(Keyword::Let | Keyword::Var) => binding(parser),
-        TokenKind::Identifier
-            if (parser.at_contextual(ContextualSpelling::Read)
-                || parser.at_contextual(ContextualSpelling::Edit))
-                && parser.nth_kind(1) == TokenKind::Identifier =>
-        {
-            binding(parser);
-        }
+        TokenKind::Identifier if at_scoped_binding(parser) => binding(parser),
         TokenKind::Keyword(Keyword::Return) => return_(parser),
         TokenKind::Keyword(Keyword::Throw) => {
             let marker = parser.start();
@@ -324,6 +318,39 @@ fn loop_(parser: &mut Parser<'_>) {
             NodeKind::LoopStatement
         },
     );
+}
+
+fn at_scoped_binding(parser: &Parser<'_>) -> bool {
+    if !parser.at_contextual(ContextualSpelling::Read)
+        && !parser.at_contextual(ContextualSpelling::Edit)
+    {
+        return false;
+    }
+    match parser.nth_kind(1) {
+        TokenKind::Identifier => return true,
+        TokenKind::Punctuation(Punctuation::LeftParen) => {}
+        _ => return false,
+    }
+    // A parenthesized pattern has a binding tail. Ordinary calls keep their contextual name.
+    let mut depth = 1;
+    let mut distance = 2;
+    loop {
+        match parser.nth_kind(distance) {
+            TokenKind::Punctuation(Punctuation::LeftParen) => depth += 1,
+            TokenKind::Punctuation(Punctuation::RightParen) if depth == 1 => {
+                return matches!(
+                    parser.nth_kind(distance + 1),
+                    TokenKind::Punctuation(Punctuation::Colon | Punctuation::Equal)
+                );
+            }
+            TokenKind::Punctuation(Punctuation::RightParen) => depth -= 1,
+            TokenKind::Identifier
+            | TokenKind::Newline
+            | TokenKind::Punctuation(Punctuation::Comma) => {}
+            _ => return false,
+        }
+        distance += 1;
+    }
 }
 
 fn at_drop(parser: &Parser<'_>) -> bool {

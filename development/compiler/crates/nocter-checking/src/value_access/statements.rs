@@ -243,14 +243,6 @@ impl Checker<'_, '_> {
         let name = (!self.has(pattern, Punctuation::LeftParen))
             .then(|| self.token(pattern))
             .transpose()?;
-        if name.is_none() && kind.access_mode() != Mode::Own {
-            return self.reject_message(
-                Rule::UnsupportedData,
-                pattern,
-                "scoped tuple patterns are not yet supported".into(),
-                Vec::new(),
-            );
-        }
         let annotation = self
             .direct(node, NodeKind::TypeAnnotation)
             .ok()
@@ -282,8 +274,14 @@ impl Checker<'_, '_> {
         {
             return self.reject(Rule::ShadowedName, name);
         }
-        let (value, data) =
-            self.binding_value(expression, annotation.as_ref(), kind, origin, reachable)?;
+        let (value, data) = self.binding_value(
+            expression,
+            annotation.as_ref(),
+            kind,
+            origin,
+            reachable,
+            name.is_none(),
+        )?;
         if let Some(name) = name {
             let local = self.binding_local(origin, kind, data)?;
             self.bind_local(self.text(name)?.to_owned(), local);
@@ -301,6 +299,7 @@ impl Checker<'_, '_> {
         kind: ValueBindingKind,
         origin: SyntaxOrigin,
         reachable: bool,
+        tuple: bool,
     ) -> Result<(AccessExpressionId, TypeId), Failure> {
         let mode = kind.access_mode();
         let alias = matches!(
@@ -333,7 +332,13 @@ impl Checker<'_, '_> {
             (None, None) => return self.reject(Rule::TypeMismatch, origin),
         };
         if annotated_data.is_none() || alias {
-            value = self.boundary(expression, value, Boundary::Binding(Ty::new(data, mode)))?;
+            let expected = Ty::new(data, mode);
+            let boundary = if alias && tuple {
+                Boundary::Place(expected)
+            } else {
+                Boundary::Binding(expected)
+            };
+            value = self.boundary(expression, value, boundary)?;
         }
         Ok((value, data))
     }

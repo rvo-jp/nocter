@@ -329,10 +329,7 @@ fn expression_uses(
             uses.push((Carrier::Expression(index), false));
         }
         ExpressionKind::Select { source, action, .. } => {
-            uses.push((
-                Carrier::Expression(source),
-                update && action == crate::value_access::SelectionAction::Access,
-            ));
+            uses.push((Carrier::Expression(source), update && action.is_place()));
         }
         ExpressionKind::RequirePrimary { source }
         | ExpressionKind::Repeat { seed: source }

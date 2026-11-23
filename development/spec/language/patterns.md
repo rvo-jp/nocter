@@ -5,7 +5,7 @@
 This chapter owns common tuple binding and enum branch operations. [Nominal payloads](structs-and-enums.md#enum-schemas-and-construction)
 own enum declarations, construction and Copy. [Value access](value-access.md) owns supply,
 initialization, dependencies and cleanup. The [grammar](syntactic-grammar.md#patterns-and-enum-branches)
-owns recognition. The [compiler handoff](../../architecture/pipeline/value-access-declarations.md#tuple-value-bindings)
+owns recognition. The [compiler handoff](../../architecture/pipeline/value-access-declarations.md#local-tuple-bindings)
 records the implemented scope.
 
 ## One Operation over a Pattern

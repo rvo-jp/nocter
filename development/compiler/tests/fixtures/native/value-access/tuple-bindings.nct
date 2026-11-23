@@ -8,7 +8,34 @@ const func pick(): i32 {
     left + right
 }
 
-const ANSWER: i32 = pick()
+const func select_index(edit index: usize): usize {
+    let previous = index
+    index += 1
+    previous
+}
+
+const func read(value: i32): i32 { value }
+
+const func scoped(): i32 {
+    var table = [((19, 23), 100), ((9, 33), 200)]
+    var index: usize = 0
+    read ignored = table[0].1
+    edit ((left, right), _): ((i32, i32), i32) = table[select_index(index)]
+    left += 1
+    right -= 1
+    let answer = left + right + ignored - 100
+    if index != 1 || table[0].0.0 != 20 || table[1].0.0 != 9 { return 1 }
+    read(answer)
+}
+
+const func partial(): i32 {
+    let pair = (19, 23)
+    let detached = pair.1^
+    read (kept, _) = pair
+    kept + detached
+}
+
+const ANSWER: i32 = pick() + scoped() + partial() - 84
 
 func receive(edit evaluations: i32): ((error, i32), error) {
     evaluations += 1
@@ -29,6 +56,7 @@ func main(): i32 {
     var (reason, number) = saved^
     if !reason.has_code("held") { return 2 }
     if interrupt(true) != 42 || interrupt(false) != 0 { return 3 }
+    if scoped() != 42 || partial() != 42 { return 4 }
     number += evaluations - 1
     number
 }

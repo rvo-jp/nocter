@@ -702,7 +702,7 @@ fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn installed_v2_tuple_value_bindings_supply_one_carrier_and_retire_its_remainder() {
+fn installed_v2_tuple_bindings_reuse_one_supplied_value_or_selected_place() {
     let tree = TempTree::new("tuple-bindings");
     let home = tree.value_access_installation();
     let source = tree.0.join("main.nct");
@@ -745,11 +745,23 @@ fn installed_v2_tuple_value_bindings_supply_one_carrier_and_retire_its_remainder
             "must name at least one component",
         ),
         (
-            "= pair\n",
-            "= [1, 2]\n",
+            "let (first, (second, _)) = pair",
+            "let (first, (second, _)) = [1, 2]",
             "requires a tuple with 2 components",
         ),
         ("(first, (second, _))", "(first,)", "E0120"),
+        ("read (kept, _)", "read (_, kept)", "E0378"),
+        (
+            "edit ((left, right), _)",
+            "edit ((left, right), conflict)",
+            "E0397",
+        ),
+        ("var table =", "let table =", "E0387"),
+        (
+            "index: usize = 0",
+            "index: usize = 2",
+            "out-of-range array element",
+        ),
     ] {
         let changed = program.replace(original, replacement);
         assert_ne!(changed, program);

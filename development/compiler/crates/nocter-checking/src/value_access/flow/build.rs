@@ -1,6 +1,6 @@
 use super::{Action, Graph, IntegrityError, Operation, Origin, Point, Terminator};
 use crate::value_access::{
-    ArgumentAction, Binary, BoundaryAction, ExpressionKind, Statement, TypedBody,
+    ArgumentAction, Binary, BoundaryAction, ExpressionKind, SelectionAction, Statement, TypedBody,
 };
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessLoopId,
@@ -271,6 +271,7 @@ impl Builder<'_> {
             Statement::Discard(value) | Statement::Evaluate(value) => {
                 (value, Operation::Discard(value))
             }
+            Statement::PreparePlace(value) => return self.prepare_place(value, point),
             Statement::Return(value) => {
                 let depth = self.frames.len();
                 self.begin(value, point)?;
@@ -335,6 +336,25 @@ impl Builder<'_> {
         self.action(point, origin, continuation)?;
         self.end(value, point)?;
         Ok(Some(point))
+    }
+    fn prepare_place(
+        &mut self,
+        value: AccessExpressionId,
+        point: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let selection = self.body.expressions().get(value).ok_or(INVALID)?;
+        if selection.ty.may_complete() && selection.referent(value).is_none() {
+            return Err(INVALID);
+        }
+        let depth = self.frames.len();
+        self.begin(value, point)?;
+        let end = self.expression(value, point)?;
+        if let Some(point) = end {
+            self.end(value, point)?;
+        } else {
+            self.frames.truncate(depth);
+        }
+        Ok(end)
     }
     fn loop_(
         &mut self,
@@ -523,21 +543,27 @@ impl Builder<'_> {
         entry: AccessFlowPointId,
     ) -> Result<Option<AccessFlowPointId>> {
         let mut chain = Vec::new();
-        loop {
+        let mut point = loop {
             match self.body.expressions().get(id).ok_or(INVALID)?.kind {
                 ExpressionKind::Index { base, index, .. } => {
                     chain.push((id, Some(index)));
                     id = base;
+                }
+                ExpressionKind::Select {
+                    action: SelectionAction::PreparedAccess,
+                    ..
+                } => {
+                    chain.push((id, None));
+                    break Some(entry);
                 }
                 ExpressionKind::Select { source, .. }
                 | ExpressionKind::Move(crate::value_access::Referent::Evaluated(source)) => {
                     chain.push((id, None));
                     id = source;
                 }
-                _ => break,
+                _ => break self.expression(id, entry)?,
             }
-        }
-        let mut point = self.expression(id, entry)?;
+        };
         for (id, index) in chain.into_iter().rev() {
             let Some(current) = point else { break };
             if let Some(index) = index {

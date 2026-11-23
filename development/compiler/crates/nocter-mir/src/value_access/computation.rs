@@ -220,7 +220,10 @@ impl Builder<'_> {
             ExpressionKind::Select {
                 source,
                 fields,
-                action: action @ (SelectionAction::CopyPayload | SelectionAction::Access),
+                action:
+                    action @ (SelectionAction::CopyPayload
+                    | SelectionAction::Access
+                    | SelectionAction::PreparedAccess),
             } => self.selected_component(source, &fields, destination, action)?,
             ExpressionKind::Move(_)
             | ExpressionKind::Closure { .. }
@@ -274,7 +277,7 @@ impl Builder<'_> {
         action: SelectionAction,
     ) -> Result<Operation, Failure> {
         let source = self.component(source, fields, destination.data)?;
-        Ok(if action == SelectionAction::Access {
+        Ok(if action.is_place() {
             Self::alias(source, destination.slot)
         } else {
             Operation::Copy {

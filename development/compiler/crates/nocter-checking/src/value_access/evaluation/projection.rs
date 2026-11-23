@@ -829,7 +829,10 @@ impl Builder<'_, '_> {
             ExpressionKind::Select {
                 source,
                 fields,
-                action: SelectionAction::Access | SelectionAction::CopyPayload,
+                action:
+                    SelectionAction::Access
+                    | SelectionAction::PreparedAccess
+                    | SelectionAction::CopyPayload,
             } => {
                 let mut place = self.value(*source)?;
                 place.fields = place
@@ -932,7 +935,10 @@ impl Builder<'_, '_> {
             ExpressionKind::Select {
                 source,
                 fields,
-                action: action @ (SelectionAction::CopyPayload | SelectionAction::Access),
+                action:
+                    action @ (SelectionAction::CopyPayload
+                    | SelectionAction::Access
+                    | SelectionAction::PreparedAccess),
             } => self.component_operation(destination, source, &fields, action)?,
             ExpressionKind::Unary { operation, operand } => plan::Operation::Unary {
                 destination,
@@ -967,7 +973,7 @@ impl Builder<'_, '_> {
         path.extend(self.fields(fields)?.iter().copied());
         source.fields = path.into();
         Ok(match action {
-            SelectionAction::Access => plan::Operation::Alias {
+            SelectionAction::Access | SelectionAction::PreparedAccess => plan::Operation::Alias {
                 destination,
                 source,
             },

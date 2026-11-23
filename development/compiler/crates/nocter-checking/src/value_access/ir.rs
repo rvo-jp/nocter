@@ -113,10 +113,18 @@ pub enum BoundaryAction {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SelectionAction {
     Access,
+    /// Project an existing place whose address was evaluated earlier in this body.
+    PreparedAccess,
     CopyPayload,
     MovePayload,
     /// Resolve the remaining temporary-field supply after its result data is established.
     PendingPayload,
+}
+impl SelectionAction {
+    #[must_use]
+    pub const fn is_place(self) -> bool {
+        matches!(self, Self::Access | Self::PreparedAccess)
+    }
 }
 
 /// One existing logical referent. Evaluated accesses retain a selected address, not a recipe to
@@ -556,7 +564,7 @@ impl Expression {
                 ..
             }
             | ExpressionKind::Select {
-                action: SelectionAction::Access,
+                action: SelectionAction::Access | SelectionAction::PreparedAccess,
                 ..
             } => Some(Referent::Evaluated(id)),
             _ => None,
@@ -572,6 +580,8 @@ pub enum Statement {
     },
     Discard(AccessExpressionId),
     Evaluate(AccessExpressionId),
+    /// Evaluate an existing place once and keep its address for the following projections.
+    PreparePlace(AccessExpressionId),
     Assign {
         target: Referent,
         value: AccessExpressionId,

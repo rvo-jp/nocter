@@ -107,7 +107,7 @@ construction under the grant's effective audience and checks every listed field 
 audience. The ordinary record initializer consumes the resulting schema. Compile-time evaluation
 and native lowering retain the written initializer order and the schema's field identities.
 
-### Tuple Value Bindings
+### Local Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)
 use the ordinary binding initializer once. Checking walks the exact tuple schema and assigns
@@ -115,8 +115,14 @@ named leaves their existing tuple paths. It transfers each named component from 
 supplied anonymous carrier to an ordinary local in written order. The carrier's ordinary
 partial-value cleanup then retires its ignored remainder before the next statement. The
 same checked lifecycle serves required evaluation and native execution, including interruption
-before the carrier is supplied. Scoped tuple patterns and parameter patterns have separate
-qualification work.
+before the carrier is supplied.
+
+Scoped `read` and `edit` patterns evaluate one existing tuple place. The graph prepares its
+address before forming the named leaves. Their ordinary place projections retain original
+initializer evidence, including saved array indices. Each leaf independently checks its
+initialized storage and read/update request. Ignored leaves acquire no access, so existing
+disjoint aliases and missing ignored components remain valid. The named accesses use ordinary
+liveness after formation. Parameter patterns are a separate qualification task.
 
 ## Implemented Handoff
 

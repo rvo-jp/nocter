@@ -164,7 +164,7 @@ impl Referent {
                 ExpressionKind::Select {
                     source,
                     fields,
-                    action: SelectionAction::Access,
+                    action: SelectionAction::Access | SelectionAction::PreparedAccess,
                 } => {
                     suffixes.push(known_by(fields, &constant));
                     Some(*source)
