@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Prove generic bodies' definite initialization over the ordinary control graph before choosing a
-concrete payload. Preserve the original transfers and the reaching causes of any failure.
-Qualify access, symbolic cleanup and executable specialization through their own evidence.
+Retain checked generic definitions in the ordinary accepted unit. Require a complete generic
+application before binding an executable root or call, and preserve deferred cleanup until its
+concrete data is selected.
 
 ## Remaining Contextual Representation Qualification
 
@@ -688,6 +688,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Type whole-value generic transfers and body-local symbolic array annotations under their
   original binder scope. Verify missing Copy evidence, read-only sources, source transfer
   operations, and canonical replay that rejects foreign length parameters.
+- [x] Qualify definition-local initialization and access for whole-value generic transfers.
+  Verify repeated/conditional moves, restored values, live edit conflicts and retained
+  generic disposal obligations. Require a closed disposal before MIR lowering.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

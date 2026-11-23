@@ -280,6 +280,25 @@ impl From<BuiltinType> for DataReference {
 }
 
 impl Program {
+    /// Project the parameter and possible element descriptor of a symbolic data shape.
+    #[must_use]
+    pub fn symbolic_type_parameter(
+        &self,
+        data: TypeId,
+    ) -> Option<(crate::GenericParameter<AccessCodeId>, Option<TypeId>)> {
+        use crate::GenericParameterDomain;
+        let (id, expected, element) = match self.type_kind(data)? {
+            TypeKind::GenericParameter(id) => (*id, GenericParameterDomain::Type, None),
+            TypeKind::FixedArray {
+                element,
+                length: UsizeTerm::Parameter(id),
+            } => (*id, GenericParameterDomain::UsizeConstant, Some(*element)),
+            _ => return None,
+        };
+        let parameter = self.generic_parameter(id)?;
+        (parameter.domain() == expected).then_some((parameter, element))
+    }
+
     #[must_use]
     pub fn data_type(&self, data: BuiltinType) -> Option<TypeId> {
         supported(data).then(|| self.types.store().builtin(data))
@@ -486,16 +505,13 @@ impl Program {
             if copyable.contains_key(&current) {
                 continue;
             }
-            let children = match self.type_kind(current)? {
-                TypeKind::GenericParameter(_) => {
+            let children = match self.symbolic_type_parameter(current) {
+                Some((_, None)) => {
                     copyable.insert(current, false);
                     continue;
                 }
-                TypeKind::FixedArray {
-                    element,
-                    length: UsizeTerm::Parameter(_),
-                } => vec![*element],
-                _ => match self.data_schema(current)? {
+                Some((_, Some(element))) => vec![element],
+                None => match self.data_schema(current)? {
                     PayloadSchema::Builtin(builtin) => {
                         copyable.insert(current, builtin_copyable(builtin)?);
                         continue;

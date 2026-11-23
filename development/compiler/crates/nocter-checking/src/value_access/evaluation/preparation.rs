@@ -15,6 +15,7 @@ use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCodeId, ValueCode, ValueCodeRoot, ValueExpression, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::Arc;
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
@@ -262,6 +263,23 @@ impl<'a, 'source> Preparation<'a, 'source> {
         }
         match self.check_draft(id, requests) {
             Ok(query) => {
+                if let ValueCodeRoot::Declaration(code) = id
+                    && query
+                        .program()
+                        .generic_parameter_ids(code)
+                        .is_some_and(|slots| !slots.is_empty())
+                {
+                    if query.results_closed() {
+                        accepted::check_definition_flow(&self.context, Arc::from(query))?;
+                    }
+                    return checker::reject_generic_body(&self.context, code).map_err(|failure| {
+                        Failure::Body {
+                            callable: code,
+                            failure,
+                        }
+                        .into()
+                    });
+                }
                 for (initializer, origin) in self.static_requirements(&query)? {
                     if dependencies::value(requests, initializer).is_none() {
                         return self.require_value_step(
@@ -319,7 +337,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &Dependencies,
     ) -> Result<Box<Query>, BodyFailure> {
         match id {
-            ValueCodeRoot::Declaration(code) => checker::prepare(&self.context, code, requests),
+            ValueCodeRoot::Declaration(code) => checker::type_body(&self.context, code, requests),
             ValueCodeRoot::Expression(expression) => crate::value_access::required::prepare(
                 &self.context,
                 self.expressions

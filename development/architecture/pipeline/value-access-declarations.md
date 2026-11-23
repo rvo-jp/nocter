@@ -38,8 +38,10 @@ type store. Closed array counts still use required evaluation. Computed counts r
 an unbound constant parameter at its source without substituting another value of the same name.
 The body typer shares those parameter identities with local annotations and their canonical type
 extensions. An implicit snapshot of a type parameter requires Copy evidence in the declaration.
-The typed body retains explicit transfers. Generic ownership-flow proof and executable specialization
-remain open.
+The typed body retains explicit transfers. Definition-local initialization and access checks
+use the ordinary control graph, tracking earlier transfers and overlapping access. Whole-value
+cleanup retains the symbolic data identity until substitution determines the actual disposition.
+Executable specialization must close those obligations before storage and execution are selected.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

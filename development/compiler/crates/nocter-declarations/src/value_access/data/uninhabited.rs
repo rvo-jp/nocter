@@ -45,6 +45,9 @@ impl Program {
         let mut seen = BTreeSet::new();
         while let Some((actual, expected, metadata, guarded)) = pending.pop() {
             let (Some(a), Some(b)) = (self.data_schema(actual), self.data_schema(expected)) else {
+                if actual == expected && self.symbolic_type_parameter(actual).is_some() {
+                    continue;
+                }
                 return false;
             };
             if actual == expected {

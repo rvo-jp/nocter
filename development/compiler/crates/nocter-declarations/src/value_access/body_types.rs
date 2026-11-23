@@ -550,24 +550,13 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
         if !seen.insert(data) || program.nominal_identity(data).is_some() {
             continue;
         }
-        match program.type_kind(data) {
-            Some(TypeKind::GenericParameter(id)) => {
-                if !parameter_in_scope(program, *id, GenericParameterDomain::Type) {
-                    return false;
-                }
-                continue;
+        if let Some((slot, element)) = program.symbolic_type_parameter(data) {
+            if !matches!(program.type_scope, TypeScope::Body(owner) if slot.owner() == owner.source_owner())
+            {
+                return false;
             }
-            Some(TypeKind::FixedArray {
-                element,
-                length: length @ UsizeTerm::Parameter(_),
-            }) => {
-                if !length_in_scope(program, *length) {
-                    return false;
-                }
-                pending.push(*element);
-                continue;
-            }
-            _ => {}
+            pending.extend(element);
+            continue;
         }
         match program.data_schema(data) {
             Some(super::PayloadSchema::Builtin(_)) => {}

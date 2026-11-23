@@ -49,8 +49,12 @@ impl OwnedValue {
         Ok(())
     }
     pub fn selected(&self, program: &Program, path: &Path) -> Result<Payload> {
-        if path.is_root() && matches!(self.payload.disposal(), Disposal::UnstartedFuture(_)) {
-            return Ok(self.payload);
+        if path.is_root() {
+            return if matches!(self.payload.disposal(), Disposal::UnstartedFuture(_)) {
+                Ok(self.payload)
+            } else {
+                payload(program, self.payload.data())
+            };
         }
         payload(
             program,

@@ -127,6 +127,8 @@ pub enum Disposal {
     UnstartedFuture(nocter_model::AccessCodeId),
     /// A structural container; its declaration schema selects component or homogeneous cleanup.
     Aggregate,
+    /// The concrete type or array cardinality determines cleanup after substitution.
+    GenericData,
 }
 /// A schema-selected cleanup obligation, concrete or tied to a formal environment witness.
 /// Independence is never inferred from Copy, ownership or the absence of known captures.
@@ -458,87 +460,7 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
         if !seen.insert((current, guarded)) {
             continue;
         }
-        let schema = program.data_schema(current).ok_or(INVALID)?;
-        if matches!(domain, PayloadDomain::LocalFutureEdit)
-            && matches!(
-                schema,
-                PayloadSchema::Builtin(BuiltinType::Str) | PayloadSchema::Function(_)
-            )
-        {
-            return Err(INVALID);
-        }
-        let selected = match schema {
-            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
-                Disposal::Trivial
-            }
-            PayloadSchema::Enumeration(schema) => {
-                if schema.has_payload() {
-                    for &variant in schema.variants() {
-                        pending.extend(
-                            program
-                                .variant_components(current, variant)
-                                .ok_or(INVALID)?
-                                .map(|field| (field.data, guarded)),
-                        );
-                    }
-                    Disposal::Aggregate
-                } else {
-                    Disposal::Trivial
-                }
-            }
-            PayloadSchema::Builtin(builtin)
-                if nocter_model::BuiltinNumericType::for_builtin(builtin)
-                    .and_then(nocter_model::BuiltinNumericType::integer_bounds)
-                    .is_some() =>
-            {
-                Disposal::Trivial
-            }
-            PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
-            PayloadSchema::Optional(payload) => {
-                pending.push((payload, true));
-                Disposal::Aggregate
-            }
-            PayloadSchema::Fallible(payload) => {
-                pending.push((payload, true));
-                pending.push((program.data_type(BuiltinType::Error).ok_or(INVALID)?, true));
-                Disposal::Aggregate
-            }
-            PayloadSchema::Aggregate(schema) => {
-                pending.extend(
-                    schema
-                        .components()
-                        .map(|component| (component.data, guarded)),
-                );
-                Disposal::Aggregate
-            }
-            PayloadSchema::Array(array) => {
-                if !array.is_empty() {
-                    pending.push((array.element(), guarded));
-                }
-                Disposal::Aggregate
-            }
-            PayloadSchema::Function(witness) => match witness.origin {
-                nocter_model::ValueFunctionOrigin::Closure(id) => {
-                    pending.push((program.closure(id).ok_or(INVALID)?.environment(), guarded));
-                    Disposal::OwnedCapture
-                }
-                nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
-                nocter_model::ValueFunctionOrigin::Parameter(_)
-                | nocter_model::ValueFunctionOrigin::Contract(_) => Disposal::FunctionEnvironment,
-                nocter_model::ValueFunctionOrigin::Result(_)
-                | nocter_model::ValueFunctionOrigin::Application(_)
-                    if guarded =>
-                {
-                    Disposal::FunctionEnvironment
-                }
-                nocter_model::ValueFunctionOrigin::Result(_)
-                | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
-            },
-            PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => {
-                return Err(INVALID);
-            }
-        };
-
+        let selected = payload_disposal(program, current, domain, guarded, &mut pending)?;
         if current == data {
             disposal = Some(selected);
         }
@@ -546,6 +468,104 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
     let disposal = disposal.ok_or(INVALID)?;
     Ok(Payload { data, disposal })
 }
+
+fn payload_disposal(
+    program: &Program,
+    current: TypeId,
+    domain: PayloadDomain,
+    guarded: bool,
+    pending: &mut Vec<(TypeId, bool)>,
+) -> Result<Disposal> {
+    let Some(schema) = program.data_schema(current) else {
+        if matches!(domain, PayloadDomain::Ownership)
+            && let Some((_, element)) = program.symbolic_type_parameter(current)
+        {
+            pending.extend(element.map(|element| (element, guarded)));
+            return Ok(Disposal::GenericData);
+        }
+        return Err(INVALID);
+    };
+    if matches!(domain, PayloadDomain::LocalFutureEdit)
+        && matches!(
+            schema,
+            PayloadSchema::Builtin(BuiltinType::Str) | PayloadSchema::Function(_)
+        )
+    {
+        return Err(INVALID);
+    }
+    Ok(match schema {
+        PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
+            Disposal::Trivial
+        }
+        PayloadSchema::Enumeration(schema) => {
+            if schema.has_payload() {
+                for &variant in schema.variants() {
+                    pending.extend(
+                        program
+                            .variant_components(current, variant)
+                            .ok_or(INVALID)?
+                            .map(|field| (field.data, guarded)),
+                    );
+                }
+                Disposal::Aggregate
+            } else {
+                Disposal::Trivial
+            }
+        }
+        PayloadSchema::Builtin(builtin)
+            if nocter_model::BuiltinNumericType::for_builtin(builtin)
+                .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                .is_some() =>
+        {
+            Disposal::Trivial
+        }
+        PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
+        PayloadSchema::Optional(payload) => {
+            pending.push((payload, true));
+            Disposal::Aggregate
+        }
+        PayloadSchema::Fallible(payload) => {
+            pending.push((payload, true));
+            pending.push((program.data_type(BuiltinType::Error).ok_or(INVALID)?, true));
+            Disposal::Aggregate
+        }
+        PayloadSchema::Aggregate(schema) => {
+            pending.extend(
+                schema
+                    .components()
+                    .map(|component| (component.data, guarded)),
+            );
+            Disposal::Aggregate
+        }
+        PayloadSchema::Array(array) => {
+            if !array.is_empty() {
+                pending.push((array.element(), guarded));
+            }
+            Disposal::Aggregate
+        }
+        PayloadSchema::Function(witness) => match witness.origin {
+            nocter_model::ValueFunctionOrigin::Closure(id) => {
+                pending.push((program.closure(id).ok_or(INVALID)?.environment(), guarded));
+                Disposal::OwnedCapture
+            }
+            nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
+            nocter_model::ValueFunctionOrigin::Parameter(_)
+            | nocter_model::ValueFunctionOrigin::Contract(_) => Disposal::FunctionEnvironment,
+            nocter_model::ValueFunctionOrigin::Result(_)
+            | nocter_model::ValueFunctionOrigin::Application(_)
+                if guarded =>
+            {
+                Disposal::FunctionEnvironment
+            }
+            nocter_model::ValueFunctionOrigin::Result(_)
+            | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
+        },
+        PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => {
+            return Err(INVALID);
+        }
+    })
+}
+
 pub(super) fn expression_payload(typed: &TypedQuery, id: AccessExpressionId) -> Result<Payload> {
     let Some(ty) = typed
         .body()

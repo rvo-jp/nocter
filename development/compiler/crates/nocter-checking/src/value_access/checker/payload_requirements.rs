@@ -1,11 +1,10 @@
 //! Actual body, invocation and static access payloads are independent of signature publication.
 use crate::value_access::{Failure, Rule, diagnostics};
 use nocter_declaration_lowering::access_declarations::CodeSource;
-use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
     AggregateForm, Code, FunctionConstraint, PayloadSchema, Program,
 };
-use nocter_model::{AccessCodeId, NominalTypeId, TypeId, TypeKind, UsizeTerm};
+use nocter_model::{AccessCodeId, NominalTypeId, TypeId};
 use nocter_syntax::{BoundSyntax, SyntaxOrigin};
 use std::collections::BTreeSet;
 
@@ -139,24 +138,11 @@ fn unready<Origin: Copy>(
             // Publication already closed this record's positive payload dependencies.
             continue;
         }
-        let symbolic = match program.type_kind(data) {
-            Some(TypeKind::GenericParameter(id)) => Some((*id, GenericParameterDomain::Type)),
-            Some(TypeKind::FixedArray {
-                element,
-                length: UsizeTerm::Parameter(id),
-            }) => {
-                pending.push((*element, origin));
-                Some((*id, GenericParameterDomain::UsizeConstant))
-            }
-            _ => None,
-        };
-        if let Some((id, domain)) = symbolic {
-            if program
-                .generic_parameter(id)
-                .is_none_or(|slot| Some(slot.owner()) != owner || slot.domain() != domain)
-            {
+        if let Some((slot, element)) = program.symbolic_type_parameter(data) {
+            if Some(slot.owner()) != owner {
                 return Err(Failure::InconsistentSyntax);
             }
+            pending.extend(element.map(|element| (element, origin)));
             continue;
         }
         match program

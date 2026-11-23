@@ -1035,6 +1035,24 @@ pub(super) fn check_queries(
         definition_work,
     )
 }
+
+/// Check access and retain logical resource obligations before choosing concrete payloads.
+pub(super) fn check_definition_flow(
+    context: &DeclarationContext<'_>,
+    query: Arc<TypedQuery>,
+) -> Result<flow::Query, Failure> {
+    let callable = query.source_owner();
+    let control = flow::Control::prepare(query).map_err(Failure::Integrity)?;
+    let writes = flow::call_writes::Catalog::prepare_with_context([&control], context)
+        .map_err(Failure::Integrity)?;
+    let query = control.finish(&writes).map_err(Failure::Integrity)?;
+    let bound = query
+        .bind(context)
+        .map_err(|failure| Failure::Body { callable, failure })?;
+    verify_flow(&bound)?;
+    Ok(query)
+}
+
 pub(super) fn admit_resolved(
     context: &DeclarationContext<'_>,
     resolved: Resolved,
@@ -1130,6 +1148,12 @@ fn admit(
     let bound = query
         .bind_verified(verified)
         .map_err(|failure| Failure::Body { callable, failure })?;
+    verify_flow(&bound)?;
+    Ok(query)
+}
+
+fn verify_flow(bound: &flow::Context<'_, '_>) -> Result<(), Failure> {
+    let callable = bound.query().typed().source_owner();
     let mut diagnostics = bound
         .diagnostics()
         .map_err(|failure| Failure::Body { callable, failure })?
@@ -1149,12 +1173,12 @@ fn admit(
             diagnostics: diagnostics.into(),
         });
     }
-    if query.access().status() != flow::access::Status::Analyzed {
+    if bound.query().access().status() != flow::access::Status::Analyzed {
         return Err(Failure::Integrity(
             flow::IntegrityError::InconsistentTypedBody,
         ));
     }
-    Ok(query)
+    Ok(())
 }
 #[derive(Debug)]
 pub struct Context<'query, 'source> {

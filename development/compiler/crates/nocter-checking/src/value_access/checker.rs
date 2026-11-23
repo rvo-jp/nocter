@@ -75,22 +75,30 @@ pub(super) fn prepare(
         .ok_or(Failure::InconsistentSyntax)?
         .is_empty()
     {
-        let context = context.for_code(callable)?;
-        let origin = SyntaxOrigin::Node(
-            context.code_source(callable)
-                .and_then(nocter_declaration_lowering::access_declarations::CodeSource::generic_parameter_origin)
-                .ok_or(Failure::InconsistentSyntax)?,
-        );
-        let rule = Rule::UnqualifiedGenericCallable;
-        return Err(super::diagnostics::authored_rejection(
-            context.syntax(),
-            origin,
-            rule,
-            rule.diagnostic().1,
-            Vec::new(),
-        ));
+        return reject_generic_body(context, callable);
     }
     Ok(draft)
+}
+
+pub(super) fn reject_generic_body<T>(
+    context: &DeclarationContext<'_>,
+    callable: AccessCodeId,
+) -> Result<T, Failure> {
+    let context = context.for_code(callable)?;
+    let origin = context
+        .code_source(callable)
+        .and_then(
+            nocter_declaration_lowering::access_declarations::CodeSource::generic_parameter_origin,
+        )
+        .ok_or(Failure::InconsistentSyntax)?;
+    let rule = Rule::UnqualifiedGenericCallable;
+    Err(super::diagnostics::authored_rejection(
+        context.syntax(),
+        SyntaxOrigin::Node(origin),
+        rule,
+        rule.diagnostic().1,
+        Vec::new(),
+    ))
 }
 
 /// Type the original body using its declaration-owned assumptions, without accepting its flow.

@@ -169,6 +169,117 @@ fn generic_body_typing_rejects_copy_or_movement_without_the_declared_access() {
 }
 
 #[test]
+fn generic_body_initialization_rejects_transfers_on_already_moved_paths() {
+    for text in [
+        "func finish<T>(take value: T): T { let prior = value^\nvalue^ }",
+        "func finish<T>(flag: bool, take value: T): T { if flag { let prior = value^ }\nvalue^ }",
+        "func finish<T, const N: usize>(take value: [T; N]): [T; N] { let prior = value^\nvalue^ }",
+    ] {
+        let (sources, tree) = input(text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let SourceFailure::Checking(Failure::Flow { diagnostics, .. }) = &failure else {
+            panic!("expected source initialization failure: {failure:?}");
+        };
+        let error = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code() == "E0378")
+            .unwrap();
+        let file = sources.get(tree.source()).unwrap();
+        assert_eq!(file.text_at(error.primary().span().range()), Some("value^"));
+        assert!(
+            error
+                .notes()
+                .iter()
+                .any(|note| file.text_at(note.origin().span().range()) == Some("value^"))
+        );
+    }
+}
+
+#[test]
+fn generic_body_initialization_respects_replacement_and_unreached_moves() {
+    for body in [
+        "var slot = value^\nlet prior = slot^\nslot = prior^\nslot^",
+        "if false { let prior = value^ }\nvalue^",
+    ] {
+        let text = format!("func finish<T>(take value: T): T {{ {body} }}");
+        let (sources, tree) = input(&text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(failure, SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(ref diagnostic), ..
+        }) if diagnostic.rule() == crate::value_access::Rule::UnqualifiedGenericCallable),
+            "{body}: {failure:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_flow_keeps_cleanup_obligations_until_substitution() {
+    use crate::value_access::flow::resources::Disposal;
+    for (text, retired) in [
+        ("func finish<T>(take value: T): void {}", true),
+        (
+            "func finish<T, const N: usize>(take value: [T; N]): void {}",
+            true,
+        ),
+        ("func finish<T>(take value: T): T { value^ }", false),
+    ] {
+        let (sources, tree) = input(text);
+        let syntax = bound(&sources, &tree);
+        let headers = declarations::Query::prepare(syntax).unwrap();
+        let context = headers.bind(syntax).unwrap();
+        let (owner, header) = headers.program().codes().iter().next().unwrap();
+        let parameter = headers
+            .program()
+            .parameters()
+            .get(header.parameters()[0])
+            .unwrap();
+        let typed = crate::value_access::checker::type_body(&context, owner, &()).unwrap();
+        let checked = check_definition_flow(&context, std::sync::Arc::new(typed))
+            .unwrap_or_else(|failure| panic!("{text}: {failure:?}"));
+        let steps = support::steps(&checked);
+        let disposal = steps
+            .iter()
+            .filter_map(|step| match step {
+                Step::Dispose { payload, .. } if payload.disposal() == Disposal::GenericData => {
+                    Some(payload.data())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if retired {
+            assert_eq!(disposal, [parameter.data()]);
+        } else {
+            assert!(disposal.is_empty());
+            assert!(steps.iter().any(|step| matches!(step, Step::Move { destination, payload, .. }
+                if destination.holder() == Holder::Return && payload.disposal() == Disposal::GenericData)));
+        }
+    }
+}
+
+#[test]
+fn generic_flow_rejects_transfer_that_overlaps_a_still_required_edit() {
+    let (sources, tree) = input(
+        "func finish<T>(take value: T, take replacement: T): T { var slot = value^\nedit writer = slot\nlet saved = slot^\nwriter = replacement^\nsaved^ }",
+    );
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let SourceFailure::Checking(Failure::Flow { diagnostics, .. }) = &failure else {
+        panic!("expected a generic access conflict: {failure:?}");
+    };
+    let diagnostic = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code() == "E0397")
+        .unwrap();
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostic.primary().span().range()),
+        Some("slot^")
+    );
+}
+
+#[test]
 fn explicit_generic_arguments_follow_the_selected_callable_schema() {
     for (arguments, code, origin, message) in [
         (

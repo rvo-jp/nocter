@@ -641,7 +641,9 @@ impl Builder<'_> {
             CheckedDisposal::Aggregate => Disposal::Aggregate,
             CheckedDisposal::OwnedCapture => Disposal::Capture,
             CheckedDisposal::CallableAlternatives => Disposal::CallableAlternatives,
-            CheckedDisposal::FunctionEnvironment | CheckedDisposal::UnstartedFuture(_) => {
+            CheckedDisposal::FunctionEnvironment
+            | CheckedDisposal::UnstartedFuture(_)
+            | CheckedDisposal::GenericData => {
                 return Err(self.invalid());
             }
         })
