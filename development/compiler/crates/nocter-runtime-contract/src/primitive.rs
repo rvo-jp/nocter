@@ -400,6 +400,8 @@ closed_role_enum! {
         Syscall6,
         Trap,
         Unreachable,
+        /// Reads one in-bounds byte of a v2 text value, or produces absence.
+        StringByteAt,
     }
 }
 
@@ -616,6 +618,7 @@ impl PrimitiveRole {
             Self::Syscall6 => "syscall_6",
             Self::Trap => "trap",
             Self::Unreachable => "unreachable",
+            Self::StringByteAt => "string_byte_at",
         }
     }
 
@@ -660,8 +663,17 @@ impl PrimitiveRole {
         }
     }
 
-    const fn index(self) -> usize {
-        self as usize
+    /// Roles whose source contracts are part of the released standard profile.
+    pub fn published_roles() -> impl Iterator<Item = Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.in_published_profile())
+    }
+
+    #[must_use]
+    pub const fn in_published_profile(self) -> bool {
+        !matches!(self, Self::StringByteAt)
     }
 }
 
@@ -689,7 +701,7 @@ impl PrimitiveBinding {
     }
 }
 
-/// A complete primitive-role attachment in canonical role order.
+/// A complete released primitive-role attachment in canonical role order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrimitiveRegistry {
     bindings: Box<[PrimitiveBinding]>,
@@ -700,13 +712,16 @@ impl PrimitiveRegistry {
     ///
     /// # Errors
     ///
-    /// Rejects a missing or duplicate role, or one callable attached to multiple roles.
+    /// Rejects an unpublished, missing or duplicate role, or a callable attached to multiple roles.
     pub fn new(
         bindings: impl IntoIterator<Item = PrimitiveBinding>,
     ) -> Result<Self, PrimitiveBindingError> {
         let mut by_role = BTreeMap::new();
         let mut callables = BTreeSet::new();
         for binding in bindings {
+            if !binding.role().in_published_profile() {
+                return Err(PrimitiveBindingError::UnpublishedRole(binding.role()));
+            }
             if by_role.insert(binding.role(), binding).is_some() {
                 return Err(PrimitiveBindingError::DuplicateRole(binding.role()));
             }
@@ -714,12 +729,12 @@ impl PrimitiveRegistry {
                 return Err(PrimitiveBindingError::DuplicateCallable(binding.callable()));
             }
         }
-        let mut canonical = Vec::with_capacity(PrimitiveRole::ALL.len());
-        for role in PrimitiveRole::ALL {
+        let mut canonical = Vec::with_capacity(by_role.len());
+        for role in PrimitiveRole::published_roles() {
             canonical.push(
                 by_role
-                    .remove(role)
-                    .ok_or(PrimitiveBindingError::MissingRole(*role))?,
+                    .remove(&role)
+                    .ok_or(PrimitiveBindingError::MissingRole(role))?,
             );
         }
         debug_assert!(by_role.is_empty());
@@ -734,8 +749,12 @@ impl PrimitiveRegistry {
     }
 
     #[must_use]
-    pub fn callable(&self, role: PrimitiveRole) -> CallableId {
-        self.bindings[role.index()].callable()
+    pub fn callable(&self, role: PrimitiveRole) -> Option<CallableId> {
+        let index = self
+            .bindings
+            .binary_search_by_key(&role, |binding| binding.role())
+            .ok()?;
+        Some(self.bindings[index].callable())
     }
 
     #[must_use]
@@ -749,6 +768,7 @@ impl PrimitiveRegistry {
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum PrimitiveBindingError {
+    UnpublishedRole(PrimitiveRole),
     MissingRole(PrimitiveRole),
     DuplicateRole(PrimitiveRole),
     DuplicateCallable(CallableId),
@@ -757,6 +777,10 @@ pub enum PrimitiveBindingError {
 impl fmt::Debug for PrimitiveBindingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnpublishedRole(role) => formatter
+                .debug_tuple("UnpublishedRole")
+                .field(role)
+                .finish(),
             Self::MissingRole(role) => formatter.debug_tuple("MissingRole").field(role).finish(),
             Self::DuplicateRole(role) => {
                 formatter.debug_tuple("DuplicateRole").field(role).finish()
@@ -772,6 +796,9 @@ impl fmt::Debug for PrimitiveBindingError {
 impl fmt::Display for PrimitiveBindingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnpublishedRole(_) => {
+                formatter.write_str("primitive registry contains an unpublished role")
+            }
             Self::MissingRole(_) => formatter.write_str("primitive registry is missing a role"),
             Self::DuplicateRole(_) => {
                 formatter.write_str("primitive registry contains a duplicate role")
@@ -793,9 +820,7 @@ mod tests {
 
     fn complete_bindings() -> Vec<PrimitiveBinding> {
         let mut callables = ArenaBuilder::<CallableId, ()>::new();
-        PrimitiveRole::ALL
-            .iter()
-            .copied()
+        PrimitiveRole::published_roles()
             .map(|role| PrimitiveBinding::new(role, callables.insert(())))
             .collect()
     }
@@ -810,7 +835,7 @@ mod tests {
                 .bindings()
                 .iter()
                 .map(|binding| binding.role())
-                .eq(PrimitiveRole::ALL.iter().copied())
+                .eq(PrimitiveRole::published_roles())
         );
 
         let mut missing = complete_bindings();
@@ -818,6 +843,16 @@ mod tests {
         assert_eq!(
             PrimitiveRegistry::new(missing),
             Err(PrimitiveBindingError::MissingRole(removed.role()))
+        );
+        assert_eq!(registry.callable(PrimitiveRole::StringByteAt), None);
+        assert_eq!(
+            PrimitiveRegistry::new([PrimitiveBinding::new(
+                PrimitiveRole::StringByteAt,
+                removed.callable()
+            )]),
+            Err(PrimitiveBindingError::UnpublishedRole(
+                PrimitiveRole::StringByteAt
+            )),
         );
     }
 

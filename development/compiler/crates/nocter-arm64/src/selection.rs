@@ -428,6 +428,10 @@ pub enum Arm64SelectedInstruction {
         result: Arm64ProcessTextResult,
     },
     ReadProcessEnvironmentCount,
+    ReadStringByte {
+        payload_shift: u8,
+        absent: u64,
+    },
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

@@ -91,8 +91,13 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         ),
         PrimitiveRoleLocator::new(
             PrimitiveRole::ProcessEnvironmentValue,
-            ModuleIdentity::new(std, ["process"]),
+            ModuleIdentity::new(std.clone(), ["process"]),
             "env_value_checked",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::StringByteAt,
+            ModuleIdentity::new(std, ["process"]),
+            "text_byte_at",
         ),
     ])
 }
@@ -344,6 +349,67 @@ fn v2_environment_text_keeps_the_first_separator_and_checks_each_part() {
     }
 }
 
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn v2_environment_lookup_keeps_exact_names_and_original_validation_order() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
+    let (session, _) = analyze_package(&directory, CompilationTarget::Arm64Darwin);
+    assert!(
+        session.diagnostics().is_empty(),
+        "{:#?}",
+        session.diagnostics()
+    );
+    let image = crate::compile_value_access_image(
+        &session,
+        &ExecutableSelector::named("environment-lookup"),
+    )
+    .unwrap();
+    let launch = |arguments: &[&str], entries: &[(&str, &[u8])]| {
+        let output = super::super::native_command(image.image(), &directory.0, "env-lookup")
+            .env_clear()
+            .args(arguments)
+            .envs(
+                entries
+                    .iter()
+                    .map(|(key, bytes)| (*key, OsStr::from_bytes(bytes))),
+            )
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1), "{arguments:?}, {entries:?}");
+        assert!(output.stdout.is_empty());
+        output.stderr
+    };
+    assert_eq!(launch(&[], &[]), b"env: absent\n");
+    assert_eq!(launch(&[], &[("NOCTER", b"")]), b"env: \n");
+    assert_eq!(
+        launch(&["Å"], &[("Å", "夜".as_bytes())]),
+        "env: 夜\n".as_bytes()
+    );
+    assert_eq!(
+        launch(&["NOCT"], &[("NOCTER", b"prefix")]),
+        b"env: absent\n"
+    );
+    assert_eq!(
+        launch(&["NOCTERS"], &[("NOCTER", b"prefix")]),
+        b"env: absent\n"
+    );
+    for invalid_name in [&[""][..], &["A=B"][..], &["use", "embedded-zero"][..]] {
+        assert_eq!(launch(invalid_name, &[]), INVALID_PROCESS_TEXT);
+    }
+    assert_eq!(
+        launch(&[], &[("AAA", b"\xff"), ("NOCTER", b"available")]),
+        INVALID_PROCESS_TEXT
+    );
+    assert_eq!(
+        launch(&[], &[("NOCTER", b"available"), ("ZZZ", b"\xff")]),
+        b"env: available\n"
+    );
+}
+
 fn assert_selected_future_cleanup(
     session: &nocter_session::AnalyzedUnit,
     executable: &str,
@@ -424,6 +490,7 @@ fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence(
         "compound_deferred",
         "arguments",
         "environment",
+        "environment_lookup",
     ] {
         directory.source(
             &format!("app/{module}/body.nct"),

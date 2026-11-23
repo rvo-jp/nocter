@@ -32,7 +32,7 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
         structural_attachments(package),
         standard_roles(package),
     )
-    .with_primitive_roles(primitive_roles(package))
+    .with_primitive_roles(bundled_primitive_locators(package))
     .with_target_service_roles(target_service_roles(package))
     .with_runtime_storage_roles(runtime_storage_roles(package))
     .with_builtin_types(builtin_types(package))
@@ -187,10 +187,10 @@ const fn bundled_standard_source_location(
     }
 }
 
-fn primitive_roles(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
-    PrimitiveRole::ALL
-        .iter()
-        .copied()
+/// Canonical role locations selected by the released standard source profile.
+#[must_use]
+pub fn bundled_primitive_locators(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
+    PrimitiveRole::published_roles()
         .map(|role| {
             let (path, name) = bundled_primitive_source_location(role);
             PrimitiveRoleLocator::new(role, module(package, path), name)
@@ -222,7 +222,7 @@ fn target_service_roles(package: &PackageIdentity) -> Vec<TargetServiceRoleLocat
     clippy::too_many_lines,
     reason = "one exhaustive role-to-source table is the profile's reviewable authority"
 )]
-pub const fn bundled_primitive_source_location(
+fn bundled_primitive_source_location(
     role: PrimitiveRole,
 ) -> (&'static [&'static str], &'static str) {
     use PrimitiveRole as Role;
@@ -479,6 +479,7 @@ pub const fn bundled_primitive_source_location(
         Role::Syscall6 => (&["internal", "os", "darwin"], "syscall6"),
         Role::Trap => (&["internal", "os", "darwin"], "trap"),
         Role::Unreachable => (&["internal", "os", "darwin"], "unreachable"),
+        Role::StringByteAt => unreachable!("unpublished primitive has no bundled source"),
     }
 }
 

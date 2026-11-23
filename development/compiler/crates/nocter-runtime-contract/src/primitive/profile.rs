@@ -6,7 +6,7 @@ use crate::RuntimeAbiIdentity;
 /// Physical backing used by a closed primitive whose selected ABI requires no external wait.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValueDriveBacking {
-    /// Read data already supplied by the executable image or process entry.
+    /// Use backing that already exists at invocation.
     Existing,
     /// Request a private anonymous mapping. Allocation failure traps at the request.
     PrivateAnonymousMapping,
@@ -82,7 +82,7 @@ const BOTH_CONTEXTS: PrimitiveContexts = PrimitiveContexts {
 };
 
 const PLAIN: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(INERT_EXECUTION, NO_CONTEXT);
-const SNAPSHOT_CONSTRUCTION: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(
+const PRESERVES_CALLER_STORAGE: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(
     PrimitiveExecutionFacts {
         preserves_caller_storage: true,
         ..INERT_EXECUTION
@@ -114,6 +114,7 @@ impl PrimitiveRole {
         match abi {
             RuntimeAbiIdentity::Arm64DarwinV1 => match self {
                 Self::AllocationFailureError
+                | Self::StringByteAt
                 | Self::ProcessArgumentCount
                 | Self::ProcessArgument
                 | Self::ProcessEnvironmentName
@@ -145,7 +146,7 @@ impl PrimitiveRole {
     )]
     const fn runtime_profile(self) -> PrimitiveRuntimeProfile {
         match self {
-            Self::NewError | Self::ErrorContext => SNAPSHOT_CONSTRUCTION,
+            Self::NewError | Self::ErrorContext | Self::StringByteAt => PRESERVES_CALLER_STORAGE,
             Self::DropValueAtPointer => ALLOCATING_TRAPPING,
             Self::TimeoutWait
             | Self::NetworkConnectionReceiveEvent
@@ -351,7 +352,7 @@ mod tests {
     use super::PrimitiveRole;
 
     #[test]
-    fn only_qualified_snapshot_constructors_preserve_caller_storage() {
+    fn only_certified_primitives_preserve_caller_storage() {
         let qualified: Vec<_> = PrimitiveRole::ALL
             .iter()
             .copied()
@@ -359,7 +360,11 @@ mod tests {
             .collect();
         assert_eq!(
             qualified,
-            [PrimitiveRole::NewError, PrimitiveRole::ErrorContext]
+            [
+                PrimitiveRole::NewError,
+                PrimitiveRole::ErrorContext,
+                PrimitiveRole::StringByteAt
+            ]
         );
     }
 

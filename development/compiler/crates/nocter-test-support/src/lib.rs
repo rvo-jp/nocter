@@ -59,11 +59,11 @@ pub fn standard_library_root() -> PathBuf {
 use nocter_compile_input::{
     BuiltinTypeLocator, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput,
-    PrimitiveRoleLocator, RuntimeStorageRoleLocator, StandardRoleLocator,
-    StructuralAttachmentInput, ToolchainInput, UseResolutionInput,
+    RuntimeStorageRoleLocator, StandardRoleLocator, StructuralAttachmentInput, ToolchainInput,
+    UseResolutionInput,
 };
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
-use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole};
+use nocter_runtime_contract::RuntimeStorageRole;
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
@@ -1270,7 +1270,9 @@ impl CompilerFixture {
             )],
             self.standard_role_inputs(),
         )
-        .with_primitive_roles(Self::primitive_role_inputs(standard))
+        .with_primitive_roles(nocter_standard_profile::bundled_primitive_locators(
+            standard,
+        ))
         .with_runtime_storage_roles(
             RuntimeStorageRole::ALL
                 .iter()
@@ -1287,21 +1289,6 @@ impl CompilerFixture {
                 .collect(),
         )
         .with_builtin_types(Self::builtin_type_inputs())
-    }
-
-    fn primitive_role_inputs(standard: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
-        PrimitiveRole::ALL
-            .iter()
-            .copied()
-            .map(|role| {
-                let (path, name) = nocter_standard_profile::bundled_primitive_source_location(role);
-                PrimitiveRoleLocator::new(
-                    role,
-                    ModuleIdentity::new(standard.clone(), path.iter().copied()),
-                    name,
-                )
-            })
-            .collect()
     }
 
     fn builtin_type_inputs() -> Vec<BuiltinTypeLocator> {

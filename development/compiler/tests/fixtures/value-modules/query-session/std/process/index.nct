@@ -5,6 +5,8 @@ primitive func arg_checked(index: usize): str??
 primitive func environment_count(): usize
 primitive func env_name_checked(index: usize): str??
 primitive func env_value_checked(index: usize): str??
+#visibility: "/"
+primitive func text_byte_at(value: str, index: usize): u8?
 
 struct EnvironmentEntry {
     name: str
@@ -13,3 +15,4 @@ struct EnvironmentEntry {
 
 func arg(index: usize): str?!
 func environment(index: usize): EnvironmentEntry?!
+func env(name: str): str?!

@@ -1,0 +1,17 @@
+use std/error as errors
+use std/process
+see ./index.nct
+
+async func inspect(): str?! {
+    let name = if process.arg_count() > 2 {
+        "NOCTER\0"
+    } else {
+        process.arg(1)? otherwise { "NOCTER" }
+    }
+    process.env(name)
+}
+
+async func main(): i32! {
+    let value = (await inspect()?) otherwise { "absent" }
+    throw errors.operation("env", value)
+}

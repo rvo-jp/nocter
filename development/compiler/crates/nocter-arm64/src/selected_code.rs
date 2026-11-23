@@ -686,6 +686,10 @@ pub(crate) fn emit_instruction(
             crate::process_code::emit_environment_count(code);
             Ok(())
         }
+        Arm64SelectedInstruction::ReadStringByte {
+            payload_shift,
+            absent,
+        } => crate::primitive_memory_code::emit_string_byte(code, payload_shift, absent),
     }
 }
 

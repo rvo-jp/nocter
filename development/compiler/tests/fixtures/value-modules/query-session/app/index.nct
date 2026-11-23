@@ -8,6 +8,7 @@
 #executable: { name: "compound-deferred", module: "./compound_deferred" }
 #executable: { name: "arguments", module: "./arguments" }
 #executable: { name: "environment", module: "./environment" }
+#executable: { name: "environment-lookup", module: "./environment_lookup" }
 see ./body.nct
 use ./math
 const func main(): i32

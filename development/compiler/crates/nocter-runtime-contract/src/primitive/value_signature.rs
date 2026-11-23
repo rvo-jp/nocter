@@ -126,6 +126,13 @@ const PROCESS_TEXT: PrimitiveValueSignature = PrimitiveValueSignature {
         &PrimitiveValueResult::Builtin(BuiltinType::Str),
     )),
 };
+const STRING_BYTE_AT: PrimitiveValueSignature = PrimitiveValueSignature {
+    inputs: &[
+        PrimitiveValueInput::new(BuiltinType::Str, ValueInputOperation::Read),
+        PrimitiveValueInput::new(BuiltinType::Usize, ValueInputOperation::Read),
+    ],
+    result: PrimitiveValueResult::Optional(&PrimitiveValueResult::Builtin(BuiltinType::U8)),
+};
 impl PrimitiveRole {
     /// The qualified value-model signatures shared with source signature validation.
     /// A shape grants neither primitive authority nor executable/constant-domain admission.
@@ -139,6 +146,7 @@ impl PrimitiveRole {
             Self::ProcessArgument
             | Self::ProcessEnvironmentName
             | Self::ProcessEnvironmentValue => Some(&PROCESS_TEXT),
+            Self::StringByteAt => Some(&STRING_BYTE_AT),
             _ => None,
         }
     }

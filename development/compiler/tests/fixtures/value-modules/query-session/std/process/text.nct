@@ -7,12 +7,14 @@ struct EnvironmentEntry {
 }
 
 func decoded(take encoding: str?): str! {
-    encoding^ otherwise {
-        throw errors.operation(
-            "std.process.invalid_encoding",
-            "process text or requested environment name is invalid",
-        )
-    }
+    encoding^ otherwise { throw invalid_encoding() }
+}
+
+func invalid_encoding(): error {
+    errors.operation(
+        "std.process.invalid_encoding",
+        "process text or requested environment name is invalid",
+    )
 }
 
 func arg(index: usize): str?! {
@@ -26,4 +28,36 @@ func environment(index: usize): EnvironmentEntry?! {
     let value_encoding = env_value_checked(index) otherwise { return none }
     let value = decoded(value_encoding^)?
     EnvironmentEntry { name: name^, value: value^ }
+}
+
+func valid_name(name: str): bool {
+    var index: usize = 0
+    loop {
+        let byte = text_byte_at(name, index) otherwise { return index != 0 }
+        if byte == 0 || byte == 61 { return false }
+        index += 1
+    }
+}
+
+func same_name(left: str, right: str): bool {
+    var index: usize = 0
+    loop {
+        let a = text_byte_at(left, index) otherwise {
+            let _ = text_byte_at(right, index) otherwise { return true }
+            return false
+        }
+        let b = text_byte_at(right, index) otherwise { return false }
+        if a != b { return false }
+        index += 1
+    }
+}
+
+func env(name: str): str?! {
+    if !valid_name(name) { throw invalid_encoding() }
+    var index: usize = 0
+    loop {
+        let entry = environment(index)? otherwise { return none }
+        if same_name(name, entry.name) { return entry.value^ }
+        index += 1
+    }
 }

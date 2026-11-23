@@ -105,9 +105,7 @@ mod tests {
     fn complete_registry() -> PrimitiveRegistry {
         let mut declarations = DeclarationArenaBuilder::new();
         PrimitiveRegistry::new(
-            PrimitiveRole::ALL
-                .iter()
-                .copied()
+            PrimitiveRole::published_roles()
                 .map(|role| PrimitiveBinding::new(role, declarations.reserve_callable())),
         )
         .unwrap()

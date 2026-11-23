@@ -18,11 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify read-only checked text byte access for name-based v2 environment lookup. Keep the
-trusted operation separate from the released primitive profile and leave text operator semantics
-to their own specification. Use the checked bytes to validate a requested name and compare it
-against indexed entries in source order. Verify absence, empty values and error propagation
-through the selected process profile.
+Move the verified v2 process implementation into a canonical development standard-library
+package. Bind its exact trusted roles through one candidate profile and run it through the
+ordinary prepared command path with the real package. Keep qualification-only error helpers in
+the source fixtures and preserve the existing installed profile and qualified release artifacts.
 
 ## Remaining Contextual Representation Qualification
 
@@ -739,9 +738,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify indexed environment entries under the selected v2 process profile. Reuse the
   argument lookup's bounds, checked layout and UTF-8 scan. Verify absent and empty values, the
   first equals sign as the boundary, and failures in either field on native launches.
-- [ ] Qualify name-based environment lookup under the selected v2 standard profile. Verify the
-  requested name, preserve the distinction between missing and empty values, and keep the
-  original validation order across visited entries.
+- [x] Qualify name-based environment lookup under the selected v2 process profile. A checked
+  byte read binds only through the v2 profile. Verify rejected names, empty/missing values,
+  byte-exact matches and validation of every visited entry before the first match.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

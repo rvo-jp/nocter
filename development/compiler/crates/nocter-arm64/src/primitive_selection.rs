@@ -101,6 +101,7 @@ pub(crate) fn select(
         PrimitiveRole::SliceLength | PrimitiveRole::StringLength => {
             select_view_length(operation, target, selected)
         }
+        PrimitiveRole::StringByteAt => select_string_byte(program, operation, target, selected),
         PrimitiveRole::SlicePointerAddress | PrimitiveRole::StringPointerAddress => {
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)
@@ -293,6 +294,49 @@ pub(crate) fn select(
             select_network_primitive(operation, target, selected)
         }
     }
+}
+
+fn select_string_byte(
+    program: &nocter_machine::MachineProgram,
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    use nocter_machine::{MachineLayout, MachineLayoutKind, MachineOutcomeKind, MachineScalar};
+    validate_type_arguments(operation, target, 0)?;
+    validate_register_abi(operation, target, &[2, 1], 1)?;
+    let invalid = Arm64SelectionError::PrimitiveCall(operation);
+    let MachineResultAbi::Value(result) = target.abi().result() else {
+        return Err(invalid);
+    };
+    let Some(MachineLayoutKind::Outcome {
+        kind: MachineOutcomeKind::Optional,
+        tag_offset,
+        payload_offset,
+        primary: Some(payload),
+        alternate: None,
+    }) = program.layouts().get(result.ty()).map(MachineLayout::kind)
+    else {
+        return Err(invalid);
+    };
+    if !matches!(
+        program.layouts().get(*payload).map(MachineLayout::kind),
+        Some(MachineLayoutKind::Scalar(MachineScalar::Integer {
+            bits: 8,
+            signed: false
+        }))
+    ) || tag_offset == payload_offset
+        || *tag_offset >= Arm64NocterAbi::word_size()
+        || *payload_offset >= Arm64NocterAbi::word_size()
+        || MachineOutcomeKind::Optional.primary_tag() != 0
+    {
+        return Err(invalid);
+    }
+    selected.push(Arm64SelectedInstruction::ReadStringByte {
+        payload_shift: u8::try_from(payload_offset * 8).map_err(|_| invalid)?,
+        absent: u64::from(MachineOutcomeKind::Optional.alternate_tag()) << (tag_offset * 8),
+    });
+    Ok(())
 }
 
 fn select_file_primitive(

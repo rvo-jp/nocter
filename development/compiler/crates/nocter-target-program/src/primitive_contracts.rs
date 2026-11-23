@@ -1398,6 +1398,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::ProcessAbort | PrimitiveRole::Unreachable => {
             make(0, vec![], never(), private, arm64_darwin, vec![])
         }
+        PrimitiveRole::StringByteAt => {
+            unreachable!("unpublished primitive has no released contract")
+        }
     }
 }
 
@@ -1413,9 +1416,9 @@ mod tests {
 
     #[test]
     fn every_future_primitive_contract_has_positive_drive_safety_evidence() {
-        for role in PrimitiveRole::ALL {
-            let contract = contract(*role);
-            let result = validate_role_effects(*role, &contract);
+        for role in PrimitiveRole::published_roles() {
+            let contract = contract(role);
+            let result = validate_role_effects(role, &contract);
             assert_eq!(
                 result,
                 Ok(()),

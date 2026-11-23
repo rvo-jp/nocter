@@ -42,7 +42,7 @@ fn complete_closed_registry_constructs_a_target_program() {
     );
     assert_eq!(
         target.toolchain().primitives().bindings().len(),
-        PrimitiveRole::ALL.len()
+        PrimitiveRole::published_roles().count()
     );
 }
 
@@ -780,14 +780,14 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
             .toolchain()
             .primitives()
             .callable(PrimitiveRole::CurrentAllocatorState),
-        right_callable
+        Some(right_callable)
     );
     assert_eq!(
         target
             .toolchain()
             .primitives()
             .callable(PrimitiveRole::CurrentAllocatorKind),
-        left_callable
+        Some(left_callable)
     );
 }
 

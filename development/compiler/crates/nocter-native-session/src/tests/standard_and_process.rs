@@ -30,7 +30,7 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 
     assert_eq!(
         compiled.program().toolchain().primitives().bindings().len(),
-        PrimitiveRole::ALL.len()
+        PrimitiveRole::published_roles().count()
     );
     assert!(
         compiled
