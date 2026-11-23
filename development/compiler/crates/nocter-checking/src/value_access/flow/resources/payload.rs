@@ -1,7 +1,7 @@
 //! Sparse availability and cleanup frontiers. Fully initialized subtrees remain shared schemas.
 use super::{
-    Disposal, INVALID, Index, IndexBacking, Missing, Path, Payload, Place, Program, Result, Step,
-    payload,
+    CleanupFailure, Disposal, INVALID, Index, IndexBacking, Missing, Path, Payload, Place, Program,
+    Result, Step, payload,
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
 use nocter_model::{BuiltinType, ValueField, ValueProjection, VariantId};
@@ -70,8 +70,28 @@ impl OwnedValue {
         self.missing.insert(Missing::Value(path.clone()));
     }
     /// Maximal initialized regions in destruction order, without enumerating intact descendants.
-    pub fn cleanup(&self, program: &Program, place: &Place) -> Result<Vec<Step>> {
+    pub fn cleanup(
+        &self,
+        program: &Program,
+        place: &Place,
+    ) -> std::result::Result<Vec<Step>, CleanupFailure> {
         let selected = self.container(program, place.fields())?;
+        if program.has_destructors() {
+            let depth = place.fields().fields().len();
+            for hole in self
+                .missing
+                .iter()
+                .filter(|hole| hole.under(place.fields()))
+            {
+                let suffix = hole.anchor().fields().get(depth..).ok_or(INVALID)?;
+                if program
+                    .containing_destructor(selected.data(), suffix)
+                    .is_some()
+                {
+                    return Err(CleanupFailure::IncompleteDestructor(place.clone()));
+                }
+            }
+        }
         let mut pending = vec![Pending::Value(place.clone(), selected)];
         let mut cleanup = Vec::new();
         while let Some(next) = pending.pop() {
@@ -102,7 +122,7 @@ impl OwnedValue {
                 .iter()
                 .any(|hole| hole.overlaps(place.fields()) && !hole.under(place.fields()))
             {
-                return Err(INVALID);
+                return Err(INVALID.into());
             }
             self.queue_partial_cleanup(program, place, selected, &mut pending)?;
         }
@@ -116,9 +136,7 @@ impl OwnedValue {
         selected: Payload,
         pending: &mut Vec<Pending>,
     ) -> Result<()> {
-        if selected.disposal() != Disposal::Aggregate
-            || program.data_destructor(selected.data()).is_some()
-        {
+        if selected.disposal() != Disposal::Aggregate {
             return Err(INVALID);
         }
         let schema = program.data_schema(selected.data()).ok_or(INVALID)?;

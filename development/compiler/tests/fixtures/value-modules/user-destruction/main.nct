@@ -48,6 +48,11 @@ func main(): i32 {
     selected = Ticket { state: 0 }
     drop cabinet
 
+    var restored = Cabinet { child: Ticket { state: 0 }, cleaned: false }
+    let original = restored.child^
+    restored.child = original^
+    drop restored
+
     let parcel = Parcel.filled(Ticket { state: 0 })
     if take parcel^ is Parcel.filled(_) {}
     let empty = Parcel.empty

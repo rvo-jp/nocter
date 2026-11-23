@@ -95,6 +95,7 @@ pub enum AccessRule {
     ReservedModification,
     ConflictingArguments,
     ExpiredRoot,
+    IncompleteDestructor,
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Violation {

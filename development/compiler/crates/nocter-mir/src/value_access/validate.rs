@@ -52,7 +52,10 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
             || signature.environment().is_some()
             || !matches!(
                 program.runtime.type_representations().get(data),
-                Some(RuntimeTypeRepresentation::ValueAggregate { .. } | RuntimeTypeRepresentation::ValueEnum { .. })
+                Some(
+                    RuntimeTypeRepresentation::ValueAggregate { .. }
+                        | RuntimeTypeRepresentation::ValueEnum { .. }
+                )
             )
             || program.runtime.types().get(signature.result()) != Some(&RuntimeType::Unit)
         {

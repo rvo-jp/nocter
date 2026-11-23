@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify restoration paths for user-destructible owners. Use the ordered ownership transitions
-to reject any live incomplete owner reaching cleanup while allowing operations that restore the
-original storage before every destruction path.
+Restrict executable destructor closure to reached retirement. Follow the exact receiver
+representation and existing cleanup edges through bodies, component helpers, adapters and local
+future cancellation without putting unused destructor bodies in the emitted program.
 
 ## Remaining Contextual Representation Qualification
 
@@ -779,18 +779,17 @@ not a language restriction derived from the current realization boundary.
   in retained-header layout validation.
 - [x] Exclude live user-destructible nominal values from required evaluation and final-value
   publication. Preserve zero-length storage and inactive payloads in enclosing shapes.
-- [x] Reject transfers that leave a user-destructible receiver incomplete, including component
-  moves through enum bindings, temporary projections and array indices. Retain whole-value
-  transfer, Copy snapshots and checked component replacement.
+- [x] Reject temporary projections and consuming enum bindings that immediately retire an
+  incomplete user-destructible carrier. Retain Copy snapshots and whole-value transfer.
 - [x] Infer non-waiting and non-suspending effects for closed destructor receivers through
   selected invocation frames, resource retirement, completed adapter environments and target
   backing evidence. Locate a forbidden operation at its original source.
 - [x] Integrate closed complete-self destructors with exactly-once executable component cleanup.
   Prevent whole-receiver replacement through delegated edits. Qualify record, active enum,
   scoped replacement and array retirement in the installed native profile.
-- [ ] Permit a component transfer from a user-destructible owning value when every path into
-  destruction proves complete restoration. Give a source diagnostic when a live partial owner
-  reaches cleanup. Immediate temporary and consuming-pattern retirement still needs completion.
+- [x] Permit component transfers with complete restoration on every reached cleanup path.
+  Diagnose live partial owners at retirement, including nested owners, replacement and early
+  return. Run a restored owner through its ordinary native cleanup.
 - [ ] Extend destructor effect and cleanup qualification to context-dependent receivers and
   remaining target backing and release contracts.
 - [ ] Discover executable destructor instances from reached retirement schemas and completed

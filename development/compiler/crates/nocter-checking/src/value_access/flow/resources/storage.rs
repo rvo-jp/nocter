@@ -1,7 +1,7 @@
 //! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
 use super::{
-    ActivationAccess, ActivationInput, Disposal, Frame, Holder, INVALID, Missing, OwnedValue,
-    Payload, Place, Program, Result, State, Step, TypedQuery, payload,
+    ActivationAccess, ActivationInput, CleanupFailure, Disposal, Frame, Holder, INVALID, Missing,
+    OwnedValue, Payload, Place, Program, Result, State, Step, TypedQuery, payload,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
 
@@ -176,12 +176,6 @@ impl State {
         if !value.complete(source.fields()) {
             return Err(INVALID);
         }
-        if program
-            .containing_destructor(value.payload.data(), source.fields().fields())
-            .is_some()
-        {
-            return Err(INVALID);
-        }
         if source.fields().is_root() {
             let mut owner = self.remove_root(source.holder())?;
             owner.payload = selected;
@@ -325,6 +319,10 @@ impl State {
         steps: &mut Vec<Step>,
     ) -> Result<()> {
         self.transfer(program, source, destination, outer, false, steps)
+            .map_err(|failure| match failure {
+                CleanupFailure::Integrity(failure) => failure,
+                CleanupFailure::IncompleteDestructor(_) => INVALID,
+            })
     }
     /// The replacement is already fully evaluated. Clean the old initialized remainder once.
     pub fn replace(
@@ -333,7 +331,7 @@ impl State {
         source: &Place,
         destination: &Place,
         steps: &mut Vec<Step>,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), CleanupFailure> {
         self.transfer(program, source, destination, false, true, steps)
     }
     /// Replace an initialized scoped referent without changing its enclosing owner's state.
@@ -368,7 +366,7 @@ impl State {
         outer: bool,
         replace: bool,
         steps: &mut Vec<Step>,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), CleanupFailure> {
         // Integrity rejection cannot publish half a transfer, cleanup, or frame registration.
         let mut staged = self.clone();
         let mut changes = Vec::new();
@@ -378,7 +376,7 @@ impl State {
         if let Some(owner) = staged.owned.get(&destination.holder())
             && owner.container(program, destination.fields())? != value
         {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         if replace {
             staged.clear(program, destination, true, &mut changes)?;
@@ -386,7 +384,7 @@ impl State {
         staged.install(program, destination, value, outer)?;
         if let Some(accesses) = moved.retained_accesses {
             if !destination.fields().is_root() {
-                return Err(INVALID);
+                return Err(INVALID.into());
             }
             staged
                 .owned
@@ -410,27 +408,24 @@ impl State {
         source: &Place,
         allow_missing: bool,
         steps: &mut Vec<Step>,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), CleanupFailure> {
         if source.holder().is_backing() {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         self.validate_snapshots(program, source)?;
         let Some(value) = self.owned.get(&source.holder()) else {
             return if allow_missing && source.fields().is_root() {
                 Ok(())
             } else {
-                Err(INVALID)
+                Err(INVALID.into())
             };
         };
         if !allow_missing
-            && (value
+            && value
                 .missing
                 .contains(&Missing::Value(source.fields().clone()))
-                || program
-                    .containing_destructor(value.payload.data(), source.fields().fields())
-                    .is_some())
         {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         let cleanup = value.cleanup(program, source)?;
         if source.fields().is_root() {
@@ -450,7 +445,7 @@ impl State {
         program: &Program,
         source: &Place,
         steps: &mut Vec<Step>,
-    ) -> Result<()> {
+    ) -> std::result::Result<(), CleanupFailure> {
         let mut staged = self.clone();
         let mut changes = Vec::new();
         staged.clear(program, source, false, &mut changes)?;

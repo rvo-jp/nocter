@@ -93,7 +93,7 @@ fn absent_destructor_bearing_components_do_not_block_required_values() {
 }
 
 #[test]
-fn only_whole_transfers_and_copy_snapshots_leave_destructors_with_complete_values() {
+fn destructor_entry_requires_restored_components_on_every_path() {
     let prepare = |run: &str| {
         let body = format!(
             "see ./index.nct\n\
@@ -115,14 +115,30 @@ fn only_whole_transfers_and_copy_snapshots_leave_destructors_with_complete_value
         );
         ModuleSourceUnit::prepare(&fixture.input()).map(drop)
     };
-    for invalid in [
+    for incomplete in [
         "func run(): i32 { let owner = make()\nlet moved = owner.item^\nmoved.value }",
         "func run(): i32 { let owner = make()\nowner.count^ }",
-        "func run(): i32 { let value = make().item\nvalue.value }",
         "func run(index: usize): i32 { let owner = make()\nlet moved = owner.items[index]^\nmoved.value }",
+        "func run(leave: bool): i32 { var owner = make()\nlet moved = owner.item^\nif leave { return moved.value }\nowner.item = item()\nmoved.value }",
+        "func run(): i32 { var owner = make()\nlet moved = owner.item^\nowner = make()\nmoved.value }",
+        "func run(): i32 { let outer = (make(), 0)\nlet moved = outer.0.item^\ndrop outer\nmoved.value }",
+    ] {
+        let result = prepare(incomplete);
+        let Err(SourceFailure::Checking(accepted::Failure::Flow { diagnostics, .. })) = result
+        else {
+            panic!("required restoration must be diagnosed at cleanup: {incomplete}: {result:?}");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|error| error.message().contains("restore every moved component"))
+        );
+    }
+    for immediate in [
+        "func run(): i32 { let value = make().item\nvalue.value }",
         "func run(take packet: Packet): i32 { if take packet^ is Packet.data(part) { part.value } else { 0 } }",
     ] {
-        let result = prepare(invalid);
+        let result = prepare(immediate);
         let Err(SourceFailure::Checking(accepted::Failure::Body {
             failure: Failure::Rejected(error),
             ..
@@ -130,10 +146,12 @@ fn only_whole_transfers_and_copy_snapshots_leave_destructors_with_complete_value
         else {
             panic!("partial extraction must be rejected at its source: {result:?}");
         };
-        assert_eq!(error.rule(), Rule::IncompleteDestructor, "{invalid}");
+        assert_eq!(error.rule(), Rule::IncompleteDestructor, "{immediate}");
     }
     for valid in [
         "func run(): i32 { var owner = make()\nowner.item = item()\nlet moved = owner^\nmoved.item.value }",
+        "func run(): i32 { var owner = make()\nlet moved = owner.item^\nowner.item = moved^\nowner.item.value }",
+        "func run(reuse: bool): i32 { var owner = make()\nlet moved = owner.item^\nif reuse { owner.item = moved^ } else { owner.item = item() }\nowner.item.value }",
         "func run(): i32 { let pair = (make(), 0)\nlet moved = pair.0^\nmoved.count }",
         "func run(): i32 { make().count }",
         "func run(take packet: Packet): i32 { if take packet^ is Packet.number(value) { value } else { 0 } }",

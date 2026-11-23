@@ -204,10 +204,11 @@ layout checked when reusing a sealed header product.
 The v2 parser reads the body from `drop { ... }` within an ordinary nominal implementation.
 Module binding retains the original file and behavior scope. The implicit receiver has a
 source anchor for diagnostics, and the body undergoes the ordinary type and access checks.
-The selected transfer path is checked against the destructor reservations of its containing
-values. The same ancestry check protects ownership transitions, including indexed transfers.
-Copy snapshots leave the owning carrier complete. Replacement retires and installs one
-component in a single checked transition.
+Temporary projections and consuming enum bindings must preserve the complete carrier they
+immediately retire. For owners that remain in scope, the resource ledger checks surviving holes
+at each reached cleanup. The ancestry check covers incomplete user-destructible descendants of
+partially moved ordinary records, tuples and arrays. Restoring a moved field resumes ordinary
+cleanup of that same owner. Copy snapshots leave the owning carrier complete.
 For closed receivers, effect checking follows reached invocation instances and ordered
 retirement steps. A consuming callable adapter is checked against its completed environment.
 Primitive effects and backend release require target certificates. The checked unit retains

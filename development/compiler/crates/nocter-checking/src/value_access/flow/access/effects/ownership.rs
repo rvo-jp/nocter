@@ -1,9 +1,11 @@
 use super::super::super::{
     Operation, cancelled_slots,
-    resources::{self, ActivationAccess, ActivationAccessSource, ActivationInput, Holder},
+    resources::{
+        self, ActivationAccess, ActivationAccessSource, ActivationInput, CleanupFailure, Holder,
+    },
 };
 use super::super::{
-    AccessRule, Violation,
+    AccessRule, IndexFact, Root, Violation,
     liveness::Carrier,
     state::{Prepared, PreparedSource},
 };
@@ -36,13 +38,57 @@ impl Context<'_, '_> {
     }
     fn dispose_expression(&mut self, id: AccessExpressionId) -> Result<()> {
         if self.owns_expression(id)? {
-            self.world.resources.dispose(
-                self.typed.program(),
-                &Holder::Expression(id).place(),
-                &mut self.steps,
-            )?;
+            self.dispose_resource(Holder::Expression(id))?;
         }
         Ok(())
+    }
+    fn dispose_resource(&mut self, holder: Holder) -> Result<()> {
+        let result =
+            self.world
+                .resources
+                .dispose(self.typed.program(), &holder.place(), &mut self.steps);
+        self.cleanup_result(result)
+    }
+    fn cleanup_result(&self, result: std::result::Result<(), CleanupFailure>) -> Result<()> {
+        let source = match result {
+            Ok(()) => return Ok(()),
+            Err(CleanupFailure::Integrity(error)) => return Err(error.into()),
+            Err(CleanupFailure::IncompleteDestructor(source)) => source,
+        };
+        let root = match source.holder() {
+            Holder::Local(local) => Root::Owned(local),
+            Holder::Expression(value) => Root::Expression(value),
+            Holder::Temporary { call, index } => Root::Temporary { call, index },
+            Holder::Prepared { call, index } => {
+                let Some(ExpressionKind::Call { arguments, .. }) = self
+                    .typed
+                    .body()
+                    .expressions()
+                    .get(call)
+                    .map(|expression| &expression.kind)
+                else {
+                    return Err(Failure::Integrity);
+                };
+                Root::Expression(arguments.get(index).ok_or(Failure::Integrity)?.value)
+            }
+            Holder::IndexSnapshot(_) | Holder::ArrayFrontier(_) | Holder::Return => {
+                return Err(Failure::Integrity);
+            }
+        };
+        let fields = nocter_model::ValuePath::new(source.fields().fields().iter().map(|field| {
+            field.map_index(|index| match *index {
+                resources::Index::Constant(index) => IndexFact::Known(index),
+                resources::Index::Retained(_) => IndexFact::Unknown,
+            })
+        }));
+        Err(Violation {
+            location: self.at,
+            rule: AccessRule::IncompleteDestructor,
+            root,
+            fields,
+            retained: None,
+        }
+        .into())
     }
     fn end_evaluation_ownership(&mut self, id: AccessExpressionId) -> Result<()> {
         for holder in self.world.resources.ending(id)? {
@@ -69,9 +115,7 @@ impl Context<'_, '_> {
                 }
                 self.write(&root.region(), None, Mode::Own, None)?;
             }
-            self.world
-                .resources
-                .dispose(self.typed.program(), &holder.place(), &mut self.steps)?;
+            self.dispose_resource(holder)?;
         }
         self.world.resources.end(id)?;
         Ok(())
@@ -181,11 +225,7 @@ impl Context<'_, '_> {
                 }
             }
             Operation::Assign { target, value } => self.assign_ownership(target, value)?,
-            Operation::Drop(local) => self.world.resources.dispose(
-                self.typed.program(),
-                &Holder::Local(local).place(),
-                &mut self.steps,
-            )?,
+            Operation::Drop(local) => self.dispose_resource(Holder::Local(local))?,
             Operation::StageReturn(value) => self.world.resources.move_to(
                 self.typed.program(),
                 &Holder::Expression(value).place(),
@@ -197,11 +237,7 @@ impl Context<'_, '_> {
                 for &local in locals {
                     if self.world.resources.contains(Holder::Local(local)) {
                         self.destroy(local)?;
-                        self.world.resources.dispose(
-                            self.typed.program(),
-                            &Holder::Local(local).place(),
-                            &mut self.steps,
-                        )?;
+                        self.dispose_resource(Holder::Local(local))?;
                     }
                     self.world.values.remove(&Carrier::Local(local));
                 }
@@ -221,11 +257,7 @@ impl Context<'_, '_> {
                 for index in cancelled_slots(self.typed, call, prepared)?.rev() {
                     let holder = Holder::Prepared { call, index };
                     if self.world.resources.contains(holder) {
-                        self.world.resources.dispose(
-                            self.typed.program(),
-                            &holder.place(),
-                            &mut self.steps,
-                        )?;
+                        self.dispose_resource(holder)?;
                     }
                 }
             }
@@ -531,12 +563,13 @@ impl Context<'_, '_> {
             None
         };
         if let Some(destination) = destination {
-            self.world.resources.replace(
+            let result = self.world.resources.replace(
                 self.typed.program(),
                 &Holder::Expression(value).place(),
                 &destination,
                 &mut self.steps,
-            )?;
+            );
+            self.cleanup_result(result)?;
         } else {
             let destination = match target {
                 crate::value_access::Referent::Evaluated(id) => Holder::Expression(id).place(),

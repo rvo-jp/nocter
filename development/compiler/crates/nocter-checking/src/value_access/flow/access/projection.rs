@@ -102,6 +102,10 @@ impl Context<'_, '_> {
                     DiagnosticCode::E0398,
                     "this access requires an owner that no longer survives",
                 ),
+                AccessRule::IncompleteDestructor => (
+                    DiagnosticCode::E0378,
+                    "restore every moved component before this destructor runs",
+                ),
             };
             let root_origin = self.root_origin(violation.root)?;
             let mut notes = vec![DiagnosticNote::new(

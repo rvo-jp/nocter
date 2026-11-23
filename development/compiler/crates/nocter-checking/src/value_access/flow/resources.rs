@@ -61,6 +61,18 @@ pub struct Place {
     holder: Holder,
     fields: Path,
 }
+
+#[derive(Debug)]
+pub(super) enum CleanupFailure {
+    Integrity(IntegrityError),
+    IncompleteDestructor(Place),
+}
+
+impl From<IntegrityError> for CleanupFailure {
+    fn from(error: IntegrityError) -> Self {
+        Self::Integrity(error)
+    }
+}
 impl Place {
     #[must_use]
     pub fn with_fields(self, fields: Path) -> Self {
