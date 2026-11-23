@@ -9,6 +9,7 @@ use nocter_model::{
 use std::collections::{BTreeMap, BTreeSet};
 
 mod assembly;
+pub(super) use assembly::Assembly;
 mod capture;
 mod function_view;
 mod missing;
@@ -458,7 +459,21 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
             PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
                 Disposal::Trivial
             }
-            PayloadSchema::Enumeration(schema) if !schema.has_payload() => Disposal::Trivial,
+            PayloadSchema::Enumeration(schema) => {
+                if schema.has_payload() {
+                    for &variant in schema.variants() {
+                        pending.extend(
+                            program
+                                .variant_components(current, variant)
+                                .ok_or(INVALID)?
+                                .map(|field| (field.data, guarded)),
+                        );
+                    }
+                    Disposal::Aggregate
+                } else {
+                    Disposal::Trivial
+                }
+            }
             PayloadSchema::Builtin(builtin)
                 if nocter_model::BuiltinNumericType::for_builtin(builtin)
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)
@@ -507,9 +522,7 @@ fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<
                 nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
             },
-            PayloadSchema::Builtin(_)
-            | PayloadSchema::Future(_)
-            | PayloadSchema::Enumeration(_) => {
+            PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => {
                 return Err(INVALID);
             }
         };

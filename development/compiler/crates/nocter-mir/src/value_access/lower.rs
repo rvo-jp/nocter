@@ -982,10 +982,29 @@ impl Builder<'_> {
                         Step::Assemble {
                             destination,
                             payload,
+                            enum_case,
                             fields,
                         } => {
                             let destination =
                                 self.root(*destination, self.payload_data(payload)?, false)?;
+                            if let Some(tag) = enum_case {
+                                let sources = fields
+                                    .iter()
+                                    .map(|(field, source)| {
+                                        let data = self
+                                            .runtime
+                                            .value_field(destination.data, *field)
+                                            .ok_or_else(|| self.invalid())?;
+                                        self.resource_place(source, data, projected)
+                                    })
+                                    .collect::<Result<_, Failure>>()?;
+                                output.push(Effect::ConstructEnum {
+                                    destination,
+                                    tag: *tag,
+                                    fields: sources,
+                                });
+                                continue;
+                            }
                             for (field, source) in fields {
                                 let data = self
                                     .runtime

@@ -284,6 +284,14 @@ impl Path {
     }
     #[must_use]
     pub fn data(&self, program: &Program, root: TypeId) -> Option<TypeId> {
+        // Ordinary ownership paths carry no receipt of an active enum case.
+        if self
+            .fields()
+            .iter()
+            .any(|field| matches!(field, ValueProjection::EnumField { .. }))
+        {
+            return None;
+        }
         program.project_data_by(root, &self.0, |index, length| match *index {
             Index::Constant(index) => index < length,
             Index::Retained(snapshot) => snapshot.bound <= length,

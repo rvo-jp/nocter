@@ -143,6 +143,12 @@ pub enum Effect {
         destination: Place,
         primary: bool,
     },
+    /// Initialize and commit the selected case from its ordered, already produced fields.
+    ConstructEnum {
+        destination: Place,
+        tag: u64,
+        fields: Box<[Place]>,
+    },
     /// The selected value computation initializes these bytes; this is not another constructor.
     Initialize(Place),
     Transfer {

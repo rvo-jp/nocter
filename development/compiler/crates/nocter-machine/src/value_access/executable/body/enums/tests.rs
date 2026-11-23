@@ -1,14 +1,42 @@
-//! Machine cleanup reads one tag and visits the selected case's owned fields.
+//! Enum Machine operations share exact offsets and discriminator width through native storage.
+use super::super::Context;
+use super::super::destruction::build;
 use super::*;
+use crate::identity::MachineId;
 use crate::value_access::executable::{data::Data, transport::Prepared};
-use crate::{MachineBody, MachineLayoutPlan, MachineSwitchValue, MachineValueDefinition};
-use nocter_model::{AccessFieldId, ArenaBuilder, VariantId};
+use crate::{
+    MachineAddressStep, MachineBlockId, MachineBody, MachineCallTarget, MachineFunctionId,
+    MachineLayoutPlan, MachineStackId, MachineStackObject, MachineStackPurpose, MachineSwitchValue,
+    MachineTerminator, MachineValueDefinition,
+};
+use nocter_model::{AccessFieldId, ArenaBuilder, MirLocalId, VariantId};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
     RuntimeValueVariantRepresentation,
 };
 use std::collections::{BTreeMap, BTreeSet};
+
+fn context<'a>(
+    runtime: &'a RuntimeEnvironment,
+    layouts: &'a MachineLayoutPlan,
+    data: &'a Data,
+    cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
+) -> Context<'a> {
+    Context {
+        runtime,
+        layouts,
+        data,
+        cleanup,
+        functions: BTreeMap::new(),
+        abis: BTreeMap::new(),
+        transports: Prepared {
+            helpers: BTreeMap::new(),
+            copies: BTreeSet::new(),
+        },
+        primitives: BTreeMap::new(),
+    }
+}
 
 fn environment([data, tag, error, callback]: [RuntimeDataId; 4]) -> RuntimeEnvironment {
     let mut types = RuntimeTypeTableBuilder::new();
@@ -102,19 +130,12 @@ fn cleanup_uses_the_full_tag_width_and_visits_fields_in_reverse_order() {
     let error_helper = MachineFunctionId::new(1);
     let closure_helper = MachineFunctionId::new(2);
     let constants = Data::default();
-    let context = Context {
-        runtime: &runtime,
-        layouts: &layouts,
-        data: &constants,
-        functions: BTreeMap::new(),
-        abis: BTreeMap::new(),
-        cleanup: [(error, error_helper), (callback, closure_helper)].into(),
-        transports: Prepared {
-            helpers: BTreeMap::new(),
-            copies: BTreeSet::new(),
-        },
-        primitives: BTreeMap::new(),
-    };
+    let context = context(
+        &runtime,
+        &layouts,
+        &constants,
+        [(error, error_helper), (callback, closure_helper)].into(),
+    );
     let function = build(&context, data, MachineFunctionId::new(0)).unwrap();
     let body = function.body();
     let MachineTerminator::SwitchValue {
@@ -147,4 +168,76 @@ fn cleanup_uses_the_full_tag_width_and_visits_fields_in_reverse_order() {
         assert_eq!(cleanup_calls(body, case.target().block()), expected);
     }
     assert!(cleanup_calls(body, fallback.block()).is_empty());
+}
+
+#[test]
+fn construction_writes_fields_before_committing_the_full_width_tag() {
+    let [data, tag, error, callback] = [0, 1, 2, 3].map(RuntimeDataId::Instance);
+    let runtime = environment([data, tag, error, callback]);
+    let layouts = MachineLayoutPlan::from_runtime(&runtime, [data, tag]).unwrap();
+    let values = Data::default();
+    let context = context(&runtime, &layouts, &values, BTreeMap::new());
+    let mut builder = Builder::new(&context, MachineFunctionId::new(0));
+    let mut locals = ArenaBuilder::<MirLocalId, ()>::new();
+    let [destination, first, second] = [data, error, callback].map(|ty| {
+        let layout = layouts.get(ty).unwrap();
+        let slot = MachineStackId::new(builder.stack.len());
+        builder.stack.push(MachineStackObject::new(
+            ty,
+            layout.size(),
+            layout.alignment(),
+            MachineStackPurpose::Temporary,
+        ));
+        let address = builder.slot_address(slot);
+        let place = mir::Place {
+            slot: locals.insert(()),
+            root: ty,
+            data: ty,
+            projections: Box::new([]),
+        };
+        builder.places.insert(place.clone(), address);
+        place
+    });
+    builder
+        .construct_enum(&destination, 256, &[first, second])
+        .unwrap();
+    let stores = builder
+        .operations
+        .iter()
+        .filter_map(|op| match op.kind() {
+            MachineOperationKind::Store { destination, value } => Some((destination, value)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let mut ordinals = Vec::new();
+    for &(address, value) in &stores {
+        let target = &builder.addresses[address.index()];
+        let [MachineAddressStep::Offset(offset)] = target.steps() else {
+            panic!("exact field address")
+        };
+        ordinals.push((
+            *offset,
+            target.stored_size(),
+            builder.values[value.index()].ty(),
+        ));
+    }
+    assert_eq!(
+        ordinals,
+        [
+            (8, Some(8), error),
+            (16, Some(8), callback),
+            (0, Some(2), tag)
+        ]
+    );
+    let MachineValueDefinition::Operation(tag_value) =
+        builder.values[stores[2].1.index()].definition()
+    else {
+        panic!("tag literal")
+    };
+    assert!(matches!(
+        builder.operations[tag_value.index()].kind(),
+        MachineOperationKind::Constant(MachineConstant::Integer(256))
+    ));
+    assert!(builder.construct_enum(&destination, 1, &[]).is_ok());
+    assert!(builder.construct_enum(&destination, 257, &[]).is_err());
 }

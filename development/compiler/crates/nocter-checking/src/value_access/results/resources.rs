@@ -418,7 +418,11 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             ResourceStep::AdaptFunction { .. } => {
                 self.receiving(source.ok_or(INVALID)?.clone(), target)
             }
-            ResourceStep::Assemble { fields, .. } => self.assemble(holder, target, fields),
+            ResourceStep::Assemble {
+                enum_case: None,
+                fields,
+                ..
+            } => self.assemble(holder, target, fields),
             ResourceStep::Construct { .. } | ResourceStep::Receive { .. } => {
                 self.stored(&holder.place(), target, true)
             }

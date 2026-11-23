@@ -4,6 +4,12 @@ use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::ValueField;
 use std::collections::BTreeSet;
 
+#[derive(Clone, Copy)]
+pub(in crate::value_access::flow) struct Assembly<'a> {
+    pub tag: Option<u64>,
+    pub fields: &'a [(ValueField, Place)],
+}
+
 impl State {
     pub fn assemble(
         &mut self,
@@ -17,29 +23,41 @@ impl State {
             program,
             destination,
             payload,
-            fields,
+            Assembly { tag: None, fields },
             steps,
             |actual, expected| actual == expected,
         )
     }
-    pub fn assemble_with(
+    pub(in crate::value_access::flow) fn assemble_with(
         &mut self,
         program: &Program,
         destination: Holder,
         payload: Payload,
-        fields: &[(ValueField, Place)],
+        assembly: Assembly<'_>,
         steps: &mut Vec<Step>,
         compatible: impl Fn(nocter_model::TypeId, nocter_model::TypeId) -> bool,
     ) -> Result<()> {
-        let complete = match program.data_schema(payload.data()).ok_or(INVALID)? {
-            PayloadSchema::Aggregate(aggregate) => fields.len() == aggregate.len(),
-            PayloadSchema::Array(array) => u64::try_from(fields.len()).ok() == Some(array.length()),
-            PayloadSchema::Optional(_) => fields.len() <= 1,
-            PayloadSchema::Fallible(_) => fields.len() == 1,
-            PayloadSchema::Builtin(_)
-            | PayloadSchema::Enumeration(_)
-            | PayloadSchema::Function(_)
-            | PayloadSchema::Future(_) => false,
+        let Assembly { tag, fields } = assembly;
+        let schema = program.data_schema(payload.data()).ok_or(INVALID)?;
+        let complete = match (schema, tag) {
+            (PayloadSchema::Enumeration(schema), Some(tag)) => {
+                let case = *schema
+                    .variants()
+                    .get(usize::try_from(tag).map_err(|_| INVALID)?)
+                    .ok_or(INVALID)?;
+                program
+                    .variant_components(payload.data(), case)
+                    .ok_or(INVALID)?
+                    .map(|component| component.field)
+                    .eq(fields.iter().map(|&(field, _)| field))
+            }
+            (PayloadSchema::Aggregate(aggregate), None) => fields.len() == aggregate.len(),
+            (PayloadSchema::Array(array), None) => {
+                u64::try_from(fields.len()).ok() == Some(array.length())
+            }
+            (PayloadSchema::Optional(_), None) => fields.len() <= 1,
+            (PayloadSchema::Fallible(_), None) => fields.len() == 1,
+            _ => false,
         };
         if !complete || self.contains(destination) {
             return Err(INVALID);
@@ -61,6 +79,7 @@ impl State {
         steps.push(Step::Assemble {
             destination,
             payload,
+            enum_case: tag,
             fields: fields.into(),
         });
         Ok(())

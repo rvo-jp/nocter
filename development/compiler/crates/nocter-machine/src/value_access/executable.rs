@@ -200,6 +200,7 @@ fn cleanup_plan(
                 }
                 mir::Effect::Dispose { .. }
                 | mir::Effect::VariantTag { .. }
+                | mir::Effect::ConstructEnum { .. }
                 | mir::Effect::Initialize(_)
                 | mir::Effect::Transfer { .. }
                 | mir::Effect::SetFutureSelector { .. }

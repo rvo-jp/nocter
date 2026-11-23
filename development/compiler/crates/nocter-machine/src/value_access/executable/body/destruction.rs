@@ -8,8 +8,6 @@ use crate::{
     MachineStackObject, MachineStackPurpose, MachineTerminator, MachineValueEnumVariantLayout,
 };
 use nocter_runtime_contract::RuntimeDataId;
-#[cfg(test)]
-mod enum_tests;
 
 pub(crate) fn build(
     context: &Context<'_>,

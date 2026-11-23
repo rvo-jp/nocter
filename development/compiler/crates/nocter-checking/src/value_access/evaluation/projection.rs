@@ -474,15 +474,22 @@ impl Builder<'_, '_> {
             },
             Step::Assemble {
                 destination,
+                enum_case,
                 fields,
                 ..
             } => plan::Effect::Assemble {
                 destination: self.holder(*destination)?,
-                enum_case: None,
+                enum_case: *enum_case,
                 fields: fields
                     .iter()
-                    .map(|(field, source)| {
-                        Ok((self.component_position(*field)?, self.resource(source)?))
+                    .enumerate()
+                    .map(|(position, (field, source))| {
+                        let position = if enum_case.is_some() {
+                            position
+                        } else {
+                            self.component_position(*field)?
+                        };
+                        Ok((position, self.resource(source)?))
                     })
                     .collect::<Result<_>>()?,
             },

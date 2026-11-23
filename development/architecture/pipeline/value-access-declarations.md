@@ -147,6 +147,11 @@ case from prepared field owners using the same metered staging as aggregate cons
 Tag tests and dispatch inspect the stored case. Only the selected case's fields participate in
 validating an evaluator value.
 
+An enum assembly carries one selected case from the ownership ledger into lowering. The ledger
+validates its ordered fields before retiring the prepared owners. The native operation writes the
+fields at their declared offsets and commits the tag after those writes. The same receipt supplies
+the case and prepared values to the evaluator.
+
 A scalar enum constructor produces the owning nominal value with an empty payload list. Native
 lowering materializes standalone scalar tags as immediates and uses the same scalar layout for
 nested constant data and statics. The source execution path currently materializes scalar enum

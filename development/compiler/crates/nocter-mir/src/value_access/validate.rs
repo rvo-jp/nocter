@@ -321,6 +321,42 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn enum_assembly(
+        &self,
+        destination: &Place,
+        tag: u64,
+        fields: &[Place],
+    ) -> Result<(), Failure> {
+        self.place(destination)?;
+        let owning = |place: &Place| {
+            self.body
+                .slots
+                .get(place.slot)
+                .is_some_and(|slot| slot.storage == Storage::Payload)
+        };
+        self.require(owning(destination) && destination.projections.is_empty())?;
+        let expected = self
+            .program
+            .runtime
+            .enum_case_fields(destination.data, tag)
+            .ok_or_else(|| self.invalid())?;
+        self.require(expected.len() == fields.len())?;
+        let mut used = BTreeSet::new();
+        for (source, &(_, data)) in fields.iter().zip(expected) {
+            self.place(source)?;
+            self.require(
+                owning(source)
+                    && source.slot != destination.slot
+                    && used.insert(source)
+                    && self
+                        .program
+                        .runtime
+                        .has_same_value_representation(source.data, data),
+            )?;
+        }
+        Ok(())
+    }
+
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
             Effect::SetFutureSelector { destination, .. } => self.future_selector(destination),
@@ -332,6 +368,11 @@ impl Context<'_> {
                 destination,
                 primary,
             } => self.variant_tag(destination, *primary),
+            Effect::ConstructEnum {
+                destination,
+                tag,
+                fields,
+            } => self.enum_assembly(destination, *tag, fields),
 
             Effect::DisposeArrayRemainder { source, missing } => {
                 self.array_remainder(source, missing)

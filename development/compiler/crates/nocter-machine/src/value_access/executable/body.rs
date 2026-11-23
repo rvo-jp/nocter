@@ -389,6 +389,11 @@ impl<'a> Builder<'a> {
                 destination,
                 primary,
             } => self.variant_tag(destination, *primary)?,
+            mir::Effect::ConstructEnum {
+                destination,
+                tag,
+                fields,
+            } => self.construct_enum(destination, *tag, fields)?,
 
             mir::Effect::Initialize(_)
             | mir::Effect::End(_)

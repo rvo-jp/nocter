@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Preserve a selected enum case through ownership assembly and native storage. Validate all staged
-inputs against that case, move them once into the declared fields, and commit the tag after the
-fields. Keep initialized source enum values gated until construction and lifecycle agree.
+Connect authored enum constructors to the checked case assembly. Resolve the original audience
+and field schema, use ordinary owning supply for each positional argument, and qualify completed
+and interrupted construction through required evaluation and native execution.
 
 ## Remaining Contextual Representation Qualification
 
@@ -744,8 +744,11 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify native tag inspection and active-case structural cleanup for stored enum payloads.
   Read the discriminator at its declared layout width and destroy only the initialized fields of
   the selected case in reverse declaration order.
-- [ ] Qualify enum case assembly in the ownership ledger and native storage. Preserve exact
+- [x] Qualify enum case assembly in the ownership ledger and native storage. Preserve exact
   case and ordered component identities through validation, metered evaluation and tag commit.
+- [ ] Qualify authored nongeneric enum constructors through ordinary source, required evaluation
+  and native execution. Check exact case visibility and arity, left-to-right staging, and cleanup
+  on interrupted construction.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

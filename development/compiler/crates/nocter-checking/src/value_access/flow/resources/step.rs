@@ -30,6 +30,8 @@ pub enum Step<P = Payload> {
     Assemble {
         destination: Holder,
         payload: P,
+        /// The declaration-order tag of the selected enum case, including an empty case.
+        enum_case: Option<u64>,
         fields: Box<[(nocter_model::ValueField, Place)]>,
     },
     Construct {
@@ -173,10 +175,12 @@ impl<P> Step<P> {
             Self::Assemble {
                 destination,
                 payload,
+                enum_case,
                 fields,
             } => Step::Assemble {
                 destination: *destination,
                 payload: map(PayloadSite::Destination(*destination), payload)?,
+                enum_case: *enum_case,
                 fields: fields.clone(),
             },
             Self::Construct {

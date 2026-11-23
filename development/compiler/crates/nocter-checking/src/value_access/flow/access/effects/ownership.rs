@@ -366,7 +366,10 @@ impl Context<'_, '_> {
             self.typed.program(),
             Holder::Expression(id),
             resources::expression_payload(self.typed, id)?,
-            &fields,
+            resources::Assembly {
+                tag: None,
+                fields: &fields,
+            },
             &mut self.steps,
             |actual, expected| {
                 typed

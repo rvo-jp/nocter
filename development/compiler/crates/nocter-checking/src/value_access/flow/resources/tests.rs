@@ -1,5 +1,6 @@
 use super::*;
 use crate::value_access::tests::queries;
+mod enums;
 
 #[test]
 fn an_uninhabited_representation_cannot_become_an_owned_payload() {
