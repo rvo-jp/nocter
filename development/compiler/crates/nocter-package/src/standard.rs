@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use nocter_model::PackageIdentity;
+use nocter_model::{PackageIdentity, StandardSourceKind};
 
 /// Exact standard-library package selected by the active toolchain.
 #[derive(Clone, Debug)]
@@ -8,6 +8,7 @@ pub struct StandardPackage {
     identity: PackageIdentity,
     root: PathBuf,
     release: Box<str>,
+    source_kind: StandardSourceKind,
 }
 
 impl StandardPackage {
@@ -27,7 +28,19 @@ impl StandardPackage {
             identity,
             root: root.into(),
             release: release.into(),
+            source_kind: StandardSourceKind::Released,
         }
+    }
+
+    #[must_use]
+    pub fn with_source_kind(mut self, source_kind: StandardSourceKind) -> Self {
+        self.source_kind = source_kind;
+        self
+    }
+
+    #[must_use]
+    pub const fn source_kind(&self) -> StandardSourceKind {
+        self.source_kind
     }
 
     #[must_use]

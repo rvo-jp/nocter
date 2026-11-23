@@ -10,7 +10,10 @@ and the exact retained qualified artifact identity.
   installed home; packaging rejects untracked or non-regular entries in that tree.
 - `render-manifest.js` validates those inputs, derives the versioned archive name, and combines them
   with the compiler file digest and standard-library tree digest to create the installed
-  `MANIFEST.json` v2.
+  `MANIFEST.json` using schema 2 for the current release workflow. For an isolated development
+  installation containing `development/stdlib/`, `--value-access-v2`
+  selects schema 3 and records the source profile explicitly. The validated profile selects the
+  grammar and trusted standard declarations for compilation and editor analysis.
 - `package-local-release.sh` builds the optimized compiler in a fresh temporary Cargo target,
   first verifies that `RELEASE.json`, the shipped legal files, and every Cargo package agree on the
   license, then computes both artifact identities through the shared Rust content-integrity

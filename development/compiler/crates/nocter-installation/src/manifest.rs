@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use nocter_content_integrity::ContentDigest;
 use nocter_json::{self as json, Member, Value};
-use nocter_model::CompilationTarget;
+use nocter_model::{CompilationTarget, StandardSourceKind};
 
 const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
 
@@ -100,7 +100,7 @@ impl ArchiveMetadata {
     }
 }
 
-/// Complete validated `nocter.manifest` v2 metadata.
+/// Complete validated `nocter.manifest` metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InstallationManifest {
     release: Box<str>,
@@ -108,6 +108,7 @@ pub struct InstallationManifest {
     default_target: CompilationTarget,
     compiler: ArtifactMetadata,
     standard: ArtifactMetadata,
+    source_kind: StandardSourceKind,
     license: LicenseMetadata,
     implemented_targets: Box<[ImplementedTarget]>,
     archive: ArchiveMetadata,
@@ -155,6 +156,11 @@ impl InstallationManifest {
     }
 
     #[must_use]
+    pub const fn source_kind(&self) -> StandardSourceKind {
+        self.source_kind
+    }
+
+    #[must_use]
     pub const fn license(&self) -> &LicenseMetadata {
         &self.license
     }
@@ -182,13 +188,40 @@ fn decode_root(value: Value, version: &str) -> Result<InstallationManifest, Mani
             "default_target",
             "compiler",
             "std",
+            "source_profile",
             "license",
             "implemented_targets",
             "archive",
         ],
     )?;
     exact_string(root.take("schema")?, "$.schema", "nocter.manifest")?;
-    exact_integer(root.take("schema_version")?, "$.schema_version", "2")?;
+    let schema = root.take("schema_version")?;
+    let Value::Number(schema) = schema else {
+        return Err(wrong_type("$.schema_version", "integer", &schema));
+    };
+    let source_kind = match schema.as_ref() {
+        "2" => {
+            if root.values.contains_key("source_profile") {
+                return Err(ManifestError::UnknownField("$.source_profile".into()));
+            }
+            StandardSourceKind::Released
+        }
+        "3" => {
+            exact_string(
+                root.take("source_profile")?,
+                "$.source_profile",
+                "value-access-v2",
+            )?;
+            StandardSourceKind::ValueAccessV2
+        }
+        _ => {
+            return Err(ManifestError::UnexpectedValue {
+                field: "$.schema_version".into(),
+                expected: "2 or 3".into(),
+                actual: schema,
+            });
+        }
+    };
     let release = string(root.take("release")?, "$.release")?;
     validate_release(&release)?;
     if release.as_ref() != version {
@@ -216,6 +249,7 @@ fn decode_root(value: Value, version: &str) -> Result<InstallationManifest, Mani
         default_target,
         compiler,
         standard,
+        source_kind,
         license,
         implemented_targets: implemented_targets.into_boxed_slice(),
         archive,
@@ -385,21 +419,6 @@ fn portable_relative_path(value: &str, field: &str) -> Result<PathBuf, ManifestE
 
 fn exact_string(value: Value, field: &str, expected: &'static str) -> Result<(), ManifestError> {
     let actual = string(value, field)?;
-    if actual.as_ref() == expected {
-        Ok(())
-    } else {
-        Err(ManifestError::UnexpectedValue {
-            field: field.into(),
-            expected: expected.into(),
-            actual,
-        })
-    }
-}
-
-fn exact_integer(value: Value, field: &str, expected: &'static str) -> Result<(), ManifestError> {
-    let Value::Number(actual) = value else {
-        return Err(wrong_type(field, "integer", &value));
-    };
     if actual.as_ref() == expected {
         Ok(())
     } else {
@@ -628,9 +647,10 @@ mod tests {
     }
 
     #[test]
-    fn decodes_the_complete_exact_v2_schema() {
+    fn decodes_the_complete_released_schema() {
         let manifest = InstallationManifest::decode(valid_manifest().as_bytes(), "0.14.0").unwrap();
         assert_eq!(manifest.release(), "0.14.0");
+        assert_eq!(manifest.source_kind(), StandardSourceKind::Released);
         assert_eq!(manifest.host(), "arm64-darwin");
         assert_eq!(manifest.default_target(), CompilationTarget::Arm64Darwin);
         assert_eq!(manifest.compiler().path(), std::path::Path::new("nocter"));
@@ -642,6 +662,38 @@ mod tests {
         );
         assert_eq!(manifest.archive().root(), ".nocter");
         assert_eq!(manifest.license().id(), "Apache-2.0");
+    }
+
+    #[test]
+    fn requires_an_exact_source_profile_only_in_the_new_schema() {
+        let released = valid_manifest();
+        let explicit = released.replace(
+            r#""schema_version": 2,"#,
+            r#""schema_version": 3, "source_profile": "value-access-v2","#,
+        );
+        let decode = |text: &str| InstallationManifest::decode(text.as_bytes(), "0.14.0");
+        assert_eq!(
+            decode(&explicit).unwrap().source_kind(),
+            StandardSourceKind::ValueAccessV2
+        );
+
+        let missing = released.replace(r#""schema_version": 2,"#, r#""schema_version": 3,"#);
+        assert!(
+            matches!(decode(&missing), Err(ManifestError::MissingField(field))
+            if field.as_ref() == "$.source_profile")
+        );
+
+        let unexpected = explicit.replace(r#""schema_version": 3,"#, r#""schema_version": 2,"#);
+        assert!(
+            matches!(decode(&unexpected), Err(ManifestError::UnknownField(field))
+            if field.as_ref() == "$.source_profile")
+        );
+
+        let unknown = explicit.replace("value-access-v2", "unknown");
+        assert!(
+            matches!(decode(&unknown), Err(ManifestError::UnexpectedValue { field, .. })
+            if field.as_ref() == "$.source_profile")
+        );
     }
 
     #[test]

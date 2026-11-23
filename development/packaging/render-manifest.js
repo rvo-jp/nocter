@@ -18,14 +18,15 @@ function exactKeys(value, expected, label) {
   }
 }
 
-if (process.argv.length !== 7) {
+const [releasePath, versionPath, compilerDigest, standardDigest, outputPath, ...options] =
+  process.argv.slice(2);
+const valueAccess = options.length === 1 && options[0] === "--value-access-v2";
+if (outputPath === undefined || (options.length !== 0 && !valueAccess)) {
   fail(
-    "usage: render-manifest.js RELEASE VERSION COMPILER_SHA256 STD_TREE_SHA256 OUTPUT",
+    "usage: render-manifest.js RELEASE VERSION COMPILER_SHA256 STD_TREE_SHA256 OUTPUT [--value-access-v2]",
   );
 }
 
-const [releasePath, versionPath, compilerDigest, standardDigest, outputPath] =
-  process.argv.slice(2);
 const versionText = fs.readFileSync(versionPath, "utf8");
 if (!/^\d+\.\d+\.\d+\n$/.test(versionText)) {
   fail("VERSION must contain one numeric semantic-version line");
@@ -90,7 +91,8 @@ for (const [actual, wanted, label] of expected) {
 
 const manifest = {
   schema: "nocter.manifest",
-  schema_version: 2,
+  schema_version: valueAccess ? 3 : 2,
+  ...(valueAccess ? { source_profile: "value-access-v2" } : {}),
   release: version,
   host: release.host,
   default_target: release.default_target,

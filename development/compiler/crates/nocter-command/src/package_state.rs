@@ -29,7 +29,7 @@ impl CommandPackageContext {
     pub fn new(nocter_home: impl Into<PathBuf>, standard: nocter_package::StandardPackage) -> Self {
         Self {
             nocter_home: nocter_home.into(),
-            source: StandardSourceProfile::released(standard.identity()),
+            source: StandardSourceProfile::for_kind(standard.source_kind(), standard.identity()),
             standard,
         }
     }

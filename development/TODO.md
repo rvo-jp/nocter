@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Select the v2 source profile from a validated installation manifest, then qualify ordinary
-installed check, build, run and editor profile selection with the physical v2 standard package.
-Preserve released installation behavior and stage verification only outside qualified outputs.
+Format and inspect v2 source using the exact selected grammar. Preserve postfix transfer binding,
+capture separators, outcome/await precedence, comments and syntax on every rewrite. Connect source
+tooling to the ordinary v2 invocation and qualify both source profiles without changing release
+artifacts.
 
 ## Remaining Contextual Representation Qualification
 
@@ -750,6 +751,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Project v2 named direct-call navigation from the selected declaration and exact bound source.
   Resolve definitions to the public contract and implementations to the authored body. Qualify
   edit generations, local name collisions and UTF-16 positions through workspace and LSP queries.
+- [x] Select the v2 grammar and trusted declarations from the validated installation manifest.
+  Qualify ordinary installed check, build and run with the physical development standard package,
+  and installed LSP diagnostics, recovery and named navigation. Keep release manifest rendering
+  byte-identical and stage verification outside qualified outputs.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

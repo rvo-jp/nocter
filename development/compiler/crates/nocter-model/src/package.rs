@@ -16,3 +16,10 @@ impl PackageIdentity {
         &self.0
     }
 }
+
+/// Source semantics provided by an exact standard package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StandardSourceKind {
+    Released,
+    ValueAccessV2,
+}

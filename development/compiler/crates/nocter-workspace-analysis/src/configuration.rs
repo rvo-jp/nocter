@@ -26,7 +26,7 @@ impl WorkspaceToolchain {
         Self {
             target,
             nocter_home: nocter_home.into(),
-            source: StandardSourceProfile::released(standard.identity()),
+            source: StandardSourceProfile::for_kind(standard.source_kind(), standard.identity()),
             standard,
         }
     }

@@ -54,19 +54,42 @@ impl TempTree {
             )
             .unwrap();
         }
-        fs::write(root.join("nocter"), "compiler").unwrap();
-        fs::write(root.join("LICENSE"), "license").unwrap();
-        fs::write(root.join("NOTICE"), "notice").unwrap();
-        fs::write(root.join("VERSION"), "0.14.0\n").unwrap();
-        let compiler_digest = sha256_file(&root.join("nocter")).unwrap();
-        let standard_digest = sha256_regular_tree(&standard, TreeHashOptions::complete()).unwrap();
-        fs::write(
-            root.join("MANIFEST.json"),
-            manifest(host, compiler_digest, standard_digest),
-        )
-        .unwrap();
+        write_installation_metadata(&root, host, "0.14.0", false);
         root
     }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    fn value_access_installation(&self) -> PathBuf {
+        let root = self.0.join("home");
+        fs::create_dir(&root).unwrap();
+        copy_directory(
+            &nocter_test_support::repository_root().join("development/stdlib"),
+            &root.join("std"),
+        );
+        write_installation_metadata(&root, "arm64-darwin", "2.0.0", true);
+        root
+    }
+}
+
+fn write_installation_metadata(root: &Path, host: &str, release: &str, value_access: bool) {
+    fs::write(root.join("nocter"), "compiler").unwrap();
+    fs::write(root.join("LICENSE"), "license").unwrap();
+    fs::write(root.join("NOTICE"), "notice").unwrap();
+    fs::write(root.join("VERSION"), format!("{release}\n")).unwrap();
+    let compiler_digest = sha256_file(&root.join("nocter")).unwrap();
+    let standard_digest =
+        sha256_regular_tree(&root.join("std"), TreeHashOptions::complete()).unwrap();
+    fs::write(
+        root.join("MANIFEST.json"),
+        manifest(
+            host,
+            release,
+            value_access,
+            compiler_digest,
+            standard_digest,
+        ),
+    )
+    .unwrap();
 }
 
 impl Drop for TempTree {
@@ -77,14 +100,21 @@ impl Drop for TempTree {
 
 fn manifest(
     host: &str,
+    release: &str,
+    value_access: bool,
     compiler_digest: nocter_content_integrity::ContentDigest,
     standard_digest: nocter_content_integrity::ContentDigest,
 ) -> String {
+    let profile_fields = if value_access {
+        r#""schema_version": 3, "source_profile": "value-access-v2","#
+    } else {
+        r#""schema_version": 2,"#
+    };
     format!(
         r#"{{
             "schema": "nocter.manifest",
-            "schema_version": 2,
-            "release": "0.14.0",
+            {profile_fields}
+            "release": "{release}",
             "host": "{host}",
             "default_target": "arm64-darwin",
             "compiler": {{
@@ -107,11 +137,56 @@ fn manifest(
                 "os": "darwin"
             }}],
             "archive": {{
-                "name": "nocter-v0.14.0-{host}.tar.gz",
+                "name": "nocter-v{release}-{host}.tar.gz",
                 "root": ".nocter"
             }}
         }}"#
     )
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
+    let tree = TempTree::new("installed-value-access");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("main.nct");
+    fs::write(
+        source,
+        "use std/process\n\
+         async func status(): i32! {\n\
+             if process.arg_count() != 2 { return 3 }\n\
+             let _ = process.arg(1)? otherwise { return 4 }\n\
+             42\n\
+         }\n\
+         async func main(): i32! {\n\
+             let pending = status()\n\
+             await pending^\n\
+         }\n",
+    )
+    .unwrap();
+
+    let execute = |arguments| {
+        execute_invocation(invocation(arguments, &tree.0, &home, "arm64-darwin")).unwrap()
+    };
+    assert!(matches!(
+        execute(vec!["check", "--file", "main.nct", "--offline"]),
+        InvocationOutcome::Check(_)
+    ));
+    assert!(matches!(
+        execute(vec!["build", "--file", "main.nct", "--offline"]),
+        InvocationOutcome::Build(_)
+    ));
+    let InvocationOutcome::Run(executed) = execute(vec![
+        "run",
+        "--file",
+        "main.nct",
+        "--offline",
+        "--",
+        "夜 two words",
+    ]) else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
 }
 
 fn invocation(

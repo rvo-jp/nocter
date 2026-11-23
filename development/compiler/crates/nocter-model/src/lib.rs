@@ -54,7 +54,7 @@ pub use origin::{
     DuplicateOrigin, InputProvenance, InputProvenanceConstraint, InvalidInputProvenance,
     ParameterOrigin, ProvenanceSet, provenance_is_bounded_by,
 };
-pub use package::PackageIdentity;
+pub use package::{PackageIdentity, StandardSourceKind};
 pub use sparse_arena::{SparseArena, SparseArenaBuilder, SparseInsertionError};
 pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};

@@ -4,7 +4,7 @@ use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, RuntimeStorageRoleLocator,
     StandardRoleLocator, StructuralAttachmentInput, TargetServiceRoleLocator, ToolchainInput,
 };
-use nocter_model::{BuiltinType, PackageIdentity};
+use nocter_model::{BuiltinType, PackageIdentity, StandardSourceKind};
 use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
 use nocter_syntax::{NodeKind, ParseGoal};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
@@ -19,10 +19,16 @@ pub struct StandardSourceProfile {
 
 impl StandardSourceProfile {
     #[must_use]
-    pub fn released(package: &PackageIdentity) -> Self {
-        Self {
-            goal: ParseGoal::SourceFile,
-            input: bundled_standard_toolchain(package),
+    pub fn for_kind(kind: StandardSourceKind, package: &PackageIdentity) -> Self {
+        match kind {
+            StandardSourceKind::Released => Self {
+                goal: ParseGoal::SourceFile,
+                input: bundled_standard_toolchain(package),
+            },
+            StandardSourceKind::ValueAccessV2 => Self {
+                goal: ParseGoal::V2CoreUnit,
+                input: development_value_access_toolchain(package),
+            },
         }
     }
 

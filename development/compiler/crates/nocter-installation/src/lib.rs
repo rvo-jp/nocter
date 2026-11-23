@@ -230,6 +230,7 @@ impl NocterHome {
             self.standard_root.clone(),
             self.release(),
         )
+        .with_source_kind(self.manifest.source_kind())
     }
 }
 
