@@ -13,6 +13,51 @@ use super::*;
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn v2_definition_and_implementation_use_the_standard_contract_with_utf16_positions() {
+    let temporary = TemporaryDirectory::new();
+    let root = temporary.path();
+    let standard = nocter_test_support::repository_root().join("development/stdlib");
+    let identity = PackageIdentity::new("toolchain:std-v2");
+    let toolchain = crate::LanguageServerToolchain::new(
+        CompilationTarget::Arm64Darwin,
+        root,
+        StandardPackage::new(identity.clone(), standard, "2.0.0"),
+    )
+    .with_value_access_profile(nocter_standard_profile::development_value_access_toolchain(
+        &identity,
+    ))
+    .unwrap();
+    let server = LanguageServer::new("dev-v2", LanguageServerEnvironment::new(root, toolchain));
+    let source = concat!(
+        "use std/process\n",
+        "func observe(text: str, count: usize): void {}\n",
+        "func main(): i32 {\n",
+        "    observe(\"夜🦉\", process.arg_count())\n",
+        "    42\n",
+        "}\n",
+    );
+    let (mut server, uri) = open_semantic_source_with(server, &temporary, source);
+    let line = source.lines().nth(3).unwrap();
+    let name = line.find("arg_count").unwrap();
+    let character = line[..name].encode_utf16().count();
+    for (method, file) in [
+        ("textDocument/definition", "process/index.nct"),
+        ("textDocument/implementation", "process/text.nct"),
+    ] {
+        let request = format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"{method}\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":{character}}}}}}}"
+        );
+        let result = server.receive(&request);
+        assert!(result.issue().is_none(), "{:?}", result.issue());
+        let response = result.response().unwrap();
+        assert!(
+            response.contains(&format!("/development/stdlib/{file}")),
+            "{response}"
+        );
+    }
+}
+
+#[test]
 fn invalid_initialize_can_retry_before_document_generations_begin() {
     let mut server = server("0.14.0-dev");
     let invalid = server.receive(r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
@@ -1965,11 +2010,18 @@ fn open_semantic_source(
     temporary: &TemporaryDirectory,
     source_text: &str,
 ) -> (LanguageServer, String) {
+    open_semantic_source_with(semantic_server(temporary.path()), temporary, source_text)
+}
+
+fn open_semantic_source_with(
+    mut server: LanguageServer,
+    temporary: &TemporaryDirectory,
+    source_text: &str,
+) -> (LanguageServer, String) {
     let source = temporary.path().join("main.nct");
     let source_uri = format!("file://{}", source.display());
     let mut source_json = String::new();
     nocter_json::write_string(&mut source_json, source_text);
-    let mut server = semantic_server(temporary.path());
     server.receive(&format!(
         "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
         temporary.path().display()

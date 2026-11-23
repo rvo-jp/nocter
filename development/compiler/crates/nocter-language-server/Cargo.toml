@@ -20,6 +20,7 @@ nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 [dev-dependencies]
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

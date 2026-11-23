@@ -43,6 +43,35 @@ impl ModuleContext<'_> {
     pub fn program(&self) -> &Program {
         &self.program
     }
+    /// The exact physical name tokens mapped to canonical code identities by source pairing.
+    pub fn named_code_origins(
+        &self,
+    ) -> impl Iterator<
+        Item = Result<
+            (
+                AccessCodeId,
+                nocter_compile_input::ModuleSourceKind,
+                nocter_source_index::SourceOrigin,
+            ),
+            super::SourceMismatch,
+        >,
+    > + '_ {
+        let inventory = &self.binding.paired.inventory;
+        inventory
+            .declaration_entries()
+            .filter_map(|(id, declaration)| {
+                let Some(DeclarationId::Code(code)) = self.binding.declarations[id.index()] else {
+                    return None;
+                };
+                let source = &inventory.sources()[declaration.source().index()];
+                let name = declaration.name()?;
+                Some(
+                    nocter_source_index::SourceOrigin::from_token(source.syntax(), name)
+                        .map(|origin| (code, source.kind(), origin))
+                        .map_err(|_| super::SourceMismatch::InconsistentSyntax),
+                )
+            })
+    }
     /// Resolve an exported name without widening its authored audience.
     #[must_use]
     pub fn lookup_export(

@@ -34,18 +34,19 @@ pub struct AnalysisSnapshot {
 }
 
 impl AnalysisSnapshot {
-    pub(crate) fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
+    pub(crate) fn analyzed_unit(&self) -> Option<&AnalyzedUnit> {
         match &self.state {
-            AnalysisState::Analyzed(analysis) => analysis.semantic_evidence(),
+            AnalysisState::Analyzed(analysis) => Some(analysis),
             AnalysisState::DiscoveryFailed(_) => None,
         }
     }
 
+    pub(crate) fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
+        self.analyzed_unit()?.semantic_evidence()
+    }
+
     pub(crate) fn current_unit(&self) -> Option<&DiscoveredUnit> {
-        match &self.state {
-            AnalysisState::Analyzed(analysis) => Some(analysis.unit()),
-            AnalysisState::DiscoveryFailed(_) => None,
-        }
+        Some(self.analyzed_unit()?.unit())
     }
 
     /// Retains a failed discovery rather than falling back to an older source graph.

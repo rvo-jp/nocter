@@ -2009,6 +2009,7 @@ dependencies = [
  "nocter-model",
  "nocter-package",
  "nocter-source",
+ "nocter-standard-profile",
  "nocter-test-support",
  "nocter-workspace-analysis",
  "nocter-workspace-revision",

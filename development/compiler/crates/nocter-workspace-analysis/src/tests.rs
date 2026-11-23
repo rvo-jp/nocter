@@ -172,21 +172,7 @@ fn v2_workspace_profile_reuses_candidate_sources_and_recovers_after_an_overlay_e
         )
     };
     fs::write(&body, text("42")).unwrap();
-    let standard = nocter_test_support::repository_root()
-        .join("development/stdlib")
-        .canonicalize()
-        .unwrap();
-    let identity = PackageIdentity::new("toolchain:std-v2");
-    let toolchain = WorkspaceToolchain::new(
-        CompilationTarget::Arm64Darwin,
-        root,
-        StandardPackage::new(identity.clone(), standard.clone(), "2.0.0"),
-    )
-    .with_value_access_profile(nocter_standard_profile::development_value_access_toolchain(
-        &identity,
-    ))
-    .unwrap();
-    let configuration = WorkspaceConfiguration::resolve([root.to_path_buf()], toolchain).unwrap();
+    let (configuration, standard) = value_access_configuration(root);
     let mut documents = DocumentWorkspace::new();
     let mut analyses = WorkspaceAnalyses::new(configuration);
     let broken = analyses
@@ -251,6 +237,111 @@ fn v2_workspace_profile_reuses_candidate_sources_and_recovers_after_an_overlay_e
         "{:?}",
         library.diagnostics()
     );
+}
+
+#[test]
+fn v2_named_navigation_uses_the_selected_contract_and_current_source_tokens() {
+    use nocter_analysis::{AnalysisSnapshot, SemanticCoverage};
+    use nocter_source::ByteOffset;
+
+    let temporary = TemporaryDirectory::new();
+    let root = temporary.path();
+    let body = root.join("body.nct");
+    fs::write(
+        root.join("index.nct"),
+        "#package: { name: \"app\", version: \"2.0.0\" }\n\
+         #executable: { name: \"app\" }\n\
+         see ./body.nct\nfunc main(): i32",
+    )
+    .unwrap();
+    let text = |member, prefix| {
+        format!(
+            "{prefix}use std/process as runtime\nsee ./index.nct\n\
+             func arg_count(): i32 {{ 42 }}\n\
+             func main(): i32 {{ let _ = runtime.{member}()\narg_count() }}"
+        )
+    };
+    let first_text = text("arg_count", "");
+    fs::write(&body, &first_text).unwrap();
+    let body = body.canonicalize().unwrap();
+    let (configuration, standard) = value_access_configuration(root);
+    let mut analyses = WorkspaceAnalyses::new(configuration);
+    let mut documents = DocumentWorkspace::new();
+    let first = analyses
+        .analyze(documents.open(&body, 1, &first_text).unwrap())
+        .unwrap();
+    let offset = |text: &str, name: &str| {
+        ByteOffset::new(u32::try_from(text.find(name).unwrap() + 1).unwrap())
+    };
+    let check = |snapshot: &AnalysisSnapshot, current: &str, member: &str| {
+        assert_eq!(
+            snapshot.status(),
+            AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+        let source = snapshot
+            .sources()
+            .iter()
+            .find(|source| Path::new(source.name().as_str()) == body)
+            .unwrap();
+        let name = offset(current, &format!(".{member}("));
+        for (result, file) in [
+            (
+                snapshot.semantic_definition(source.id(), name).unwrap(),
+                "process/index.nct",
+            ),
+            (
+                snapshot.semantic_implementation(source.id(), name).unwrap(),
+                "process/text.nct",
+            ),
+        ] {
+            assert_eq!(result.coverage(), &SemanticCoverage::Complete);
+            let [location] = result.values() else {
+                panic!("{result:?}")
+            };
+            let target = snapshot.sources().get(location.source()).unwrap();
+            assert_eq!(Path::new(target.name().as_str()), standard.join(file));
+            assert_eq!(target.text_at(location.range()), Some(member));
+        }
+        let local_call =
+            ByteOffset::new(u32::try_from(current.rfind("arg_count()").unwrap() + 1).unwrap());
+        let local = snapshot
+            .semantic_definition(source.id(), local_call)
+            .unwrap();
+        let [location] = local.values() else {
+            panic!("{local:?}")
+        };
+        assert_eq!(location.source(), source.id());
+        assert_eq!(source.text_at(location.range()), Some("arg_count"));
+        let namespace = offset(current, "runtime.");
+        let unavailable = snapshot
+            .semantic_definition(source.id(), namespace)
+            .unwrap();
+        assert!(matches!(
+            unavailable.coverage(),
+            SemanticCoverage::Unavailable(_)
+        ));
+        source.id()
+    };
+    let original = first.primary().snapshot().unwrap();
+    let old = check(original, &first_text, "arg_count");
+    let changed = text("environment_count", "// 夜\n");
+    let DocumentWorkspaceChange::Accepted(revision) = documents.change(&body, 2, &changed).unwrap()
+    else {
+        panic!("accepted edit")
+    };
+    let next = analyses.analyze(revision).unwrap();
+    let current = next.primary().snapshot().unwrap();
+    assert_ne!(check(current, &changed, "environment_count"), old);
+    assert!(
+        current
+            .semantic_definition(old, offset(&first_text, ".arg_count("))
+            .unwrap()
+            .values()
+            .is_empty()
+    );
+    check(original, &first_text, "arg_count");
 }
 
 #[test]
@@ -1220,6 +1311,27 @@ fn analysis_rejects_out_of_order_and_foreign_revision_sequences() {
 
 pub(super) fn configuration(root: &Path) -> WorkspaceConfiguration {
     configuration_with_standard(root, &standard_root())
+}
+
+fn value_access_configuration(root: &Path) -> (WorkspaceConfiguration, PathBuf) {
+    let standard = nocter_test_support::repository_root()
+        .join("development/stdlib")
+        .canonicalize()
+        .unwrap();
+    let identity = PackageIdentity::new("toolchain:std-v2");
+    let toolchain = WorkspaceToolchain::new(
+        CompilationTarget::Arm64Darwin,
+        root,
+        StandardPackage::new(identity.clone(), standard.clone(), "2.0.0"),
+    )
+    .with_value_access_profile(nocter_standard_profile::development_value_access_toolchain(
+        &identity,
+    ))
+    .unwrap();
+    (
+        WorkspaceConfiguration::resolve([root.to_path_buf()], toolchain).unwrap(),
+        standard,
+    )
 }
 
 fn configuration_with_standard(root: &Path, standard_root: &Path) -> WorkspaceConfiguration {

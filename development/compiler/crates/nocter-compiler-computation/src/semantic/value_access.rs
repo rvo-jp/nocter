@@ -42,6 +42,16 @@ pub enum ValueAccessAnalysis {
     IncompleteSyntax,
 }
 
+impl ValueAccessAnalysis {
+    #[must_use]
+    pub const fn accepted(&self) -> Option<&AcceptedValueAccess> {
+        match self {
+            Self::Accepted(accepted) => Some(accepted),
+            Self::Rejected(_) | Self::IncompleteSyntax => None,
+        }
+    }
+}
+
 pub(super) fn analyze(
     unit: &DiscoveredUnit,
 ) -> Result<ValueAccessAnalysis, super::SemanticQueryFailure> {

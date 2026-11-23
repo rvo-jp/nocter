@@ -7,6 +7,7 @@ use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 
 use crate::EvidenceIntegrityError;
+use crate::query::navigation::value_access::Navigation;
 use crate::query::presentation::visible_spelling::VisibleSpellings;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum SpellingContext {
@@ -21,9 +22,21 @@ pub(crate) struct AnalysisQuerySession {
     interrupted_members: Mutex<HashMap<usize, Arc<nocter_checking::MemberCompletionQuerySession>>>,
     spellings: Mutex<HashMap<SpellingContext, Arc<VisibleSpellings>>>,
     semantic_integrity: OnceLock<Result<(), EvidenceIntegrityError>>,
+    value_access_navigation: OnceLock<Result<Option<Navigation>, EvidenceIntegrityError>>,
 }
 
 impl AnalysisQuerySession {
+    pub(super) fn value_access_navigation(
+        &self,
+        analysis: &nocter_session::AnalyzedUnit,
+    ) -> Result<Option<&Navigation>, EvidenceIntegrityError> {
+        self.value_access_navigation
+            .get_or_init(|| Navigation::prepare(analysis))
+            .as_ref()
+            .map(Option::as_ref)
+            .map_err(|&error| error)
+    }
+
     pub(super) const fn checked_members(&self) -> &nocter_checking::MemberCompletionQuerySession {
         &self.checked_members
     }

@@ -509,6 +509,7 @@ pub enum TypedBodyUnavailability {
 /// An impossible mismatch between one semantic identity and its owning analysis evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EvidenceIntegrityError {
+    InvalidValueAccessProjection,
     InvalidSourceProjection(SourceProjectionIssue),
     MissingSemanticEntity(SemanticEntity),
     MissingIndexedSource(SourceId),
@@ -546,6 +547,9 @@ pub enum EvidenceIntegrityError {
 impl fmt::Display for EvidenceIntegrityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidValueAccessProjection => {
+                formatter.write_str("checked v2 navigation does not match its source binding")
+            }
             Self::InvalidSourceProjection(issue) => {
                 write!(formatter, "source projection is inconsistent: {issue}")
             }

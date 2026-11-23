@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Project v2 named call navigation from the accepted package unit and its exact bound source.
-Use the selected declaration identity, prefer the public contract for definition and the actual
-body for implementation, and validate the current source ranges without repeating name lookup.
-Keep unavailable coverage explicit for source forms without a navigation projection.
+Select the v2 source profile from a validated installation manifest, then qualify ordinary
+installed check, build, run and editor profile selection with the physical v2 standard package.
+Preserve released installation behavior and stage verification only outside qualified outputs.
 
 ## Remaining Contextual Representation Qualification
 
@@ -748,6 +747,9 @@ not a language restriction derived from the current realization boundary.
   Keep v2 grammar selection through topology, root probes, overlays and compiler discovery.
   Verify exact diagnostic recovery after an editor overlay change and analysis of the selected
   development standard package.
+- [x] Project v2 named direct-call navigation from the selected declaration and exact bound source.
+  Resolve definitions to the public contract and implementations to the authored body. Qualify
+  edit generations, local name collisions and UTF-16 positions through workspace and LSP queries.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

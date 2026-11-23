@@ -5,6 +5,7 @@ use crate::AnalysisSnapshot;
 use crate::query::evidence::{
     EvidenceIntegrityError, SemanticCoverage, SemanticQuerySet, SemanticSetUnavailability,
 };
+pub(super) mod value_access;
 
 /// One source-owned semantic navigation target before URI and coordinate projection.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -36,6 +37,12 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
+        if let Some(location) = self.value_access_location(source, offset, false)? {
+            return Ok(SemanticQuerySet::new(
+                Box::new([location]),
+                SemanticCoverage::Complete,
+            ));
+        }
         let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
@@ -79,6 +86,12 @@ impl AnalysisSnapshot {
         source: SourceId,
         offset: ByteOffset,
     ) -> Result<SemanticQuerySet<SemanticLocation>, EvidenceIntegrityError> {
+        if let Some(location) = self.value_access_location(source, offset, true)? {
+            return Ok(SemanticQuerySet::new(
+                Box::new([location]),
+                SemanticCoverage::Complete,
+            ));
+        }
         let Some(authority) = self.semantic_query()? else {
             return Ok(SemanticQuerySet::new(
                 Box::new([]),
@@ -152,6 +165,21 @@ impl AnalysisSnapshot {
             ),
             coverage,
         ))
+    }
+
+    fn value_access_location(
+        &self,
+        source: SourceId,
+        offset: ByteOffset,
+        implementation: bool,
+    ) -> Result<Option<SemanticLocation>, EvidenceIntegrityError> {
+        let Some(analysis) = self.analyzed_unit() else {
+            return Ok(None);
+        };
+        Ok(self
+            .queries
+            .value_access_navigation(analysis)?
+            .and_then(|navigation| navigation.location(source, offset, implementation)))
     }
 }
 

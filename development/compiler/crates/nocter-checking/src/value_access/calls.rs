@@ -8,15 +8,19 @@ use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespac
 use nocter_model::{
     AccessCodeId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueInvocation,
 };
-use nocter_syntax::NodeId;
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 
 struct Callee {
     witness: FunctionWitness,
     environment: Option<(AccessExpressionId, FunctionInput)>,
+    declaration_token: Option<SyntaxToken>,
     completes: bool,
 }
 impl Checker<'_, '_> {
-    fn declared_function(&self, node: NodeId) -> Result<Option<AccessCodeId>, Failure> {
+    fn declared_function(
+        &self,
+        node: NodeId,
+    ) -> Result<Option<(AccessCodeId, SyntaxToken)>, Failure> {
         let Some(name) = self.name_token(node)? else {
             return Ok(None);
         };
@@ -32,7 +36,8 @@ impl Checker<'_, '_> {
                     .get(spelling)
                     .and_then(|name| self.program().resolve_in(scope, name))
             })
-            .flatten())
+            .flatten()
+            .map(|code| (code, name)))
     }
     pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
         let token = self.name_token(node)?.ok_or(Failure::InconsistentSyntax)?;
@@ -201,19 +206,21 @@ impl Checker<'_, '_> {
                         invocation: ValueInvocation::Read,
                     },
                     environment: None,
+                    declaration_token: Some(selected.token),
                     completes: true,
                 });
             }
             let value = self.qualified_value(node, &selected)?;
             return self.value_callee(node, value);
         }
-        if let Some(target) = self.declared_function(node)? {
+        if let Some((target, token)) = self.declared_function(node)? {
             return Ok(Callee {
                 witness: FunctionWitness {
                     origin: ValueFunctionOrigin::Declaration(target),
                     invocation: ValueInvocation::Read,
                 },
                 environment: None,
+                declaration_token: Some(token),
                 completes: true,
             });
         }
@@ -230,6 +237,7 @@ impl Checker<'_, '_> {
         };
         Ok(Callee {
             witness,
+            declaration_token: None,
             completes: self.ty(value).may_complete(),
             environment: Some((
                 value,
@@ -356,7 +364,7 @@ impl Checker<'_, '_> {
         } else {
             contract.result
         };
-        self.emit(
+        let call = self.emit(
             node,
             value_type(result, Mode::Own).with_continuation(continues),
             ExpressionKind::Call {
@@ -364,6 +372,11 @@ impl Checker<'_, '_> {
                 target: selected.witness.origin,
                 arguments: plans.into_boxed_slice(),
             },
-        )
+        )?;
+        if let Some(token) = selected.declaration_token {
+            let site = self.site(SyntaxOrigin::Token(token))?;
+            self.origins.named_calls.insert(call, site);
+        }
+        Ok(call)
     }
 }

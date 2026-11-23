@@ -7,7 +7,7 @@ READMEs.
 ## Pipeline
 
 ```text
-session semantic evidence + validated SourceIndex
+session semantic evidence + validated source bindings
         |
         v
 immutable AnalysisSnapshot and typed query capabilities
@@ -57,6 +57,14 @@ Nominal type hover presents the nominal declaration only. Construction entries, 
 associated types, methods, interface implementations, locals, parameters, and catch bindings use
 their own identities and ranges. Visible source spelling may differ from canonical identity without
 changing semantics.
+
+Checked v2 source supports definition and implementation navigation for named declarations and
+direct named calls in named bodies. The checker retains the callee token alongside the selected
+call, and source pairing supplies the exact contract and body names for that identity. Analysis
+binds these once on first navigation in a generation. Definition prefers the public
+`index.nct` contract, and implementation prefers the authored body. Private declarations and
+bodyless primitives can supply their sole authored name. Locations outside the qualified source
+forms retain unavailable coverage.
 
 ## Recovery Contract
 
