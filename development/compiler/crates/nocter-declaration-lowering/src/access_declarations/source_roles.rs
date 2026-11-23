@@ -87,6 +87,7 @@ pub fn validate_source_role(
             .ok_or(Failure::InconsistentSyntax)?
             .kind();
         let violation = match kind {
+            NodeKind::PrimitiveTypeDeclaration => None,
             NodeKind::TestDeclaration => declaration_body(syntax.tree(), declaration)
                 .filter(|_| root)
                 .map(|body| (SourceRoleRule::BodyInContract, body)),
@@ -182,7 +183,7 @@ pub(super) fn role_failure(
         ),
         SourceRoleRule::TypeBehaviorOwner => (
             DiagnosticCode::E0231,
-            "impl requires one directly visible nominal declaration owned by this module",
+            "impl requires a nominal declared by this module or a built-in authorized for it",
         ),
         SourceRoleRule::ConstructionResult => (
             DiagnosticCode::E0370,

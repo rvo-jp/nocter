@@ -126,6 +126,11 @@ pub fn development_value_access_toolchain(package: &PackageIdentity) -> Toolchai
             "new",
         ),
         PrimitiveRoleLocator::new(
+            PrimitiveRole::ErrorContext,
+            module(package, &["internal", "errors"]),
+            "context",
+        ),
+        PrimitiveRoleLocator::new(
             PrimitiveRole::StringByteAt,
             module(package, &["internal", "text"]),
             "byte_at",
@@ -143,6 +148,11 @@ pub fn development_value_access_toolchain(package: &PackageIdentity) -> Toolchai
         Vec::new(),
     )
     .with_primitive_roles(roles)
+    .with_builtin_types(vec![BuiltinTypeLocator::new(
+        BuiltinType::Error,
+        module(package, &["error"]),
+        BuiltinType::Error.spelling(),
+    )])
 }
 
 fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLocator> {

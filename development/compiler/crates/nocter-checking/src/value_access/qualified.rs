@@ -1,7 +1,9 @@
 //! Resolve one namespace/declaration prefix; remaining components use the ordinary field checker.
 use super::{Failure, Rule, checker::Checker};
-use nocter_declarations::value_access::{DeclarationId, Namespace, QualifiedNameError};
-use nocter_model::{AccessCodeId, NominalTypeId, Symbol};
+use nocter_declarations::value_access::{
+    BehaviorOwner, DeclarationId, Namespace, QualifiedNameError,
+};
+use nocter_model::{AccessCodeId, Symbol};
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken, TokenKind};
 
 pub(super) struct QualifiedSelection {
@@ -155,7 +157,7 @@ impl Checker<'_, '_> {
         }))
     }
 
-    pub(super) fn constructor_owner(&self, node: NodeId) -> Result<Option<NominalTypeId>, Failure> {
+    pub(super) fn constructor_owner(&self, node: NodeId) -> Result<Option<BehaviorOwner>, Failure> {
         let Some(segments) = self.name_path(node)? else {
             return Ok(None);
         };
@@ -177,11 +179,14 @@ impl Checker<'_, '_> {
         {
             return Ok(None);
         }
+        if let [name] = tokens.as_slice() {
+            return Ok(self.program().type_owner_named_in(scope, self.text(*name)?));
+        }
         match self
             .program()
             .declaration_path_in(scope, Namespace::Type, &symbols)
         {
-            Ok(DeclarationId::Record(owner)) => Ok(Some(owner)),
+            Ok(DeclarationId::Record(owner)) => Ok(Some(BehaviorOwner::Record(owner))),
             Ok(DeclarationId::Code(_)) => Err(Failure::InconsistentSyntax),
             Err(error @ QualifiedNameError::Inaccessible { position })
                 if position + 1 == tokens.len() =>

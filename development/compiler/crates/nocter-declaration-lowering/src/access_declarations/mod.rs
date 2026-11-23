@@ -139,6 +139,7 @@ impl<'source> Preparation<'source> {
                     | NodeKind::TargetDirective
                     | NodeKind::TestDeclaration
                     | NodeKind::TypeBehaviorDeclaration
+                    | NodeKind::PrimitiveTypeDeclaration
             )
         }) {
             return Err(Failure::ModuleInputRequired);
@@ -459,7 +460,11 @@ impl Query {
 impl<'source> Context<'source> {
     /// Select the member identity and its accessibility from this exact physical source.
     #[must_use]
-    pub fn type_member(&self, owner: NominalTypeId, name: &str) -> Option<TypeMember> {
+    pub fn type_member(
+        &self,
+        owner: nocter_declarations::value_access::BehaviorOwner,
+        name: &str,
+    ) -> Option<TypeMember> {
         let name = self.program().symbols().get(name)?;
         self.module?
             .type_member(self.syntax.tree().source(), owner, name)

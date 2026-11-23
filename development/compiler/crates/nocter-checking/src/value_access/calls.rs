@@ -5,7 +5,9 @@ use super::{
     ir::{Argument, ArgumentAction, CallKind, ExpressionKind, value_type},
 };
 use nocter_declaration_lowering::access_declarations::{TypeMember, TypeMemberKind};
-use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
+use nocter_declarations::value_access::{
+    BehaviorOwner, FunctionInput, FunctionWitness, Namespace, PayloadSchema,
+};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueFunctionOrigin,
     ValueInvocation,
@@ -293,7 +295,12 @@ impl Checker<'_, '_> {
         self.require_declaration(member.code.into(), token)
     }
     fn member_for(&self, data: TypeId, token: SyntaxToken) -> Result<Option<TypeMember>, Failure> {
-        let Some(owner) = self.program().record_identity(data) else {
+        let program = self.program();
+        let Some(owner) = program
+            .data_kind(data)
+            .map(BehaviorOwner::Builtin)
+            .or_else(|| program.record_identity(data).map(BehaviorOwner::Record))
+        else {
             return Ok(None);
         };
         Ok(self.context.type_member(owner, self.text(token)?))

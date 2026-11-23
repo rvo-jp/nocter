@@ -1,0 +1,12 @@
+see ./index.nct
+use /internal/errors
+
+impl error {
+    func new(code: str, message: str): Self {
+        errors.new(code, message)
+    }
+
+    method take self.context(message: str): Self {
+        errors.context(self^, message)
+    }
+}

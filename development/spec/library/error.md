@@ -1,5 +1,18 @@
 # Recoverable Errors
 
+## Construction and Context
+
+The [standard type contract](../../stdlib/error/index.nct) provides `error.new` and `context`.
+Use `throw` to deliver the resulting payload as a failure.
+
+```text
+let cause = error.new("app.config.missing", "missing key")
+throw cause^.context("reading config")
+```
+
+The context becomes the outer message on the failure graph. The original code and cause remain
+available under the error contract.
+
 ## Value Access
 
 An owned `error` retains its private immutable failure graph, not access into the views originally

@@ -59,6 +59,13 @@ impl From<NominalTypeId> for DeclarationId {
     }
 }
 
+/// The data identity of a type-owned behavior scope.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum BehaviorOwner {
+    Record(NominalTypeId),
+    Builtin(BuiltinType),
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -625,6 +632,28 @@ impl Reservations {
     /// Panics if the scope identity space is exhausted.
     pub fn new_lexical_scope(&mut self, parent: ScopeId) -> Result<ScopeId, ScopeBindingError> {
         self.scopes.new_lexical_scope(parent)
+    }
+    /// Reserve a lexical scope with a fixed meaning for `Self`.
+    /// # Errors
+    /// Rejects an unknown parent or owner before reserving the scope.
+    pub fn new_behavior_scope(
+        &mut self,
+        parent: ScopeId,
+        owner: BehaviorOwner,
+    ) -> Result<ScopeId, DefinitionError> {
+        let known = match owner {
+            BehaviorOwner::Record(record) => self.records.scope(record).is_some(),
+            BehaviorOwner::Builtin(builtin) => supported(builtin),
+        };
+        if !known {
+            return Err(DefinitionError::UnknownId);
+        }
+        let scope = self
+            .scopes
+            .new_lexical_scope(parent)
+            .map_err(|_| DefinitionError::UnknownId)?;
+        self.scopes.behavior_owners.insert(scope, owner);
+        Ok(scope)
     }
     /// Bind an existing declaration under a name in one scope, without cloning its identity.
     /// Repeated equal bindings have set semantics. Ordinary name conflicts close at `finish`.

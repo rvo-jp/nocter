@@ -13,7 +13,9 @@ pub(super) fn has_source_name(declaration: SurfaceDeclaration) -> bool {
     declaration.owner().is_none()
         && !matches!(
             declaration.kind(),
-            crate::SurfaceDeclarationKind::Test | crate::SurfaceDeclarationKind::TypeBehavior
+            crate::SurfaceDeclarationKind::Test
+                | crate::SurfaceDeclarationKind::TypeBehavior
+                | crate::SurfaceDeclarationKind::PrimitiveType
         )
 }
 
@@ -39,6 +41,7 @@ pub struct ModuleSources<'syntax> {
     pub(super) surface: DeclarationSurface<'syntax>,
     pub(super) audiences: super::module_audiences::ModuleAudiences,
     pub(super) primitive_roles: Vec<crate::toolchain::ResolvedPrimitiveRole>,
+    pub(super) builtin_types: Vec<crate::toolchain::ResolvedBuiltinType>,
 }
 #[derive(Debug)]
 pub enum ModuleSourcesFailure {
@@ -87,20 +90,27 @@ impl<'syntax> ModuleSources<'syntax> {
         }
         let audiences = super::module_audiences::ModuleAudiences::prepare(&surface)
             .map_err(ModuleSourcesFailure::Access)?;
-        let primitive_roles = if let Some(toolchain) = input.toolchain() {
+        let (primitive_roles, builtin_types) = if let Some(toolchain) = input.toolchain() {
             super::primitives::validate_catalog(toolchain)
                 .map_err(ModuleSourcesFailure::PrimitiveAuthority)?;
             crate::toolchain::validate_locator_modules(toolchain)
                 .map_err(ModuleSourcesFailure::Toolchain)?;
-            crate::toolchain::resolve_primitive_roles(&surface, toolchain)
-                .map_err(ModuleSourcesFailure::Toolchain)?
+            (
+                crate::toolchain::resolve_primitive_roles(&surface, toolchain)
+                    .map_err(ModuleSourcesFailure::Toolchain)?,
+                crate::toolchain::resolve_builtin_types(&surface, toolchain)
+                    .map_err(ModuleSourcesFailure::Toolchain)?,
+            )
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
+        crate::surface::validate_primitive_type_authority(&surface, &builtin_types, &[])
+            .map_err(ModuleSourcesFailure::Surface)?;
         Ok(Self {
             surface,
             audiences,
             primitive_roles,
+            builtin_types,
         })
     }
     /// Pair root contracts with directly reciprocal complete definitions, without resolving types.

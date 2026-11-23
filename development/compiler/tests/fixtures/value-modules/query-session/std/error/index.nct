@@ -1,2 +1,0 @@
-see ./body.nct
-func operation(code: str, message: str): error

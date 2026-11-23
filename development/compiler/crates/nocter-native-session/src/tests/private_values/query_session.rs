@@ -30,13 +30,11 @@ fn copy_fixture(directory: &TempPackage) {
         Path::new("std"),
     );
     let trusted_errors = fixture.with_file_name("trusted-errors");
-    for module in ["context", "allocation_failure"] {
-        let index = format!("{module}/index.nct");
-        directory.source(
-            &format!("std/{index}"),
-            &fs::read_to_string(trusted_errors.join(index)).unwrap(),
-        );
-    }
+    let index = "allocation_failure/index.nct";
+    directory.source(
+        &format!("std/{index}"),
+        &fs::read_to_string(trusted_errors.join(index)).unwrap(),
+    );
 }
 
 fn copy_sources(directory: &TempPackage, root: &Path, prefix: &Path) {
@@ -64,18 +62,11 @@ fn copy_sources(directory: &TempPackage, root: &Path, prefix: &Path) {
 fn standard_profile(std: PackageIdentity) -> ToolchainInput {
     let profile = nocter_standard_profile::development_value_access_toolchain(&std);
     let mut roles = profile.primitive_roles().to_vec();
-    roles.extend([
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ErrorContext,
-            ModuleIdentity::new(std.clone(), ["context"]),
-            "operation",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::AllocationFailureError,
-            ModuleIdentity::new(std, ["allocation_failure"]),
-            "operation",
-        ),
-    ]);
+    roles.push(PrimitiveRoleLocator::new(
+        PrimitiveRole::AllocationFailureError,
+        ModuleIdentity::new(std, ["allocation_failure"]),
+        "operation",
+    ));
     profile.with_primitive_roles(roles)
 }
 

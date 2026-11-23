@@ -1,0 +1,12 @@
+see ./construction.nct
+
+/// The uniform recoverable failure payload carried by `T!`.
+primitive type error
+
+impl error {
+    /// Creates a failure with an open UTF-8 code and a message.
+    func new(code: str, message: str): Self
+
+    /// Retains the failure and code and adds a new outer message.
+    method take self.context(message: str): Self
+}

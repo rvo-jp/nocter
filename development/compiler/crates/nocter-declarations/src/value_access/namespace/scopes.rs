@@ -1,6 +1,6 @@
 //! Scope construction is consumed once into the immutable name authority.
 use super::{Binding, Qualifier, ScopeBindingError, ScopeId};
-use crate::value_access::DeclarationId;
+use crate::value_access::{BehaviorOwner, DeclarationId};
 use nocter_model::{BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -11,6 +11,7 @@ pub(in crate::value_access) struct Scopes {
     pub(super) qualifiers: BTreeMap<(ScopeId, Symbol), Qualifier>,
     pub(super) modules: BTreeMap<ScopeId, ModuleIdentity>,
     pub(super) parents: BTreeMap<ScopeId, ScopeId>,
+    pub(in crate::value_access) behavior_owners: BTreeMap<ScopeId, BehaviorOwner>,
 }
 impl Default for Scopes {
     fn default() -> Self {
@@ -20,6 +21,7 @@ impl Default for Scopes {
             qualifiers: BTreeMap::new(),
             modules: BTreeMap::new(),
             parents: BTreeMap::new(),
+            behavior_owners: BTreeMap::new(),
         }
     }
 }

@@ -1,2 +1,5 @@
 #visibility: "/"
 primitive func new(code: str, message: str): error
+
+#visibility: "/"
+primitive func context(take cause: error, message: str): error

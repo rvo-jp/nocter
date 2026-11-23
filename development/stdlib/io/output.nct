@@ -1,9 +1,8 @@
 see ./index.nct
-use /internal/errors
 use /internal/io as output
 
 func print(text: str): void! {
     if !output.write_standard_output(text) {
-        throw errors.new("std.io.write", "could not write the complete text to standard output")
+        throw error.new("std.io.write", "could not write the complete text to standard output")
     }
 }

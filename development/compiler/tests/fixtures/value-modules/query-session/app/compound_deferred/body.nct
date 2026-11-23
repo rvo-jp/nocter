@@ -1,4 +1,3 @@
-use std/error as errors
 see ./index.nct
 
 struct Packet {
@@ -8,9 +7,9 @@ struct Packet {
 }
 
 func packet(reason: str, present: bool): Packet {
-    let extra: error? = if present { errors.operation("discarded", "optional") } else { none }
+    let extra: error? = if present { error.new("discarded", "optional") } else { none }
     Packet {
-        reason: errors.operation(reason, "payload"),
+        reason: error.new(reason, "payload"),
         unused: extra^,
         words: [3, 5, 4294967319],
     }
@@ -26,7 +25,7 @@ async func scalar(take divisor: i32): i32 {
 
 async func receive(take value: Packet): error {
     if value.words[2] != 4294967319 {
-        return errors.operation("invalid", "storage")
+        return error.new("invalid", "storage")
     }
     value.reason^
 }
@@ -37,7 +36,7 @@ async func inspect(value: Packet): i64 {
 
 async func replace(edit value: Packet): i64 {
     value.unused = none
-    value.reason = errors.operation("discarded", "replacement")
+    value.reason = error.new("discarded", "replacement")
     value = packet("compound", true)
     value.words[2]
 }
@@ -63,7 +62,7 @@ async func main(): i32! {
     let word = await inspect(packet("discarded", true))
     let edited_temporary = await replace(packet("discarded", false))
     if word != 4294967319 || edited_temporary != 4294967319 {
-        throw errors.operation("invalid", "temporary")
+        throw error.new("invalid", "temporary")
     }
 
     var value = packet("discarded", true)
@@ -75,7 +74,7 @@ async func main(): i32! {
     let moved = pending^
     let result = await moved^
     if original != 5 || edited != 4294967319 {
-        throw errors.operation("invalid", "edit")
+        throw error.new("invalid", "edit")
     }
     throw result^
 }

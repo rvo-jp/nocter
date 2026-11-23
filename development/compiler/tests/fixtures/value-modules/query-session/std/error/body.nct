@@ -1,6 +1,0 @@
-use /internal/errors
-see ./index.nct
-
-func operation(code: str, message: str): error {
-    errors.new(code, message)
-}

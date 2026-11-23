@@ -1,4 +1,3 @@
-use /internal/errors
 use /internal/process as runtime
 use /internal/text
 see ./index.nct
@@ -13,7 +12,7 @@ func decoded(take encoding: str?): str! {
 }
 
 func invalid_encoding(): error {
-    errors.new(
+    error.new(
         "std.process.invalid_encoding",
         "process text or requested environment name is invalid",
     )

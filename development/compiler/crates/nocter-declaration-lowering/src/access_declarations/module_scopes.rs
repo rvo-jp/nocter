@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceSourceId};
 use nocter_declarations::value_access::{
-    DeclarationId, HeaderPublication, Program, Reservations, ScopeId,
+    BehaviorOwner, DeclarationId, HeaderPublication, Program, Reservations, ScopeId,
 };
 use nocter_model::{AccessCodeId, AccessFieldId, NominalTypeId, Symbol};
 use nocter_syntax::{BoundSyntax, SyntaxToken};
@@ -379,7 +379,7 @@ impl ModuleSourceBinding<'_> {
     pub(super) fn type_member(
         &self,
         caller: nocter_source::SourceId,
-        owner: NominalTypeId,
+        owner: BehaviorOwner,
         name: Symbol,
     ) -> Option<TypeMember> {
         self.members.lookup(self, caller, owner, name)
@@ -695,6 +695,7 @@ fn collect_headers(
                 }
                 SurfaceDeclarationKind::Field
                 | SurfaceDeclarationKind::TypeBehavior
+                | SurfaceDeclarationKind::PrimitiveType
                 | SurfaceDeclarationKind::StructuralLiteralGrant => {
                     return None;
                 }

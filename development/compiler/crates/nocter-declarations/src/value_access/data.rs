@@ -1,5 +1,5 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
-use super::{AggregateForm, DeclarationId, Program};
+use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 mod header_values;
@@ -211,9 +211,21 @@ impl Program {
     }
     #[must_use]
     pub fn type_identity_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
+        match self.type_owner_named_in(scope, spelling)? {
+            BehaviorOwner::Builtin(data) => self.data_type(data),
+            BehaviorOwner::Record(id) => self.record_type_identity(id),
+        }
+    }
+    /// Resolve a named type or the owner denoted by `Self` in the current behavior scope.
+    #[must_use]
+    pub fn type_owner_named_in(
+        &self,
+        scope: super::ScopeId,
+        spelling: &str,
+    ) -> Option<BehaviorOwner> {
         match data_reference(&self.symbols, &self.namespace, scope, spelling)? {
-            DataReference::Builtin(data) => self.data_type(data),
-            DataReference::Record(id) => self.record_type_identity(id),
+            DataReference::Builtin(data) => Some(BehaviorOwner::Builtin(data)),
+            DataReference::Record(id) => Some(BehaviorOwner::Record(id)),
             DataReference::Tuple(_)
             | DataReference::Function(_)
             | DataReference::Array { .. }
@@ -514,6 +526,12 @@ pub(super) fn data_reference(
     }
     if let Some(data) = BuiltinType::from_spelling(spelling) {
         return Some(DataReference::Builtin(data));
+    }
+    if spelling == "Self" {
+        return namespace.behavior_owner(scope).map(|owner| match owner {
+            BehaviorOwner::Builtin(data) => DataReference::Builtin(data),
+            BehaviorOwner::Record(record) => DataReference::Record(record),
+        });
     }
     match namespace.get(scope, super::Namespace::Type, symbols.get(spelling)?)? {
         DeclarationId::Record(id) => Some(DataReference::Record(id)),

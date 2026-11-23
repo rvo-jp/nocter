@@ -1,10 +1,10 @@
 use std::fmt;
 
-use nocter_compile_input::ToolchainInput;
+use nocter_compile_input::{ModuleSourceKind, ToolchainInput};
 use nocter_declarations::ProgramBuildError;
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
-use nocter_syntax::NodeId;
+use nocter_syntax::{NodeId, NodeKind};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
 use crate::{
@@ -373,18 +373,28 @@ fn resolve_standard_roles(
         .collect()
 }
 
-fn resolve_builtin_types(
+pub(crate) fn resolve_builtin_types(
     surface: &DeclarationSurface<'_>,
     input: &ToolchainInput,
 ) -> Result<Vec<ResolvedBuiltinType>, ToolchainError> {
+    let mut seen = std::collections::BTreeSet::new();
     input
         .builtin_types()
         .iter()
         .map(|locator| {
+            if !seen.insert(locator.builtin()) {
+                return Err(ToolchainError::DuplicateBuiltinType(locator.builtin()));
+            }
             let matches =
                 matching_declarations(surface, locator.module(), locator.name(), |item| {
-                    item.visibility().is_some()
-                        && item.kind() == SurfaceDeclarationKind::PrimitiveType
+                    let source = &surface.sources()[item.source().index()];
+                    item.kind() == SurfaceDeclarationKind::PrimitiveType
+                        && if source.syntax().root().kind() == NodeKind::V2CoreUnit {
+                            source.kind() == ModuleSourceKind::Root
+                                && locator.name() == locator.builtin().spelling()
+                        } else {
+                            item.visibility().is_some()
+                        }
                 });
             match matches.as_slice() {
                 [declaration] => Ok(ResolvedBuiltinType {

@@ -1,16 +1,14 @@
 use std/allocation_failure as static_error
-use std/error as errors
-use std/context as contexts
 see ./index.nct
 
 async func discard_later(): i32! {
-    throw contexts.operation(static_error.operation(), "discarded context")
+    throw static_error.operation().context("discarded context")
 }
 
 async func fail_later(): error {
-    let unused = errors.operation("discarded", "discarded leaf")
+    let unused = error.new("discarded", "discarded leaf")
     drop unused
-    contexts.operation(errors.operation("managed", "leaf"), "after await")
+    error.new("managed", "leaf").context("after await")
 }
 
 async func stop_with_errors(take first: error, take divisor: i32, take last: error): i32 {
@@ -32,7 +30,7 @@ async func main(): i32! {
     var iteration: i32 = 0
     while iteration < 2 {
         let pending = if iteration == 0 {
-            stop_with_errors(errors.operation("discarded", "first"), 0, errors.operation("discarded", "last"))
+            stop_with_errors(error.new("discarded", "first"), 0, error.new("discarded", "last"))
         } else {
             stop_with_value(0)
         }
@@ -41,7 +39,7 @@ async func main(): i32! {
         iteration += 1
     }
 
-    let directly_cancelled = stop_with_errors(static_error.operation(), 0, errors.operation("discarded", "direct"))
+    let directly_cancelled = stop_with_errors(static_error.operation(), 0, error.new("discarded", "direct"))
     drop directly_cancelled
     let produced = await fail_later()
     let selected = relay(produced^)

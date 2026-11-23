@@ -190,6 +190,64 @@ fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_error_members_require_the_exact_builtin_authority() {
+    let tree = TempTree::new("builtin-error-members");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("app.nct");
+    let program = "func main(): i32! {\n\
+        let cause = error.new(\"app.config.missing\", \"missing key\")\n\
+        throw cause^.context(\"reading config\")\n\
+        }\n";
+    fs::write(&source, program).unwrap();
+    let execute = |args| execute_invocation(invocation(args, &tree.0, &home, "arm64-darwin"));
+    let built = execute(vec![
+        "build",
+        "--file",
+        "app.nct",
+        "--offline",
+        "-o",
+        "report",
+    ])
+    .unwrap_or_else(|error| {
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    assert!(matches!(built, InvocationOutcome::Build(_)));
+    let output = std::process::Command::new(tree.0.join("report"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        output.stderr,
+        b"app.config.missing: reading config: missing key\n"
+    );
+
+    for (replacement, code) in [
+        (program.replace("cause^.context", "cause.context"), "E0371"),
+        (
+            "impl error { method self.mine(): bool { true } }\nfunc main(): i32 { 0 }\n".into(),
+            "E0231",
+        ),
+        (
+            "primitive type error\nfunc main(): i32 { 0 }\n".into(),
+            "E0235",
+        ),
+    ] {
+        fs::write(&source, replacement).unwrap();
+        let failure = execute(vec!["check", "--file", "app.nct", "--offline"]).unwrap_err();
+        let diagnostic = failure.render_source_diagnostics().unwrap().unwrap();
+        assert!(diagnostic.contains(code), "{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_print_delivers_exact_text_and_reports_output_failure() {
     use std::process::{Command, Stdio};
 

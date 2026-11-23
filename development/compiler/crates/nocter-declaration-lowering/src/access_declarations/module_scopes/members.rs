@@ -1,4 +1,4 @@
-//! Type-owned declarations bind to the nominal visible at the physical `impl` occurrence.
+//! Type-owned declarations bind to the owner authorized at the physical `impl` occurrence.
 use super::{ModuleSourcesFailure, PairedModuleSources, integrity, symbol, syntax};
 use crate::access_declarations::{
     Failure, TypeSyntax,
@@ -6,9 +6,9 @@ use crate::access_declarations::{
 };
 use crate::{SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceSourceId};
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, Reservations, ScopeId, ValueDefinition,
+    BehaviorOwner, DataReference, DeclarationId, Reservations, ScopeId, ValueDefinition,
 };
-use nocter_model::{AccessCodeId, NominalTypeId, Symbol};
+use nocter_model::{AccessCodeId, BuiltinType, Symbol};
 use nocter_syntax::{
     BoundSyntax, NodeId, NodeKind, direct_identifier, direct_node, type_behavior_owner,
 };
@@ -16,8 +16,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct MemberOccurrence {
-    pub record: NominalTypeId,
-    pub nominal_contract: SurfaceDeclarationId,
+    pub owner: BehaviorOwner,
+    pub owner_contract: SurfaceDeclarationId,
     pub lookup: ScopeId,
 }
 
@@ -37,7 +37,7 @@ pub struct TypeMember {
 #[derive(Debug)]
 pub(super) struct Members {
     pub occurrences: BTreeMap<SurfaceDeclarationId, MemberOccurrence>,
-    names: BTreeMap<(NominalTypeId, Symbol), SurfaceDeclarationId>,
+    names: BTreeMap<(BehaviorOwner, Symbol), SurfaceDeclarationId>,
 }
 
 impl Members {
@@ -53,7 +53,7 @@ impl Members {
             if canonical != id {
                 if occurrences
                     .get(&canonical)
-                    .is_none_or(|contract| contract.record != member.record)
+                    .is_none_or(|contract| contract.owner != member.owner)
                 {
                     let owner = declaration.owner().ok_or_else(integrity)?;
                     let subject = inventory.declarations()[owner.index()].node();
@@ -69,7 +69,7 @@ impl Members {
             }
             let token = declaration.name().ok_or_else(integrity)?;
             let name = symbol(paired, declaration.source(), token)?;
-            if let Some(first) = names.insert((member.record, name), id) {
+            if let Some(first) = names.insert((member.owner, name), id) {
                 let first = inventory.declarations()[first.index()]
                     .name()
                     .ok_or_else(integrity)?;
@@ -95,7 +95,7 @@ impl Members {
         for (&id, member) in &self.occurrences {
             let inventory = &paired.inventory;
             if inventory.audience(id).is_some()
-                && inventory.audience(member.nominal_contract).is_none()
+                && inventory.audience(member.owner_contract).is_none()
             {
                 let declaration = inventory.declarations()[id.index()];
                 let owner = declaration.owner().ok_or_else(integrity)?;
@@ -110,7 +110,7 @@ impl Members {
             paired
                 .inventory
                 .audiences
-                .constrain_member(id, member.nominal_contract)
+                .constrain_member(id, member.owner_contract)
                 .map_err(ModuleSourcesFailure::Access)?;
         }
         Ok(())
@@ -124,7 +124,7 @@ impl Members {
         result: &ValueDefinition,
     ) -> Result<(), ModuleSourcesFailure> {
         let member = self.occurrences.get(&id).ok_or_else(integrity)?;
-        if result_owner(result) == Some(member.record) {
+        if result_owner(result) == Some(member.owner) {
             return Ok(());
         }
         Err(ModuleSourcesFailure::Access(
@@ -140,7 +140,7 @@ impl Members {
         &self,
         binding: &super::ModuleSourceBinding<'_>,
         caller: nocter_source::SourceId,
-        owner: NominalTypeId,
+        owner: BehaviorOwner,
         name: Symbol,
     ) -> Option<TypeMember> {
         let &id = self.names.get(&(owner, name))?;
@@ -194,14 +194,15 @@ pub(super) fn method_header(
     Ok(header)
 }
 
-fn result_owner(result: &ValueDefinition) -> Option<NominalTypeId> {
+fn result_owner(result: &ValueDefinition) -> Option<BehaviorOwner> {
     let ValueDefinition::Data(data) = result else {
         return None;
     };
     let mut data = data;
     loop {
         data = match data {
-            DataReference::Record(record) => return Some(*record),
+            DataReference::Record(record) => return Some(BehaviorOwner::Record(*record)),
+            DataReference::Builtin(data) => return Some(BehaviorOwner::Builtin(*data)),
             DataReference::Optional { payload, .. } | DataReference::Fallible(payload) => payload,
             _ => return None,
         };
@@ -235,10 +236,9 @@ pub(super) fn occurrences(
         records
             .entry((declaration.source(), name))
             .or_default()
-            .insert((record, contract));
+            .insert((BehaviorOwner::Record(record), contract));
     }
-    let self_name = inventory.surface.symbols().get("Self");
-    let mut scopes_by_record = BTreeMap::new();
+    let mut scopes_by_owner = BTreeMap::new();
     let mut owners = BTreeMap::new();
     let mut members = BTreeMap::new();
     for (raw, declaration) in inventory.declaration_entries() {
@@ -248,12 +248,25 @@ pub(super) fn occurrences(
                 let bound = syntax(paired, source)?;
                 let (pattern, name) =
                     type_behavior_owner(bound.tree(), declaration.node()).ok_or_else(integrity)?;
-                let name = symbol(paired, source, name)?;
-                let mut selected = BTreeSet::new();
-                for visible in super::super::module_sources::visible_sources(paired, source) {
-                    selected.extend(records.get(&(visible, name)).into_iter().flatten().copied());
-                }
-                if selected.len() != 1 {
+                let spelling = bound.text_at(name.range()).ok_or_else(integrity)?;
+                let selected = if let Some(builtin) = BuiltinType::from_spelling(spelling) {
+                    let module = inventory.sources()[source.index()].module();
+                    inventory.builtin_types.iter().find_map(|authority| {
+                        let contract = authority.declaration();
+                        let physical = inventory.declarations()[contract.index()].source();
+                        (authority.builtin() == builtin
+                            && inventory.sources()[physical.index()].module() == module)
+                            .then_some((BehaviorOwner::Builtin(builtin), contract))
+                    })
+                } else {
+                    let name = symbol(paired, source, name)?;
+                    let mut seen = BTreeSet::new();
+                    for visible in super::super::module_sources::visible_sources(paired, source) {
+                        seen.extend(records.get(&(visible, name)).into_iter().flatten().copied());
+                    }
+                    (seen.len() == 1).then(|| seen.pop_first()).flatten()
+                };
+                let Some((owner, owner_contract)) = selected else {
                     return Err(ModuleSourcesFailure::Access(
                         super::super::source_roles::role_failure(
                             bound,
@@ -261,27 +274,21 @@ pub(super) fn occurrences(
                             pattern,
                         ),
                     ));
-                }
-                let (record, nominal_contract) = selected.pop_first().ok_or_else(integrity)?;
-                let lookup = match scopes_by_record.entry((source, record)) {
+                };
+                let lookup = match scopes_by_owner.entry((source, owner)) {
                     std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
                     std::collections::btree_map::Entry::Vacant(entry) => {
                         let lookup = reservations
-                            .new_lexical_scope(scopes[source.index()])
+                            .new_behavior_scope(scopes[source.index()], owner)
                             .map_err(|_| integrity())?;
-                        if let Some(name) = self_name {
-                            reservations
-                                .bind(lookup, name, record)
-                                .map_err(|_| integrity())?;
-                        }
                         *entry.insert(lookup)
                     }
                 };
                 owners.insert(
                     raw,
                     MemberOccurrence {
-                        record,
-                        nominal_contract,
+                        owner,
+                        owner_contract,
                         lookup,
                     },
                 );

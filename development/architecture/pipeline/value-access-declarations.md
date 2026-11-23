@@ -46,6 +46,11 @@ A method supplies the receiver as the first input under the same access and tran
 an explicit argument. The selected code and authored member token feed the existing call,
 compile-time evaluation, native lowering, and named navigation paths.
 
+For the built-in `error` type, the toolchain's exact type locator authorizes the standard module
+to declare type-owned behavior. Nominal records and this built-in share lexical `Self` binding,
+contract pairing, member resolution and the ordinary call path. The
+[standard error declaration](../../stdlib/error/index.nct) supplies the wrapper bodies' contracts.
+
 For a receiver that eliminates or recovers an outcome, the carrier's data and the field or array
 schema identify the member before materializing the projection. The selected input operation
 then guides the ordinary outcome and recovery preparation. The original carrier, index

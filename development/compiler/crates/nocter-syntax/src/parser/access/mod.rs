@@ -55,6 +55,21 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
         {
             function(parser, NodeKind::FunctionDeclaration);
+        } else if parser.at_keyword(Keyword::Primitive)
+            && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Type)
+        {
+            let declaration = parser.start();
+            parser.bump();
+            parser.bump();
+            if matches!(
+                parser.current_kind(),
+                TokenKind::Keyword(Keyword::Void | Keyword::Never)
+            ) {
+                parser.bump();
+            } else {
+                parser.expect_name();
+            }
+            parser.complete(declaration, NodeKind::PrimitiveTypeDeclaration);
         } else if parser.at_keyword(Keyword::Const)
             || parser.at_contextual(ContextualSpelling::Static)
         {

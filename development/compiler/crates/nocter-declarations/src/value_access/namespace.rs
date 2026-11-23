@@ -1,6 +1,7 @@
 //! One owner for independent type/value names, closed before type normalization.
 use super::{
-    DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, Reservation, records,
+    BehaviorOwner, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
+    Reservation, records,
 };
 use nocter_model::{
     AccessCodeId, ArenaBuilder, BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable,
@@ -67,10 +68,15 @@ pub(super) struct Names {
     qualifiers: BTreeMap<(ScopeId, Symbol), Qualifier>,
     modules: BTreeMap<ScopeId, ModuleIdentity>,
     parents: BTreeMap<ScopeId, ScopeId>,
+    behavior_owners: BTreeMap<ScopeId, BehaviorOwner>,
 }
 impl Names {
     pub fn contains_scope(&self, scope: ScopeId) -> bool {
         scope.0 < self.count
+    }
+    pub fn behavior_owner(&self, scope: ScopeId) -> Option<BehaviorOwner> {
+        self.lineage(scope)
+            .find_map(|scope| self.behavior_owners.get(&scope).copied())
     }
     pub fn get(&self, scope: ScopeId, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
         match self.entry(scope, namespace, name, true)? {
@@ -279,6 +285,7 @@ pub(super) fn close(
         qualifiers: scopes.qualifiers,
         modules: scopes.modules,
         parents: scopes.parents,
+        behavior_owners: scopes.behavior_owners,
     }
 }
 

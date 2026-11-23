@@ -1,4 +1,3 @@
-use std/error as errors
 use std/process
 see ./index.nct
 
@@ -13,5 +12,5 @@ async func inspect(): str?! {
 
 async func main(): i32! {
     let value = (await inspect()?) otherwise { "absent" }
-    throw errors.operation("env", value)
+    throw error.new("env", value)
 }

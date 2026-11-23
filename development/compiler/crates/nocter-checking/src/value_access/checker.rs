@@ -8,7 +8,9 @@ use super::{
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{AggregateForm, Namespace, PayloadSchema, Program};
+use nocter_declarations::value_access::{
+    AggregateForm, BehaviorOwner, Namespace, PayloadSchema, Program,
+};
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId, AccessPlaceId,
@@ -549,7 +551,15 @@ impl<'a, 's> Checker<'a, 's> {
             );
         }
         let scope = self.scope_at(token)?;
-        if (namespace == Namespace::Type || self.lookup(spelling).is_none())
+        if namespace == Namespace::Type {
+            if let Some(BehaviorOwner::Record(record)) =
+                self.program().type_owner_named_in(scope, spelling)
+            {
+                return self.require_declaration(record.into(), token);
+            }
+            return Ok(());
+        }
+        if self.lookup(spelling).is_none()
             && let Some(declaration) = self
                 .program()
                 .symbols()
