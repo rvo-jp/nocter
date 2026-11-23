@@ -308,6 +308,7 @@ impl Types {
             };
             let alternatives = data.alternatives(program)?;
             let is_alternatives = alternatives.is_some();
+            let mut enum_cases = None;
             let children: Vec<_> = if let Some(cases) = alternatives {
                 cases
             } else {
@@ -319,15 +320,26 @@ impl Types {
                         continue;
                     }
                     PayloadSchema::Enumeration(schema) => {
-                        if schema.has_payload() {
-                            self.insert(data, Type::Unavailable, false);
+                        let nominal = program.nominal_identity(schema.data()).ok_or(INVALID)?;
+                        if !schema.has_payload() {
+                            let variants =
+                                u64::try_from(schema.variants().len()).map_err(|_| INVALID)?;
+                            self.insert(data, Type::ScalarEnum { nominal, variants }, true);
                             continue;
                         }
-                        let nominal = program.nominal_identity(schema.data()).ok_or(INVALID)?;
-                        let variants =
-                            u64::try_from(schema.variants().len()).map_err(|_| INVALID)?;
-                        self.insert(data, Type::ScalarEnum { nominal, variants }, true);
-                        continue;
+                        let mut sizes = Vec::with_capacity(schema.variants().len());
+                        let mut fields = Vec::new();
+                        for &variant in schema.variants() {
+                            let components = program
+                                .variant_components(data.data(), variant)
+                                .ok_or(INVALID)?;
+                            sizes.push(components.len());
+                            for component in components {
+                                fields.push(data.component(program, component.field)?);
+                            }
+                        }
+                        enum_cases = Some((nominal, sizes));
+                        fields
                     }
                     PayloadSchema::Future(_) => {
                         self.insert(data, Type::Unavailable, false);
@@ -396,8 +408,48 @@ impl Types {
                 .into_iter()
                 .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
                 .collect::<Result<Vec<_>>>()?;
-            self.compose(data, schema, children, is_alternatives)?;
+            if let Some((nominal, sizes)) = enum_cases {
+                self.compose_enum(data, nominal, &sizes, children)?;
+            } else {
+                self.compose(data, schema, children, is_alternatives)?;
+            }
         }
+        Ok(())
+    }
+    fn compose_enum(
+        &mut self,
+        data: ShapeKey,
+        nominal: nocter_model::NominalTypeId,
+        sizes: &[usize],
+        children: Vec<usize>,
+    ) -> Result<()> {
+        let mut fields = children.into_iter();
+        let mut cases = Vec::with_capacity(sizes.len());
+        let mut supported = false;
+        let mut contract_supported = false;
+        let mut serializable = true;
+        for &size in sizes {
+            let case = fields.by_ref().take(size).collect::<Box<[_]>>();
+            if case.len() != size {
+                return Err(INVALID);
+            }
+            if case.iter().all(|&id| self.shapes[id].supported) {
+                supported = true;
+                serializable &= case.iter().all(|&id| self.shapes[id].serializable);
+            }
+            contract_supported |= case.iter().all(|&id| self.shapes[id].contract_supported);
+            cases.push(case);
+        }
+        if fields.next().is_some() {
+            return Err(INVALID);
+        }
+        let ty = Type::Enum {
+            nominal,
+            cases: cases.into(),
+        };
+        let id = self.insert(data, ty, supported);
+        self.shapes[id].contract_supported = contract_supported;
+        self.shapes[id].serializable = supported && serializable;
         Ok(())
     }
     fn compose(

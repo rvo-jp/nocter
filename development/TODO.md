@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Project the declaration-owned enum cases into the evaluator's exact type table. Derive supported
-cases and final-value eligibility from their real fields, retaining inactive unavailable cases as
-metadata until source construction and lifecycle are qualified.
+Use the tagged native layout for enum conditions, dispatch and structural cleanup. Qualify one
+width-correct tag read and exact reverse-order cleanup of the active case before connecting source
+construction.
 
 ## Remaining Contextual Representation Qualification
 
@@ -739,8 +739,11 @@ not a language restriction derived from the current realization boundary.
   and write only the selected case into target storage.
 - [x] Qualify selected enum case assembly and tag inspection in the evaluator plan. Reuse the
   metered staging and verify active arity, field types and branch selection before source admission.
-- [ ] Connect source enum payload schemas to evaluator types. Preserve field order, nominal
+- [x] Connect source enum payload schemas to evaluator types. Preserve field order, nominal
   identity, and per-case domain eligibility through the existing projection graph.
+- [ ] Qualify native tag inspection and active-case structural cleanup for stored enum payloads.
+  Read the discriminator at its declared layout width and destroy only the initialized fields of
+  the selected case in reverse declaration order.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

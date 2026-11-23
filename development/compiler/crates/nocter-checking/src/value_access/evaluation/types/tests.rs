@@ -23,6 +23,72 @@ fn fixture() -> Fixture {
 }
 
 #[test]
+fn declared_enum_cases_share_evaluator_types_without_inventing_inactive_values() {
+    use crate::value_access::accepted::ModuleSourceUnit;
+    use nocter_compile_input::ModuleSourceKind::Root;
+    let source = nocter_test_support::ValueModuleFixture::new(
+        &[(
+            "/app/index.nct",
+            Root,
+            concat!(
+                "enum Packet { empty\ndata(flag: bool, number: i32)\nreport(reason: error) }\n",
+                "enum Other { empty\ndata(flag: bool, number: i32)\nreport(reason: error) }\n",
+                "enum Failed { report(reason: error) }\n",
+                "enum Status { idle\nready }",
+            ),
+        )],
+        &[],
+    );
+    let input = source.input();
+    let unit = ModuleSourceUnit::prepare(&input).unwrap();
+    let program = unit.unit().program();
+    let mut types = Types::default();
+    let packet = program.type_named("Packet").unwrap();
+    let other = program.type_named("Other").unwrap();
+    let failed = program.type_named("Failed").unwrap();
+    let scalar = program.type_named("Status").unwrap();
+    let ids = [packet, other, failed, scalar].map(|data| types.get(program, data).unwrap());
+    let [packet_type, other_type, failed_type, scalar_type] = ids;
+    let Type::Enum { nominal, cases } = &types.shapes[packet_type].ty else {
+        panic!("nominal tagged evaluator shape")
+    };
+    assert_eq!(Some(*nominal), program.nominal_identity(packet));
+    let [empty, data, report] = cases.as_ref() else {
+        panic!("declaration-order cases")
+    };
+    assert!(empty.is_empty());
+    assert_eq!(
+        data.iter()
+            .map(|&id| &types.shapes[id].ty)
+            .collect::<Vec<_>>(),
+        [&Type::Bool, &Type::Integer(BuiltinType::I32)]
+    );
+    assert_eq!(
+        report
+            .iter()
+            .map(|&id| &types.shapes[id].ty)
+            .collect::<Vec<_>>(),
+        [&Type::Unavailable]
+    );
+    assert_eq!(
+        types.shapes[other_type].ty,
+        Type::Enum {
+            nominal: program.nominal_identity(other).unwrap(),
+            cases: cases.clone()
+        }
+    );
+    assert_ne!(packet_type, other_type);
+    assert!(types.shapes[packet_type].supported && types.shapes[packet_type].serializable);
+    assert!(!types.shapes[failed_type].supported && !types.shapes[failed_type].serializable);
+    assert!(matches!(
+        types.shapes[scalar_type].ty,
+        Type::ScalarEnum { variants: 2, .. }
+    ));
+    let closed = program.instantiate_closed_data(packet).unwrap();
+    assert_eq!(types.get_instance(program, closed).unwrap(), packet_type);
+}
+
+#[test]
 fn uninhabited_metadata_has_no_value_but_preserves_optional_absence() {
     let fixture = fixture();
     let program = &fixture.program;
