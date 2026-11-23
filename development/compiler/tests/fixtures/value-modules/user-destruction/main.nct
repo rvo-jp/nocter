@@ -1,0 +1,59 @@
+see ./index.nct
+
+struct Ticket {
+    state: i32
+}
+
+impl Ticket {
+    drop {
+        if self.state != 42 {
+            let _ = 1 / 0
+        }
+        self.state = 0
+    }
+}
+
+struct Cabinet {
+    child: Ticket
+    cleaned: bool
+}
+
+impl Cabinet {
+    drop {
+        if self.cleaned {
+            let _ = 1 / 0
+        }
+        self.cleaned = true
+        self.child.state = 42
+        return
+    }
+}
+
+enum Parcel {
+    empty
+    filled(ticket: Ticket)
+}
+
+impl Parcel {
+    drop {
+        if edit self is Parcel.filled(ticket) {
+            ticket.state = 42
+        }
+    }
+}
+
+func main(): i32 {
+    var cabinet = Cabinet { child: Ticket { state: 42 }, cleaned: false }
+    edit selected = cabinet.child
+    selected = Ticket { state: 0 }
+    drop cabinet
+
+    let parcel = Parcel.filled(Ticket { state: 0 })
+    if take parcel^ is Parcel.filled(_) {}
+    let empty = Parcel.empty
+    drop empty
+
+    let array = [Ticket { state: 42 }; 1]
+    drop array
+    42
+}

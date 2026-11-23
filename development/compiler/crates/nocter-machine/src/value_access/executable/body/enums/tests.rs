@@ -28,6 +28,7 @@ fn context<'a>(
         layouts,
         data,
         cleanup,
+        destructors: BTreeMap::new(),
         functions: BTreeMap::new(),
         abis: BTreeMap::new(),
         transports: Prepared {
@@ -122,7 +123,10 @@ fn cleanup_uses_the_full_tag_width_and_visits_fields_in_reverse_order() {
     let runtime = environment([data, tag, error, callback]);
     let layouts = MachineLayoutPlan::from_runtime(&runtime, [data, tag]).unwrap();
     let mut needed = BTreeMap::new();
-    assert!(super::super::super::cleanup::required(&runtime, data, &mut needed).unwrap());
+    assert!(
+        super::super::super::cleanup::required(&runtime, &BTreeMap::new(), data, &mut needed)
+            .unwrap()
+    );
     assert_eq!(
         needed,
         [(data, true), (error, true), (callback, true)].into()

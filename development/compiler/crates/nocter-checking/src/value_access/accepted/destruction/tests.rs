@@ -38,35 +38,69 @@ fn destructor_checks_a_reached_callees_authorized_wait() {
         );
         let input = fixture.input().with_toolchain(toolchain.clone());
         let result = ModuleSourceUnit::prepare(&input);
+        if !waits {
+            assert_eq!(result.unwrap().unit().destructor_frames().count(), 1);
+            continue;
+        }
         let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) = result else {
             panic!("expected a source diagnostic for the reached destructor lifecycle: {result:?}");
         };
         let [error] = diagnostics.as_ref() else {
             panic!("one failed destructor obligation");
         };
-        if waits {
-            assert!(
-                error.message().contains("may wait for external progress"),
-                "{error:?}"
-            );
-            assert_eq!(error.primary().source(), fixture.tree(1).source());
-            assert_eq!(
-                error.primary().span().range().start().get() as usize,
-                body.find("output(").unwrap()
-            );
-            assert!(
-                error
-                    .notes()
-                    .iter()
-                    .any(|note| note.message().contains("this destructor"))
-            );
-        } else {
-            assert!(
-                error
-                    .message()
-                    .contains("verified effects and component cleanup"),
-                "{error:?}"
-            );
+        assert!(
+            error.message().contains("may wait for external progress"),
+            "{error:?}"
+        );
+        assert_eq!(error.primary().source(), fixture.tree(1).source());
+        assert_eq!(
+            error.primary().span().range().start().get() as usize,
+            body.find("output(").unwrap()
+        );
+        assert!(
+            error
+                .notes()
+                .iter()
+                .any(|note| note.message().contains("this destructor"))
+        );
+    }
+}
+
+#[test]
+fn destructor_receiver_cannot_be_replaced_through_a_delegated_edit() {
+    for (action, accepted) in [
+        ("self = Handle { value: 0 }", false),
+        ("edit other = self\nrelay(other)", false),
+        ("set_field(self)", true),
+    ] {
+        let body = format!(
+            "see ./index.nct\n\
+             struct Handle {{ value: i32 }}\n\
+             impl Handle {{ drop {{ {action} }} }}\n\
+             func relay(edit target: Handle): void {{ reset(target) }}\n\
+             func reset(edit target: Handle): void {{ target = Handle {{ value: 0 }} }}\n\
+             func set_field(edit target: Handle): void {{ target.value = 1 }}"
+        );
+        let fixture = ValueModuleFixture::new(
+            &[
+                ("/app/index.nct", Root, "see ./body.nct\nstruct Handle"),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let input = fixture.input();
+        let result = ModuleSourceUnit::prepare(&input);
+        if accepted {
+            assert_eq!(result.unwrap().unit().destructor_frames().count(), 1);
+            continue;
         }
+        let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) = result else {
+            panic!("a whole-receiver replacement would destroy self recursively: {result:?}");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|error| error.message().contains("whose destructor is running"))
+        );
     }
 }

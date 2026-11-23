@@ -140,9 +140,8 @@ fn only_whole_transfers_and_copy_snapshots_leave_destructors_with_complete_value
     ] {
         let result = prepare(valid);
         assert!(
-            matches!(result, Err(SourceFailure::Checking(accepted::Failure::Flow { ref diagnostics, .. }))
-                if diagnostics.iter().any(|error| error.message().contains("verified effects"))),
-            "complete owners must reach lifecycle qualification: {valid}: {result:?}"
+            result.is_ok(),
+            "complete owners must pass lifecycle qualification: {valid}: {result:?}"
         );
     }
 }

@@ -329,7 +329,7 @@ fn named_enum_leaves_are_scoped_to_the_selected_case() {
 }
 
 #[test]
-fn destructor_bodies_use_the_implicit_edit_receiver_before_lifecycle_admission() {
+fn destructor_bodies_use_the_implicit_edit_receiver() {
     let prepare = |body: &str| {
         let implementation = format!(
             "see ./index.nct\nstruct Handle {{ value: i32 }}\nimpl Handle {{ drop {{ {body} }} }}"
@@ -344,13 +344,9 @@ fn destructor_bodies_use_the_implicit_edit_receiver_before_lifecycle_admission()
         ModuleSourceUnit::prepare(&fixture.input()).map(drop)
     };
     let checked = prepare("self.value += 1");
-    let Err(SourceFailure::Checking(accepted::Failure::Flow { diagnostics, .. })) = checked else {
-        panic!("the typed destructor must reach the lifecycle boundary: {checked:?}");
-    };
     assert!(
-        diagnostics
-            .iter()
-            .any(|error| error.message().contains("verified effects"))
+        checked.is_ok(),
+        "the typed destructor must be admitted: {checked:?}"
     );
 
     for (body, rule) in [

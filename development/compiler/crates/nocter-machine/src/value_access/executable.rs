@@ -23,6 +23,7 @@ struct Context<'a> {
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
+    destructors: BTreeMap<RuntimeDataId, AccessInstanceId>,
     transports: transport::Prepared,
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
@@ -85,7 +86,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         return Err(Failure::InvalidRoot);
     }
     let layouts = prepare_layouts(program)?;
-    let functions = program
+    let functions: BTreeMap<_, _> = program
         .bodies()
         .keys()
         .enumerate()
@@ -115,6 +116,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         functions,
         abis,
         cleanup,
+        destructors: program.destructors().clone(),
         transports,
         primitives,
     };
@@ -169,6 +171,7 @@ fn cleanup_plan(
     program: &mir::Program,
 ) -> Result<BTreeMap<RuntimeDataId, MachineFunctionId>, Failure> {
     let mut work = BTreeMap::new();
+    let destructors = program.destructors();
     for action in program
         .bodies()
         .values()
@@ -179,15 +182,20 @@ fn cleanup_plan(
                 mir::Effect::Dispose { source, disposal }
                     if *disposal != mir::Disposal::Trivial =>
                 {
-                    cleanup::required(program.runtime(), source.data, &mut work)?;
+                    cleanup::required(program.runtime(), destructors, source.data, &mut work)?;
                 }
                 mir::Effect::SelectedFutureCleanup { cases, .. } => {
                     for input in cases.iter().flat_map(|case| &case.fields) {
-                        cleanup::required(program.runtime(), input.source.data, &mut work)?;
+                        cleanup::required(
+                            program.runtime(),
+                            destructors,
+                            input.source.data,
+                            &mut work,
+                        )?;
                     }
                 }
                 mir::Effect::DisposeArrayRemainder { source, .. } => {
-                    cleanup::required(program.runtime(), source.data, &mut work)?;
+                    cleanup::required(program.runtime(), destructors, source.data, &mut work)?;
                 }
                 mir::Effect::DisposeArrayElements { source, .. } => {
                     let (element, _) = program
@@ -196,7 +204,7 @@ fn cleanup_plan(
                         .get(source.data)
                         .and_then(RuntimeType::array)
                         .ok_or(Failure::InvalidRoot)?;
-                    cleanup::required(program.runtime(), element, &mut work)?;
+                    cleanup::required(program.runtime(), destructors, element, &mut work)?;
                 }
                 mir::Effect::Dispose { .. }
                 | mir::Effect::VariantTag { .. }

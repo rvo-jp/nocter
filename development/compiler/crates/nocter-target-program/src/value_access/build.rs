@@ -203,6 +203,12 @@ pub(super) fn close(
     if unit.primitives().role(root).is_some() {
         return Err(Failure::BodylessRoot(root));
     }
+    if matches!(
+        declaration.kind(),
+        nocter_declarations::value_access::CodeKind::Destructor(_)
+    ) {
+        return Err(Failure::DestructorRoot(root));
+    }
     for &id in declaration.parameters() {
         if unit
             .program()
@@ -225,6 +231,10 @@ pub(super) fn close(
             .bind_code(nocter_model::ValueCode::Declaration(root), [])
             .map_err(|_| Failure::InvalidAcceptedUnit)?,
     );
+    let destructors = unit
+        .destructor_frames()
+        .map(|frame| builder.intern(frame.clone()))
+        .collect();
     while let Some(id) = builder.pending.pop() {
         builder.define(&unit, id, work)?;
     }
@@ -256,6 +266,7 @@ pub(super) fn close(
         unit,
         root,
         instances,
+        destructors,
     })
 }
 

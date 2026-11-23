@@ -40,6 +40,25 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         validate_body(program, id, body)?;
     }
     let mut pending = BTreeSet::from([program.root]);
+    for (&data, &id) in &program.destructors {
+        let body = program.bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
+        let signature = body.signature();
+        let [receiver] = signature.explicit() else {
+            return Err(Failure::InvalidBody(id));
+        };
+        if !pending.insert(id)
+            || receiver.data != data
+            || receiver.operation != ValueInputOperation::Edit
+            || signature.environment().is_some()
+            || !matches!(
+                program.runtime.type_representations().get(data),
+                Some(RuntimeTypeRepresentation::ValueAggregate { .. } | RuntimeTypeRepresentation::ValueEnum { .. })
+            )
+            || program.runtime.types().get(signature.result()) != Some(&RuntimeType::Unit)
+        {
+            return Err(Failure::InvalidBody(id));
+        }
+    }
     let mut reached = BTreeSet::new();
     while let Some(id) = pending.pop_first() {
         if !reached.insert(id) {

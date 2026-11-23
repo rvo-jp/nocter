@@ -1,0 +1,5 @@
+#package: { name: "user-destruction", version: "2.0.0" }
+#executable: { name: "user-destruction" }
+see ./main.nct
+
+func main(): i32

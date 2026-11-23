@@ -464,6 +464,7 @@ pub struct Program {
     statics: BTreeMap<nocter_model::ValueStatic, Static>,
     runtime: RuntimeEnvironment,
     bodies: BTreeMap<AccessInstanceId, Body>,
+    destructors: BTreeMap<RuntimeDataId, AccessInstanceId>,
     root: AccessInstanceId,
 }
 impl Program {
@@ -484,6 +485,16 @@ impl Program {
                 ))
             })
             .collect::<Result<_, Failure>>()?;
+        let mut destructors = BTreeMap::new();
+        for id in program.instance_program().destructors() {
+            let body = bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
+            let [receiver] = body.signature().explicit() else {
+                return Err(Failure::InvalidBody(id));
+            };
+            if destructors.insert(receiver.data, id).is_some() {
+                return Err(Failure::InvalidBody(id));
+            }
+        }
         let mut statics = BTreeMap::new();
         for body in bodies.values() {
             for &(slot, id) in &body.statics {
@@ -510,6 +521,7 @@ impl Program {
             statics,
             runtime: storage.into_environment(),
             bodies,
+            destructors,
             root: program.instance_program().root(),
         };
         validate::program(&result)?;
@@ -526,6 +538,10 @@ impl Program {
     #[must_use]
     pub const fn bodies(&self) -> &BTreeMap<AccessInstanceId, Body> {
         &self.bodies
+    }
+    #[must_use]
+    pub const fn destructors(&self) -> &BTreeMap<RuntimeDataId, AccessInstanceId> {
+        &self.destructors
     }
     #[must_use]
     pub const fn root(&self) -> AccessInstanceId {

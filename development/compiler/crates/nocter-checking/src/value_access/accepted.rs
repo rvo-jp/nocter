@@ -8,8 +8,8 @@ use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required_const};
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{CodeInstanceKey, CodeKind, Program};
-use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
+use nocter_declarations::value_access::{CodeInstanceKey, Program};
+use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCodeId, TypeId};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -175,7 +175,6 @@ impl Unit {
             deferred_drives,
             local_futures,
         } = checked;
-        require_qualified_lifecycle(context)?;
         Ok(Self {
             initializers: evaluation
                 .values
@@ -758,32 +757,6 @@ impl Unit {
     }
 }
 
-fn require_qualified_lifecycle(context: &DeclarationContext<'_>) -> Result<(), Failure> {
-    let Some((callable, _)) = context
-        .program()
-        .codes()
-        .iter()
-        .find(|(_, code)| matches!(code.kind(), CodeKind::Destructor(_)))
-    else {
-        return Ok(());
-    };
-    let source = context.code_source(callable).ok_or(Failure::Integrity(
-        flow::IntegrityError::InconsistentTypedBody,
-    ))?;
-    let origin = context
-        .source_origin(source.origin())
-        .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
-    Err(Failure::Flow {
-        callable,
-        diagnostics: Box::new([SourceDiagnostic::new(
-            DiagnosticCode::E0291,
-            "destructor execution requires verified effects and component cleanup",
-            origin,
-            [],
-            None::<&str>,
-        )]),
-    })
-}
 pub(super) struct Checked {
     pub(super) program: Arc<Program>,
     pub(super) bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,

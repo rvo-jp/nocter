@@ -13,11 +13,14 @@ use nocter_declarations::value_access::{
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, BuiltinType, ValueApplication, ValueCode, ValueField,
-    ValueInputOperation,
+    AccessCodeId, AccessExpressionId, AccessLocalId, BuiltinType, ValueApplication, ValueCode,
+    ValueField, ValueInputOperation,
 };
 use nocter_runtime_contract::RuntimeAbiIdentity;
 use std::{borrow::Cow, collections::BTreeSet};
+
+mod protection;
+use protection::Protected;
 
 #[cfg(test)]
 mod tests;
@@ -67,8 +70,8 @@ pub(super) fn qualify(
             }
         }
     }
-    Ok(proof.frames.into_iter().filter(|frame| {
-        matches!(frame.code(), ValueCode::Declaration(code)
+    Ok(proof.frames.into_iter().map(|frame| frame.key).filter(|key| {
+        matches!(key.code(), ValueCode::Declaration(code)
             if checked.program.codes().get(code).is_some_and(|declaration| matches!(declaration.kind(), CodeKind::Destructor(_))))
     }).collect())
 }
@@ -77,18 +80,26 @@ struct Proof<'a, 'source, 'work> {
     context: &'a DeclarationContext<'source>,
     checked: &'a Checked,
     abi: Option<RuntimeAbiIdentity>,
-    frames: BTreeSet<CodeInstanceKey>,
+    frames: BTreeSet<Frame>,
     retired: BTreeSet<DataInstanceKey>,
-    pending: Vec<CodeInstanceKey>,
+    pending: Vec<Frame>,
     work: &'work mut WorkBudget,
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Frame {
+    key: CodeInstanceKey,
+    protected: BTreeSet<AccessLocalId>,
+}
+
 impl Proof<'_, '_, '_> {
-    fn body(&mut self, root: AccessCodeId, frame: &CodeInstanceKey) -> Result<(), Failure> {
-        let body = self.checked.code(frame.code()).ok_or(INVALID)?;
+    fn body(&mut self, root: AccessCodeId, frame: &Frame) -> Result<(), Failure> {
+        let body = self.checked.code(frame.key.code()).ok_or(INVALID)?;
+        let protected =
+            Protected::new(body.typed(), &frame.protected).map_err(Failure::Integrity)?;
         let control = self
             .checked
-            .instantiate_control(frame, self.work)
+            .instantiate_control(&frame.key, self.work)
             .map_err(|failure| self.rejection(root, None, metadata_failure(failure)))?;
         for (point, block) in body.graph().points().iter() {
             if !control.reachable(point) {
@@ -96,7 +107,7 @@ impl Proof<'_, '_, '_> {
             }
             for (action, operation) in block.actions.iter().enumerate() {
                 let at = Location { point, action };
-                self.operation(body, &control, at, &operation.operation)
+                self.operation(body, &control, &protected, at, &operation.operation)
                     .map_err(|message| self.rejection(root, Some((body, at)), message))?;
             }
         }
@@ -107,6 +118,7 @@ impl Proof<'_, '_, '_> {
         &mut self,
         body: &flow::Query,
         control: &InstanceControl,
+        protected: &Protected<'_>,
         at: Location,
         operation: &Operation,
     ) -> Result<(), &'static str> {
@@ -115,7 +127,8 @@ impl Proof<'_, '_, '_> {
             Operation::DriveFuture { .. } => {
                 return Err("destruction cannot drive a potentially suspending computation");
             }
-            Operation::CommitCall(call) => self.call(body, control, call)?,
+            Operation::Assign { target, .. } => protected.check_replacement(target)?,
+            Operation::CommitCall(call) => self.call(body, control, protected, call)?,
             _ => {}
         }
         for transition in body.access().resources().at(at) {
@@ -157,6 +170,7 @@ impl Proof<'_, '_, '_> {
         &mut self,
         body: &flow::Query,
         control: &InstanceControl,
+        protected: &Protected<'_>,
         call: AccessExpressionId,
     ) -> Result<(), &'static str> {
         let frame = control.frame();
@@ -179,18 +193,24 @@ impl Proof<'_, '_, '_> {
             && arguments
                 .first()
                 .is_some_and(|argument| argument.operation == ValueInputOperation::Take);
+        let protected_positions =
+            protected.positions(kind.explicit_arguments(arguments).ok_or(CLEANUP)?)?;
         match self
             .checked
             .instantiate_invocation(frame, site, control, self.work)
         {
-            Ok(selected) => self.invoke(selected, consumes_environment),
+            Ok(selected) => self.invoke(selected, consumes_environment, &protected_positions),
             Err(InstantiationFailure::Unresolved) => {
                 let domain = self
                     .checked
                     .instantiate_invocation_domain(frame, site, control, self.work)
                     .map_err(metadata_failure)?;
                 for case in domain.cases() {
-                    self.invoke(case.frame().clone(), consumes_environment)?;
+                    self.invoke(
+                        case.frame().clone(),
+                        consumes_environment,
+                        &protected_positions,
+                    )?;
                 }
                 Ok(())
             }
@@ -215,10 +235,14 @@ impl Proof<'_, '_, '_> {
         &mut self,
         selected: CodeInstanceKey,
         consumes_environment: bool,
+        protected_positions: &[usize],
     ) -> Result<(), &'static str> {
         if let ValueCode::Declaration(code) = selected.code()
             && let Some(role) = self.context.primitives().role(code)
         {
+            if !protected_positions.is_empty() {
+                return Err("a primitive cannot take over the receiver during destruction");
+            }
             if role.execution_facts().may_block() {
                 return Err("this primitive may wait for external progress during destruction");
             }
@@ -234,7 +258,26 @@ impl Proof<'_, '_, '_> {
             if consumes_environment && matches!(selected.code(), ValueCode::Closure(_)) {
                 self.retire_adapter_environment(&selected)?;
             }
-            self.pending.push(selected);
+            let body = self
+                .checked
+                .code(selected.code())
+                .ok_or(CLEANUP)?
+                .typed()
+                .body();
+            let protected = protected_positions
+                .iter()
+                .map(|&position| {
+                    let input = body.inputs().explicit().get(position).ok_or(CLEANUP)?;
+                    if input.operation != ValueInputOperation::Edit {
+                        return Err(CLEANUP);
+                    }
+                    Ok(input.local)
+                })
+                .collect::<Result<_, _>>()?;
+            self.pending.push(Frame {
+                key: selected,
+                protected,
+            });
         }
         Ok(())
     }
@@ -303,11 +346,17 @@ impl Proof<'_, '_, '_> {
                 if !data.is_context_free() {
                     return Err("context-dependent destructor cleanup is unresolved");
                 }
-                self.pending.push(
-                    program
-                        .bind_code(destructor.into(), [])
-                        .map_err(|_| CLEANUP)?,
-                );
+                let key = program
+                    .bind_code(destructor.into(), [])
+                    .map_err(|_| CLEANUP)?;
+                let body = self.checked.code(key.code()).ok_or(CLEANUP)?.typed().body();
+                let [receiver] = body.inputs().explicit() else {
+                    return Err(CLEANUP);
+                };
+                self.pending.push(Frame {
+                    key,
+                    protected: BTreeSet::from([receiver.local]),
+                });
             }
             let fields = match data.schema(program).map_err(|_| CLEANUP)? {
                 InstanceSchema::Builtin(BuiltinType::Error) => {
@@ -376,7 +425,7 @@ impl Proof<'_, '_, '_> {
                 let bound = body.bind_verified(&verified).ok()?;
                 let origin = bound.origin(at).ok()?;
                 notes.push(DiagnosticNote::new(
-                    "this destructor requires non-waiting cleanup",
+                    "this destructor requires verified cleanup",
                     destructor,
                 ));
                 self.context.source_origin(origin).ok()?

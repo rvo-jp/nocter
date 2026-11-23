@@ -23,6 +23,15 @@ pub(crate) fn build(
     ));
     builder.parameters.push(MachineStackId::new(0));
     let layout = context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
+    if let Some(body) = context.destructors.get(&data) {
+        let receiver = builder.cleanup_root(data)?;
+        let target = *context.functions.get(body).ok_or(Failure::InvalidRoot)?;
+        let abi = context.abis.get(body).ok_or(Failure::InvalidRoot)?;
+        let crate::MachineResultAbi::Value(result) = abi.result() else {
+            return Err(Failure::InvalidRoot);
+        };
+        invoke_cleanup(&mut builder, data, receiver, target, Some(result.ty()))?;
+    }
     match layout.kind() {
         MachineLayoutKind::ErrorHandle => {
             let place = builder.cleanup_root(data)?;
@@ -137,17 +146,32 @@ fn cleanup_field(
             MachineAddressStep::Offset(offset),
         ],
     ));
+    invoke_cleanup(builder, data, place, target, None)
+}
+
+fn invoke_cleanup(
+    builder: &mut Builder<'_>,
+    data: RuntimeDataId,
+    place: crate::MachineAddressId,
+    target: MachineFunctionId,
+    result: Option<RuntimeDataId>,
+) -> Result<(), Failure> {
     let pointer = builder.value(
         data,
         true,
         MachineOperationKind::AddressOf { source: place },
     )?;
-    builder.emit(MachineOperationKind::Call(MachineCall::new(
+    let call = MachineOperationKind::Call(MachineCall::new(
         MachineCallTarget::Direct(target),
         [pointer],
         MachineCallAllocation::Inherit,
         None,
-    )));
+    ));
+    if let Some(result) = result {
+        builder.value(result, false, call)?;
+    } else {
+        builder.emit(call);
+    }
     Ok(())
 }
 

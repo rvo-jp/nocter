@@ -4,6 +4,14 @@ use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
 };
 
+fn required(
+    runtime: &RuntimeEnvironment,
+    data: RuntimeDataId,
+    cache: &mut BTreeMap<RuntimeDataId, bool>,
+) -> Result<bool, Failure> {
+    super::required(runtime, &BTreeMap::new(), data, cache)
+}
+
 fn runtime(entries: impl IntoIterator<Item = (RuntimeDataId, RuntimeType)>) -> RuntimeEnvironment {
     let mut types = RuntimeTypeTableBuilder::new();
     for (id, shape) in entries {

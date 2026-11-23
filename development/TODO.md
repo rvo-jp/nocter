@@ -18,8 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect effect-qualified destructor instances to executable cleanup. Execute the anonymous
-body with complete `edit self` before cleaning the initialized components exactly once.
+Qualify restoration paths for user-destructible owners. Use the ordered ownership transitions
+to reject any live incomplete owner reaching cleanup while allowing operations that restore the
+original storage before every destruction path.
 
 ## Remaining Contextual Representation Qualification
 
@@ -784,9 +785,17 @@ not a language restriction derived from the current realization boundary.
 - [x] Infer non-waiting and non-suspending effects for closed destructor receivers through
   selected invocation frames, resource retirement, completed adapter environments and target
   backing evidence. Locate a forbidden operation at its original source.
-- [ ] Integrate the complete-self body with exactly-once executable component cleanup.
+- [x] Integrate closed complete-self destructors with exactly-once executable component cleanup.
+  Prevent whole-receiver replacement through delegated edits. Qualify record, active enum,
+  scoped replacement and array retirement in the installed native profile.
+- [ ] Permit a component transfer from a user-destructible owning value when every path into
+  destruction proves complete restoration. Give a source diagnostic when a live partial owner
+  reaches cleanup. Immediate temporary and consuming-pattern retirement still needs completion.
 - [ ] Extend destructor effect and cleanup qualification to context-dependent receivers and
   remaining target backing and release contracts.
+- [ ] Discover executable destructor instances from reached retirement schemas and completed
+  invocation contexts, including adapter-owned environments and cancellation. Keep unneeded
+  cleanup bodies out of the executable instance closure.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

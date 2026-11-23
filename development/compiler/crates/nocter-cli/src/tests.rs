@@ -1099,6 +1099,60 @@ fn installed_v2_payload_enums_use_checked_construction_and_tag_dispatch() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let tree = TempTree::new("user-destruction");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/user-destruction"),
+        &package,
+    );
+    let run = || {
+        let outcome = execute_invocation(invocation(
+            ["run", "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap_or_else(|error| {
+            panic!(
+                "{}",
+                error
+                    .render_source_diagnostics()
+                    .unwrap()
+                    .unwrap_or_else(|| format!("{:?}", error.kind()))
+            )
+        });
+        let InvocationOutcome::Run(executed) = outcome else {
+            panic!("expected native process execution");
+        };
+        executed.status()
+    };
+    assert_eq!(run().code(), Some(42));
+
+    let main = package.join("main.nct");
+    let source = fs::read_to_string(&main).unwrap();
+    for (original, replacement) in [
+        ("child: Ticket { state: 42 }", "child: Ticket { state: 41 }"),
+        ("self.child.state = 42", "self.child.state = 41"),
+        ("ticket.state = 42", "ticket.state = 41"),
+        (
+            "let array = [Ticket { state: 42 }; 1]",
+            "let array = [Ticket { state: 41 }; 1]",
+        ),
+    ] {
+        assert!(source.contains(original));
+        fs::write(&main, source.replace(original, replacement)).unwrap();
+        // Darwin reports the native arithmetic trap instruction as SIGTRAP.
+        assert_eq!(run().signal(), Some(5), "{replacement}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

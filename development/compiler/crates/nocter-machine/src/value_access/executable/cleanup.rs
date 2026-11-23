@@ -1,5 +1,6 @@
 //! Cleanup dependencies follow stored schemas, independently of source-body discovery.
 use super::Failure;
+use nocter_model::AccessInstanceId;
 use nocter_runtime_contract::{
     RuntimeDataId, RuntimeEnvironment, RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation,
 };
@@ -7,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn required(
     runtime: &RuntimeEnvironment,
+    destructors: &BTreeMap<RuntimeDataId, AccessInstanceId>,
     data: RuntimeDataId,
     cache: &mut BTreeMap<RuntimeDataId, bool>,
 ) -> Result<bool, Failure> {
@@ -74,7 +76,8 @@ pub(super) fn required(
             _ => return Err(Failure::InvalidRoot),
         };
         if expanded {
-            let needed = children.iter().any(|child| cache.get(child) == Some(&true));
+            let needed = destructors.contains_key(&data)
+                || children.iter().any(|child| cache.get(child) == Some(&true));
             cache.insert(data, needed);
             active.remove(&data);
         } else {

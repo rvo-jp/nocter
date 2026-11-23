@@ -212,8 +212,12 @@ For closed receivers, effect checking follows reached invocation instances and o
 retirement steps. A consuming callable adapter is checked against its completed environment.
 Primitive effects and backend release require target certificates. The checked unit retains
 the exact anonymous frames qualified for non-waiting, non-suspending destruction.
-The accepted-unit boundary requires effect and component-cleanup qualification before
-allowing destructor execution.
+The analysis follows the whole receiver through delegated edit inputs and rejects a replacement
+that would recursively retire that same value. Updates to its components remain ordinary edits.
+MIR associates the qualified body with its exact represented receiver. The native cleanup helper
+passes the complete receiver through the ordinary edit ABI, then retires its initialized fields
+in reverse declaration order after normal completion. Enum cleanup reads the active tag after
+the body and projects only that case.
 
 ### Tuple Bindings
 

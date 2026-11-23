@@ -169,6 +169,7 @@ pub enum Failure {
     UnknownRoot(AccessCodeId),
     InitializerRoot(AccessCodeId),
     BodylessRoot(AccessCodeId),
+    DestructorRoot(AccessCodeId),
     UnboundRoot(AccessParameterId),
     Invocation {
         site: nocter_model::ValueApplication,
@@ -198,6 +199,7 @@ pub struct InstanceProgram {
     unit: Arc<Unit>,
     root: AccessInstanceId,
     instances: Arena<AccessInstanceId, Instance>,
+    destructors: BTreeSet<AccessInstanceId>,
 }
 impl InstanceProgram {
     /// Substitute already selected witness edges without source access or body rechecking.
@@ -232,6 +234,10 @@ impl InstanceProgram {
     #[must_use]
     pub const fn instances(&self) -> &Arena<AccessInstanceId, Instance> {
         &self.instances
+    }
+    /// Hidden bodies selected by the qualified destruction contract.
+    pub fn destructors(&self) -> impl Iterator<Item = AccessInstanceId> + '_ {
+        self.destructors.iter().copied()
     }
     /// Pair each instance with its original checked body. Selected operations remain unchanged.
     #[must_use]
