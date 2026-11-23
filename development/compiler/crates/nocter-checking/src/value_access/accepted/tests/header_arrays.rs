@@ -131,6 +131,30 @@ fn array_length_rejections_keep_ordinary_typing_const_and_arithmetic_causes() {
 }
 
 #[test]
+fn computed_array_lengths_cannot_materialize_generic_parameters_as_global_values() {
+    for length in ["N + 1", "if true { N } else { 1 }", "identity(N)"] {
+        let text = format!(
+            "const N: usize = 12\nconst func identity(x: usize): usize {{ x }}\nfunc shape<const N: usize>(items: [u8; {length}]): void {{}}"
+        );
+        let (sources, tree) = input(&text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let diagnosis = diagnostic(&failure);
+        assert_eq!(diagnosis.code(), "E0291", "{failure:?}");
+        assert!(
+            diagnosis.message().contains("entire length expression"),
+            "{failure:?}"
+        );
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnosis.primary().span().range()),
+            Some("N")
+        );
+    }
+}
+
+#[test]
 fn positive_containment_and_independent_invalid_elements_still_reject() {
     for (text, code) in [
         (

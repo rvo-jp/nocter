@@ -6,11 +6,14 @@ use crate::access_declarations::{
     module_scopes::ParsedHeader,
 };
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
+use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
     AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, QualifiedNameError, ScopeId,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessCodeId, AccessFieldId, BuiltinType, NominalTypeId, TypeId};
+use nocter_model::{
+    AccessCodeId, AccessFieldId, BuiltinType, NominalTypeId, TypeId, TypeKind, UsizeTerm,
+};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxOrigin, direct_node};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -227,12 +230,22 @@ impl Signatures<'_, '_> {
                 // Representation fields do not become part of the outward nominal contract.
                 continue;
             }
-            if let Some(nocter_model::TypeKind::GenericParameter(id)) = self.program.type_kind(data)
-            {
+            let generic = match self.program.type_kind(data) {
+                Some(TypeKind::GenericParameter(id)) => Some((*id, GenericParameterDomain::Type)),
+                Some(TypeKind::FixedArray {
+                    element,
+                    length: UsizeTerm::Parameter(id),
+                }) => {
+                    pending.push(*element);
+                    Some((*id, GenericParameterDomain::UsizeConstant))
+                }
+                _ => None,
+            };
+            if let Some((id, domain)) = generic {
                 if self
                     .program
-                    .generic_parameter(*id)
-                    .is_none_or(|slot| Some(slot.owner()) != owner)
+                    .generic_parameter(id)
+                    .is_none_or(|slot| Some(slot.owner()) != owner || slot.domain() != domain)
                 {
                     return Err(Failure::InconsistentSyntax);
                 }

@@ -24,8 +24,9 @@ fn advance(
 
 #[test]
 fn paired_generic_headers_reserve_one_ordered_slot_list() {
-    let index = "see ./body.nct\nfunc decode<T, const N: usize>(take item: T): T";
-    let body = "see ./index.nct\nfunc decode<T, const N: usize>(take item: T): T { item^ }";
+    let index = "see ./body.nct\nfunc decode<T, const N: usize>(take item: [T; (N)]): [T; N]";
+    let body =
+        "see ./index.nct\nfunc decode<T, const N: usize>(take item: [T; (N)]): [T; N] { item^ }";
     let mut scoped = inventory(
         &[
             ("/app/index.nct", Root, index),
@@ -46,6 +47,7 @@ fn paired_generic_headers_reserve_one_ordered_slot_list() {
         panic!("callable contract");
     };
     assert_eq!(code_at("/app/body.nct"), DeclarationId::Code(code));
+    assert_eq!(scoped.code_ids().collect::<Vec<_>>(), [code]);
     let program = scoped.program();
     let slots = program.generic_parameter_ids(code).unwrap();
     assert_eq!(slots.len(), 2);
@@ -56,14 +58,25 @@ fn paired_generic_headers_reserve_one_ordered_slot_list() {
     );
     assert_eq!(advance(&mut scoped, code).unwrap(), HeaderProgress::Ready);
     let sealed = scoped.seal().unwrap();
+    sealed
+        .current()
+        .unwrap()
+        .verify_header_values(|_| None)
+        .unwrap();
     let program = sealed.program();
     let result = program.codes().get(code).unwrap().result();
+    let Some(nocter_model::TypeKind::FixedArray { element, length }) = program.type_kind(result)
+    else {
+        panic!("symbolic array")
+    };
     assert_eq!(
-        program.type_kind(result),
+        program.type_kind(*element),
         Some(&nocter_model::TypeKind::GenericParameter(slots[0]))
     );
+    assert_eq!(*length, nocter_model::UsizeTerm::Parameter(slots[1]));
 
-    let reordered = "see ./index.nct\nfunc decode<const N: usize, T>(take item: T): T { item^ }";
+    let reordered =
+        "see ./index.nct\nfunc decode<const N: usize, T>(take item: [T; (N)]): [T; N] { item^ }";
     let Err(ModuleSourcesFailure::Contract(diagnostic)) = inventory(
         &[
             ("/app/index.nct", Root, index),

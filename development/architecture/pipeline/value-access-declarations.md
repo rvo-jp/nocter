@@ -17,8 +17,8 @@ The [realization plan](../../design/compiler-realization.md) owns remaining inte
 Named and member calls retain a joint, complete generic argument list within the normal call
 suffix. The parser shares angle delimiters and the argument tree with named type applications. A
 token-boundary probe limits speculative work on comparisons and incomplete source. The current
-declaration and call checkers diagnose explicit arguments until generic declaration binding
-supplies their parameter kinds.
+declaration and call checkers diagnose explicit arguments pending elaboration against the
+selected parameter kinds.
 Named function heads retain an ordered generic parameter list. The shared source projection
 preserves original names and constant type annotations. A repeated name is diagnosed at its
 second occurrence with the first declaration attached. A paired module contract and implementation
@@ -31,6 +31,9 @@ Callable signatures can retain references to their own type parameters in the co
 Paired headers normalize both occurrences, and public signature checks still verify referenced
 ordinary types and aliases. A symbolic signature grants no function witness, body proof, or
 execution. Whole-source checking diagnoses a generic body or unspecialized use at its source.
+An array count that consists of a constant parameter retains its symbolic identity in the same
+type store. Closed array counts still use required evaluation. Computed counts reject reads of
+an unbound constant parameter at its source without substituting another value of the same name.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

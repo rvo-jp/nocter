@@ -3,15 +3,31 @@ use super::{CodeSource, Sources};
 use crate::access_declarations::{
     Failure,
     headers::{Header, RecordHeader},
+    text,
+    type_syntax::array_length_name,
 };
-use nocter_declarations::value_access::Reservations;
+use nocter_declarations::value_access::{DeclarationId, Reservations};
 use nocter_model::{AccessCodeId, NominalTypeId};
-use nocter_syntax::NodeId;
+use nocter_syntax::{BoundSyntax, NodeId};
 use std::collections::BTreeMap;
+
+pub(in crate::access_declarations) fn requires_array_value(
+    reservations: &Reservations,
+    syntax: BoundSyntax<'_>,
+    declaration: DeclarationId,
+    expression: NodeId,
+) -> bool {
+    let DeclarationId::Code(code) = declaration else {
+        return true;
+    };
+    array_length_name(syntax, expression)
+        .is_none_or(|name| !reservations.has_callable_generic_parameter(code, text(syntax, name)))
+}
 
 impl Sources {
     pub(in crate::access_declarations) fn reserve(
         reservations: &mut Reservations,
+        syntax: BoundSyntax<'_>,
         function_headers: &BTreeMap<AccessCodeId, Header>,
         record_headers: &BTreeMap<NominalTypeId, RecordHeader>,
     ) -> Result<Self, Failure> {
@@ -21,6 +37,9 @@ impl Sources {
             .collect();
         let mut register = |declaration, position, lengths: Vec<NodeId>| -> Result<(), Failure> {
             for body in lengths {
+                if !requires_array_value(reservations, syntax, declaration, body) {
+                    continue;
+                }
                 let id = reservations
                     .reserve_type_expression(
                         nocter_declarations::value_access::TypeExpressionSource {

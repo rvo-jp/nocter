@@ -8,8 +8,10 @@ use super::{
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
+use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
-    AggregateForm, BehaviorOwner, Namespace, ParameterBinding, PayloadSchema, Program,
+    AggregateForm, BehaviorOwner, CodeKind, DeclarationId, Namespace, ParameterBinding,
+    PayloadSchema, Program, TypeExpressionSource,
 };
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
@@ -596,6 +598,7 @@ impl<'a, 's> Checker<'a, 's> {
             }
             return Ok(());
         }
+        self.require_closed_array_term(token)?;
         if self.lookup(spelling).is_none()
             && let Some(declaration) = self
                 .program()
@@ -604,6 +607,36 @@ impl<'a, 's> Checker<'a, 's> {
                 .and_then(|symbol| self.program().declaration_in(scope, namespace, symbol))
         {
             return self.require_declaration(declaration, token);
+        }
+        Ok(())
+    }
+
+    /// The count body is a required expression in the original declaration's generic scope.
+    pub(super) fn require_closed_array_term(&self, token: SyntaxToken) -> Result<(), Failure> {
+        let Some(code) = self.program().codes().get(self.code.source_owner()) else {
+            return Ok(());
+        };
+        let CodeKind::TypeExpression(TypeExpressionSource {
+            declaration: DeclarationId::Code(owner),
+            ..
+        }) = code.kind()
+        else {
+            return Ok(());
+        };
+        let spelling = self.text(token)?;
+        if self.lookup(spelling).is_none()
+            && let Some(name) = self.program().symbols().get(spelling)
+            && let Some((_, parameter)) = self.program().generic_parameter_named(owner, name)
+        {
+            return match parameter.domain() {
+                GenericParameterDomain::UsizeConstant => self.reject(Rule::OpenArrayLength, token),
+                GenericParameterDomain::Type => self.reject_message(
+                    Rule::UnknownName,
+                    token,
+                    "a type parameter does not supply an array length value".into(),
+                    Vec::new(),
+                ),
+            };
         }
         Ok(())
     }

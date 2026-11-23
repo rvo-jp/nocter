@@ -4,6 +4,7 @@ use super::{
     headers::{AliasHeader, EnumHeader, GenericParameters, Header, RecordHeader},
     source::{FieldSource, Sources},
     text,
+    type_syntax::array_length_name,
 };
 use crate::GenericRule;
 use nocter_declarations::value_access::{
@@ -15,7 +16,7 @@ use nocter_declarations::{DefinitionError, GenericParameterDomain};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, BuiltinType, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol,
-    TypeAliasId, ValueInputOperation,
+    TypeAliasId, UsizeTerm, ValueInputOperation,
 };
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, SyntaxOrigin, SyntaxToken};
@@ -371,7 +372,9 @@ impl Definitions<'_, '_, '_> {
                         self.selected_data(
                             owner,
                             position,
-                            Err(DeclarationRule::UnboundGenericType),
+                            Err(DeclarationRule::UnboundGenericParameter(
+                                GenericParameterDomain::Type,
+                            )),
                         )
                     };
                 }
@@ -391,25 +394,14 @@ impl Definitions<'_, '_, '_> {
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Fallible(std::sync::Arc::new(payload)))),
             TypeSyntax::Array { element, length } => {
-                nocter_source_index::SourceOrigin::from_node(self.scope.syntax.tree(), *length)
-                    .map_err(|_| Failure::InconsistentSyntax)?;
                 let element = self.data_type(element, owner, position)?;
-                let code = self
-                    .sources
-                    .expression(*length)
-                    .ok_or(Failure::InconsistentSyntax)?;
-                let Some(value) = (self.values)(code) else {
-                    self.progress.missing.push(code);
-                    return Ok(None);
-                };
-                let FrozenNode::Scalar(ConstantValue::Integer(length)) = value.node() else {
-                    return Err(Failure::InconsistentSyntax);
-                };
-                let length = u64::try_from(*length).map_err(|_| Failure::InconsistentSyntax)?;
-                Ok(element.map(|element| DataReference::Array {
-                    element: std::sync::Arc::new(element),
-                    length,
-                }))
+                let length = self.array_length(owner, position, *length)?;
+                Ok(element
+                    .zip(length)
+                    .map(|(element, length)| DataReference::Array {
+                        element: std::sync::Arc::new(element),
+                        length,
+                    }))
             }
             TypeSyntax::Tuple(fields) => {
                 let fields = fields
@@ -428,6 +420,50 @@ impl Definitions<'_, '_, '_> {
                 }))
             }
         }
+    }
+
+    fn array_length(
+        &mut self,
+        owner: DeclarationId,
+        position: HeaderPosition,
+        origin: nocter_syntax::NodeId,
+    ) -> Result<Option<UsizeTerm>, Failure> {
+        let syntax = self.scope.syntax;
+        SourceOrigin::from_node(syntax.tree(), origin).map_err(|_| Failure::InconsistentSyntax)?;
+        if let DeclarationId::Code(code) = owner
+            && let Some(name) = array_length_name(syntax, origin)
+            && let Some((id, parameter)) = self
+                .program
+                .generic_parameter_named(code, self.symbol(name)?)
+        {
+            let expected = GenericParameterDomain::UsizeConstant;
+            if parameter.domain() == expected {
+                return Ok(Some(UsizeTerm::Parameter(id)));
+            }
+            return Err(super::projection::authored_violation(
+                syntax,
+                DeclarationViolation {
+                    declaration: owner,
+                    position,
+                    rule: DeclarationRule::UnboundGenericParameter(expected),
+                },
+                SyntaxOrigin::Token(name),
+                None,
+            ));
+        }
+        let code = self
+            .sources
+            .expression(origin)
+            .ok_or(Failure::InconsistentSyntax)?;
+        let Some(value) = (self.values)(code) else {
+            self.progress.missing.push(code);
+            return Ok(None);
+        };
+        let FrozenNode::Scalar(ConstantValue::Integer(length)) = value.node() else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        let length = u64::try_from(*length).map_err(|_| Failure::InconsistentSyntax)?;
+        Ok(Some(UsizeTerm::Value(length)))
     }
 
     fn callable_data(

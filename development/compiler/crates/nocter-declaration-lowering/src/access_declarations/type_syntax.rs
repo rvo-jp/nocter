@@ -7,6 +7,20 @@ use nocter_syntax::{
     TokenKind, child_node_iter, direct_node, first_direct_token,
 };
 
+/// A complete length expression that is just a possibly grouped name.
+pub(super) fn array_length_name(syntax: BoundSyntax<'_>, mut node: NodeId) -> Option<SyntaxToken> {
+    let tree = syntax.tree();
+    loop {
+        match tree.node(node)?.kind() {
+            NodeKind::Expression | NodeKind::GroupedExpression => {
+                node = child_node_iter(tree, node).next()?;
+            }
+            NodeKind::ReferenceExpression => return nocter_syntax::direct_identifier(tree, node),
+            _ => return None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CallableTypeSyntax {
     pub head: SyntaxToken,

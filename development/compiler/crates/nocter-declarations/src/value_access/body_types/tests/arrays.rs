@@ -16,7 +16,7 @@ fn headers() -> (HeaderPublication, AccessCodeId, AccessCodeId, NominalTypeId) {
                 name: symbols.get("values").unwrap(),
                 data: DataReference::Array {
                     element: std::sync::Arc::new(BuiltinType::I32.into()),
-                    length: 4,
+                    length: nocter_model::UsizeTerm::Value(4),
                 },
             }],
         )

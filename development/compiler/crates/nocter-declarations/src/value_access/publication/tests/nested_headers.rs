@@ -59,7 +59,7 @@ fn nested_header_contracts_preserve_owners_reconciliation_and_body_replay() {
         let recipe = if compound {
             DataReference::Array {
                 element: std::sync::Arc::new(DataReference::Function(Box::new(nested))),
-                length: 0,
+                length: nocter_model::UsizeTerm::Value(0),
             }
             .into()
         } else {

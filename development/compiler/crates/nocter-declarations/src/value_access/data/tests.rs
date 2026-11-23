@@ -8,7 +8,7 @@ mod uninhabited;
 fn array(element: DataReference, length: u64) -> DataReference {
     DataReference::Array {
         element: std::sync::Arc::new(element),
-        length,
+        length: length.into(),
     }
 }
 
@@ -519,7 +519,7 @@ fn symbolic_projection_uses_the_same_shapes_and_cannot_authorize_an_empty_array(
                         BuiltinType::Bool.into(),
                         [],
                     ))),
-                    length,
+                    length: length.into(),
                 },
             )
             .unwrap();

@@ -131,6 +131,58 @@ fn a_constant_parameter_is_not_a_data_type() {
         Some("N")
     );
 }
+
+#[test]
+fn direct_constant_array_lengths_retain_their_own_generic_identity() {
+    use nocter_model::{TypeKind, UsizeTerm};
+    let (sources, tree) = input(
+        "func seal<T, const N: usize>(take input: [T; (N)]): [T; N] { input^ }",
+        ParseGoal::V2CoreUnit,
+    );
+    let query = Query::prepare(bound(&sources, &tree)).unwrap();
+    let program = query.program();
+    let cases = program.codes().iter().collect::<Vec<_>>();
+    let &[(id, header)] = cases.as_slice() else {
+        panic!("one callable and no anonymous required count bodies")
+    };
+    let slots = program.generic_parameter_ids(id).unwrap();
+    let result = header.result();
+    let Some(TypeKind::FixedArray { element, length }) = program.type_kind(result) else {
+        panic!("symbolic fixed array")
+    };
+    assert_eq!(*length, UsizeTerm::Parameter(slots[1]));
+    assert_eq!(
+        program.type_kind(*element),
+        Some(&TypeKind::GenericParameter(slots[0]))
+    );
+    assert_eq!(
+        program
+            .parameters()
+            .get(header.parameters()[0])
+            .unwrap()
+            .data(),
+        result
+    );
+    assert!(program.data_schema(result).is_none());
+}
+
+#[test]
+fn a_type_parameter_does_not_supply_a_symbolic_array_length() {
+    let (sources, tree) = input("func bad<N>(): [u8; N] {}", ParseGoal::V2CoreUnit);
+    let failure = Query::prepare(bound(&sources, &tree)).unwrap_err();
+    let Failure::Headers(diagnostics) = failure else {
+        panic!("{failure:?}")
+    };
+    let diagnostic = diagnostics[0].source();
+    assert_eq!(diagnostic.code(), "E0290");
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostic.primary().span().range()),
+        Some("N")
+    );
+}
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources

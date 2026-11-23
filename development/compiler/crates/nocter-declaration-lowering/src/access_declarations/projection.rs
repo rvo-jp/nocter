@@ -2,6 +2,7 @@ use super::{
     CodeSource, Failure,
     source::{AliasSource, RecordSource},
 };
+use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{
     DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, QualifiedNameError,
 };
@@ -82,7 +83,7 @@ fn project(
     let typed = matches!(
         violation.rule,
         R::UnknownDataName { .. }
-            | R::UnboundGenericType
+            | R::UnboundGenericParameter(_)
             | R::QualifiedDataName { .. }
             | R::UnsupportedDataType { .. }
             | R::UnsupportedCallableData
@@ -268,9 +269,13 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
             "name is reserved for a built-in type",
         ),
         R::UnknownDataName { .. } => (DiagnosticCode::E0290, "unknown data type"),
-        R::UnboundGenericType => (
+        R::UnboundGenericParameter(GenericParameterDomain::Type) => (
             DiagnosticCode::E0290,
             "this name is not a type parameter in this scope",
+        ),
+        R::UnboundGenericParameter(GenericParameterDomain::UsizeConstant) => (
+            DiagnosticCode::E0290,
+            "this name is not a constant parameter in this scope",
         ),
         R::QualifiedDataName { error } => qualified_data_details(error),
         R::UnsupportedCallableData => (

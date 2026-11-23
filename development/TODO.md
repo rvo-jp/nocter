@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Retain direct constant parameters in callable array type identities. Preserve normal evaluation
-for closed counts and diagnose any remaining symbolic arithmetic without substituting a different
-value. Keep generic body proof and executable admission behind their own obligations.
+Elaborate explicit call arguments against the selected callable's ordered generic schema. Reuse
+ordinary type resolution and required-value evaluation from the original source expressions.
+Keep generic body proof and executable admission behind their own obligations.
 
 ## Remaining Contextual Representation Qualification
 
@@ -679,6 +679,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Publish symbolic type-parameter references in canonical callable signatures. Qualify paired
   source headers, correct binder owners and kinds, and rejection of unchecked bodies and
   unspecialized calls through the ordinary declaration and checking paths.
+- [x] Preserve direct symbolic constant parameters in callable fixed-array signatures. Qualify
+  paired grouped references, closed evaluation, and rejection of computed symbolic counts even
+  when a same-spelled global value exists.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

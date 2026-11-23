@@ -1,6 +1,11 @@
 //! Physical header occurrences and executable roots over the already chosen semantic identities.
-use super::{FieldPosition, ModuleSourcesFailure, PairedModuleSources, ParsedHeader, integrity};
-use crate::access_declarations::{CodeSource, source::Sources};
+use super::{
+    FieldPosition, ModuleSourcesFailure, PairedModuleSources, ParsedHeader, integrity, syntax,
+};
+use crate::access_declarations::{
+    CodeSource,
+    source::{Sources, requires_array_value},
+};
 use crate::{SurfaceDeclarationId, SurfaceSourceId};
 use nocter_declarations::value_access::{
     DeclarationId, HeaderPosition, Reservations, ScopeId, TypeExpressionSource,
@@ -92,12 +97,16 @@ impl Catalog {
         for (raw, header) in &parsed {
             let owner = CodeOwner::for_header(paired, declaration_scopes, *raw);
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
+            let syntax = syntax(paired, owner.source)?;
             let register = |position,
                             ty: &crate::access_declarations::TypeSyntax|
              -> Result<(), ModuleSourcesFailure> {
                 let mut lengths = Vec::new();
                 ty.length_expressions(&mut lengths);
                 for body in lengths {
+                    if !requires_array_value(reservations, syntax, semantic, body) {
+                        continue;
+                    }
                     let id = reservations
                         .reserve_type_expression_in(
                             owner.lookup,

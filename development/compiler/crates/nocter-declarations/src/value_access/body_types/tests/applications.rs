@@ -26,7 +26,7 @@ fn result_ordinal_gaps_cannot_change_an_existing_calls_template_set() {
     }));
     let empty = DataReference::Array {
         element: std::sync::Arc::new(leaf.clone()),
-        length: 0,
+        length: nocter_model::UsizeTerm::Value(0),
     };
     for (id, a, b) in [(before, empty.clone(), leaf.clone()), (after, leaf, empty)] {
         builder

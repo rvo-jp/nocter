@@ -39,7 +39,7 @@ impl Fixture {
                         } else {
                             BuiltinType::Error.into()
                         }),
-                        length,
+                        length: length.into(),
                     },
                 }],
             )
@@ -281,7 +281,7 @@ fn zero_sized_elements_keep_separate_logical_availability() {
                 name: symbols.get("items").unwrap(),
                 data: DataReference::Array {
                     element: std::sync::Arc::new(BuiltinType::Void.into()),
-                    length: 2,
+                    length: nocter_model::UsizeTerm::Value(2),
                 },
             }],
         )

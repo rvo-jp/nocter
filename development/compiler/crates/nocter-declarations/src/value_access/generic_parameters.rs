@@ -10,6 +10,16 @@ pub(super) struct Reservations {
 }
 
 impl Reservations {
+    pub(super) fn named(
+        &self,
+        code: AccessCodeId,
+        name: Symbol,
+    ) -> Option<(GenericParameterId, GenericParameter<AccessCodeId>)> {
+        named(self.by_code.get(&code)?, name, |id| {
+            self.slots.get(id).copied()
+        })
+    }
+
     pub(super) fn reserve(
         &mut self,
         code: AccessCodeId,
@@ -59,4 +69,23 @@ impl Parameters {
     pub(super) fn get(&self, id: GenericParameterId) -> Option<GenericParameter<AccessCodeId>> {
         self.slots.get(id).copied()
     }
+
+    pub(super) fn named(
+        &self,
+        code: AccessCodeId,
+        name: Symbol,
+    ) -> Option<(GenericParameterId, GenericParameter<AccessCodeId>)> {
+        named(self.ids(code), name, |id| self.get(id))
+    }
+}
+
+fn named(
+    ids: &[GenericParameterId],
+    name: Symbol,
+    mut get: impl FnMut(GenericParameterId) -> Option<GenericParameter<AccessCodeId>>,
+) -> Option<(GenericParameterId, GenericParameter<AccessCodeId>)> {
+    ids.iter().find_map(|&id| {
+        let parameter = get(id)?;
+        (parameter.name() == name).then_some((id, parameter))
+    })
 }

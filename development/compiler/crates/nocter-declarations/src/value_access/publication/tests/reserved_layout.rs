@@ -59,34 +59,46 @@ fn reserved_generic_slots_cannot_admit_an_ordinary_definition() {
 }
 
 #[test]
-fn a_generic_signature_cannot_borrow_another_owner_or_a_constant_slot() {
+fn symbolic_signature_references_require_the_original_owner_and_parameter_kind() {
+    use crate::GenericParameterDomain::{Type, UsizeConstant};
+    use crate::value_access::DataReference;
+    use nocter_model::UsizeTerm;
     let symbols = SymbolTable::from_spellings(["decode", "other", "T", "N"]);
     let name = |text| symbols.get(text).unwrap();
-    for foreign in [true, false] {
+    for (domain, foreign, position) in [
+        (Type, true, 0),
+        (Type, false, 1),
+        (UsizeConstant, true, 1),
+        (UsizeConstant, false, 0),
+    ] {
         let mut reservations = Reservations::new(symbols.clone());
         let decode = reservations.reserve(name("decode"), 0);
         let other = reservations.reserve(name("other"), 0);
-        let ty = (name("T"), crate::GenericParameterDomain::Type);
-        let size = (name("N"), crate::GenericParameterDomain::UsizeConstant);
+        let ty = (name("T"), Type);
+        let size = (name("N"), UsizeConstant);
         reservations
             .reserve_callable_generics(decode, vec![ty, size])
             .unwrap();
         reservations
-            .reserve_callable_generics(other, vec![ty])
+            .reserve_callable_generics(other, vec![ty, size])
             .unwrap();
         let mut headers = reservations.finish().unwrap().into_publication();
         let program = headers.snapshot();
-        let slot = if foreign {
-            program.generic_parameter_ids(other).unwrap()[0]
-        } else {
-            program.generic_parameter_ids(decode).unwrap()[1]
+        let owner = if foreign { other } else { decode };
+        let slot = program.generic_parameter_ids(owner).unwrap()[position];
+        let data = match domain {
+            Type => DataReference::GenericParameter(slot),
+            UsizeConstant => DataReference::Array {
+                element: Arc::new(BuiltinType::U8.into()),
+                length: UsizeTerm::Parameter(slot),
+            },
         };
         headers
             .define_generic(
                 decode,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [],
-                crate::value_access::DataReference::GenericParameter(slot),
+                data,
             )
             .unwrap();
         assert_eq!(
@@ -94,7 +106,7 @@ fn a_generic_signature_cannot_borrow_another_owner_or_a_constant_slot() {
             Err(HeaderFailure::Rejected(vec![DeclarationViolation {
                 declaration: decode.into(),
                 position: crate::value_access::HeaderPosition::Result,
-                rule: DeclarationRule::UnboundGenericType,
+                rule: DeclarationRule::UnboundGenericParameter(domain),
             }]))
         );
         assert!(!headers.snapshot().header_ready(decode));

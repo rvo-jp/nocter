@@ -19,7 +19,7 @@ fn result() -> DataReference {
         callable(BuiltinType::I32),
         DataReference::Array {
             element: std::sync::Arc::new(callable(BuiltinType::I32)),
-            length: 2,
+            length: nocter_model::UsizeTerm::Value(2),
         },
         [],
     ))
@@ -127,7 +127,7 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
                 callable(BuiltinType::I64),
                 DataReference::Array {
                     element: std::sync::Arc::new(callable(BuiltinType::I32)),
-                    length: 2,
+                    length: nocter_model::UsizeTerm::Value(2),
                 },
                 [],
             ));
@@ -172,7 +172,7 @@ fn result_path_lookup_terminates_through_recursive_empty_nominal_schemas() {
                 name: symbols.get("next").unwrap(),
                 data: DataReference::Array {
                     element: std::sync::Arc::new(DataReference::Nominal(node)),
-                    length: 0,
+                    length: nocter_model::UsizeTerm::Value(0),
                 },
             }],
         )
@@ -208,7 +208,7 @@ fn result_descriptor_paths_preserve_outcomes_and_empty_array_metadata_without_va
                 payload: std::sync::Arc::new(DataReference::Fallible(std::sync::Arc::new(
                     DataReference::Array {
                         element: std::sync::Arc::new(callable(BuiltinType::I32)),
-                        length,
+                        length: length.into(),
                     },
                 ))),
                 layers: std::num::NonZeroUsize::new(2).unwrap(),
@@ -275,7 +275,7 @@ fn invalid_result_slots_and_initializer_positions_publish_nothing() {
         };
         let data = DataReference::Array {
             element: std::sync::Arc::new(leaf),
-            length: 0,
+            length: nocter_model::UsizeTerm::Value(0),
         };
         let kind = match case {
             2 => CodeKind::ConstantInitializer,

@@ -188,6 +188,7 @@ impl Checker<'_, '_> {
             return Ok(None);
         };
         let &(_, root) = segments.first().ok_or(Failure::InconsistentSyntax)?;
+        self.require_closed_array_term(root)?;
         let scope = self.scope_at(root)?;
         if self.lookup(self.text(root)?).is_some()
             || !self
@@ -233,6 +234,7 @@ impl Checker<'_, '_> {
         };
         let tokens: Vec<_> = segments.into_iter().map(|(_, token)| token).collect();
         let root = *tokens.first().ok_or(Failure::InconsistentSyntax)?;
+        self.require_closed_array_term(root)?;
         if self.lookup(self.text(root)?).is_some()
             || tokens
                 .iter()

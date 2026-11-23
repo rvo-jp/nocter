@@ -2,7 +2,7 @@
 use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
 use nocter_model::{
     AccessCodeId, BuiltinType, FieldPath, GenericParameterId, NominalTypeId, SymbolTable,
-    TypeAliasId, TypeId, TypeKind, ValueProjection, VariantId,
+    TypeAliasId, TypeId, TypeKind, UsizeTerm, ValueProjection, VariantId,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -46,7 +46,7 @@ pub enum DataReference {
     Tuple(TupleData),
     Array {
         element: Arc<DataReference>,
-        length: u64,
+        length: UsizeTerm,
     },
 }
 
@@ -151,6 +151,20 @@ impl TupleData {
     }
 }
 impl DataReference {
+    pub(super) const fn generic_slot(
+        &self,
+    ) -> Option<(GenericParameterId, crate::GenericParameterDomain)> {
+        use crate::GenericParameterDomain;
+        match self {
+            Self::GenericParameter(id) => Some((*id, GenericParameterDomain::Type)),
+            Self::Array {
+                length: UsizeTerm::Parameter(id),
+                ..
+            } => Some((*id, GenericParameterDomain::UsizeConstant)),
+            _ => None,
+        }
+    }
+
     fn shares_children(&self) -> bool {
         match self {
             Self::Tuple(fields) => Arc::strong_count(&fields.0) > 1,
@@ -234,7 +248,10 @@ impl DataReference {
                     pending.push(payload);
                 }
                 Self::Array { element, length } => {
-                    if !payload_only || *length != 0 {
+                    if !payload_only && length.parameter().is_some() {
+                        visit(data);
+                    }
+                    if !payload_only || length.closed_value() != Some(0) {
                         pending.push(element);
                     }
                 }
@@ -927,7 +944,7 @@ fn resolve_reference_scoped(
                 let element = resolved.pop().expect("resolved array element");
                 construct(ReferenceNode::Data(TypeKind::FixedArray {
                     element,
-                    length: (*length).into(),
+                    length: *length,
                 }))?
             }
             DataReference::Tuple(fields) => {

@@ -180,8 +180,12 @@ impl<'source> Preparation<'source> {
                 Ok((id, h))
             })
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
-        let sources =
-            source::Sources::reserve(&mut reservations, &function_headers, &record_headers)?;
+        let sources = source::Sources::reserve(
+            &mut reservations,
+            syntax,
+            &function_headers,
+            &record_headers,
+        )?;
         let builder = reservations.finish().map_err(|violations| {
             projection::project_violations(tree, &sources.codes, &sources.records, violations)
         })?;

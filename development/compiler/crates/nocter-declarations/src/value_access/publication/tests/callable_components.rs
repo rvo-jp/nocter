@@ -29,7 +29,7 @@ fn fixture(reverse: bool) -> (Program, AccessCodeId, [AccessCodeId; 2]) {
                     callable(),
                     DataReference::Array {
                         element: std::sync::Arc::new(callable()),
-                        length: 2,
+                        length: nocter_model::UsizeTerm::Value(2),
                     },
                     [],
                 ))
@@ -121,7 +121,7 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
             callable(),
             DataReference::Array {
                 element: std::sync::Arc::new(callable()),
-                length: 2,
+                length: nocter_model::UsizeTerm::Value(2),
             },
             [],
         ));
@@ -253,7 +253,7 @@ fn callable_component_signatures_validate_their_data_before_publication() {
                     operation: nocter_model::ValueInputOperation::Take,
                     data: DataReference::Array {
                         element: std::sync::Arc::new(invalid),
-                        length: 0,
+                        length: nocter_model::UsizeTerm::Value(0),
                     }
                     .into(),
                 }],

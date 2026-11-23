@@ -12,6 +12,7 @@ mod registration;
 pub use dependencies::{BodyDependencies, BodySourceGraph, BodySourceNode};
 pub use expressions::BodyExpressions;
 pub(super) use recipes::Recipes;
+pub(super) use registration::requires_array_value;
 
 #[derive(Clone, Debug)]
 pub(super) struct Sources {

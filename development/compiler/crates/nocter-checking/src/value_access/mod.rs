@@ -99,6 +99,7 @@ pub enum Rule {
     AnnotatedDiscard,
     RequiredValueScope,
     UnqualifiedGenericCallable,
+    OpenArrayLength,
 }
 impl Rule {
     #[expect(
@@ -156,6 +157,10 @@ impl Rule {
             Self::UnqualifiedGenericCallable => (
                 DiagnosticCode::E0291,
                 "this generic callable needs a checked body and specialization",
+            ),
+            Self::OpenArrayLength => (
+                DiagnosticCode::E0291,
+                "an array length can use a constant parameter only as the entire length expression",
             ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

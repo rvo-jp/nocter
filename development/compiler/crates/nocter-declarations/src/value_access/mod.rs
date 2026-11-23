@@ -125,7 +125,7 @@ pub enum DeclarationRule {
     EmptyEnumeration,
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
-    UnboundGenericType,
+    UnboundGenericParameter(GenericParameterDomain),
     UnreadyAlias { alias: nocter_model::TypeAliasId },
     QualifiedDataName { error: QualifiedNameError },
     RecursivePayload { through: NominalTypeId },
@@ -326,10 +326,7 @@ impl Program {
         code: AccessCodeId,
         name: Symbol,
     ) -> Option<(GenericParameterId, GenericParameter<AccessCodeId>)> {
-        self.generic_parameter_ids(code)?.iter().find_map(|&id| {
-            let parameter = self.generic_parameter(id)?;
-            (parameter.name() == name).then_some((id, parameter))
-        })
+        self.generic_parameters.named(code, name)
     }
 
     /// The original execution mode and, for a deferred callable, its body output.
@@ -925,6 +922,15 @@ impl Reservations {
         self.generic_parameters.reserve(code, parameters)
     }
 
+    /// Whether a spelling names a binder of this reserved callable, before header publication.
+    #[must_use]
+    pub fn has_callable_generic_parameter(&self, code: AccessCodeId, spelling: &str) -> bool {
+        self.symbols
+            .get(spelling)
+            .and_then(|name| self.generic_parameters.named(code, name))
+            .is_some()
+    }
+
     /// Reserve a test root in the authored source scope with its implicit `void!` result.
     /// # Errors
     /// Rejects an unknown scope or spelling before reserving code.
@@ -1421,10 +1427,11 @@ fn validate_value(
         {
             return;
         }
-        if let DataReference::GenericParameter(id) = data
-            && definitions.generic_parameters.get(*id).is_some_and(|slot| {
-                slot.owner() == callable && slot.domain() == GenericParameterDomain::Type
-            })
+        if let Some((id, expected)) = data.generic_slot()
+            && definitions
+                .generic_parameters
+                .get(id)
+                .is_some_and(|slot| slot.owner() == callable && slot.domain() == expected)
         {
             return;
         }
@@ -1440,9 +1447,11 @@ fn validate_value(
 
 /// One raw-leaf validity policy for callable slots and record fields, independent of readiness.
 fn data_rule(data: &DataReference, nominals: &nominals::Builder) -> Option<DeclarationRule> {
+    if let Some((_, expected)) = data.generic_slot() {
+        return Some(DeclarationRule::UnboundGenericParameter(expected));
+    }
     match data {
         DataReference::Function(_) => Some(DeclarationRule::UnsupportedCallableData),
-        DataReference::GenericParameter(_) => Some(DeclarationRule::UnboundGenericType),
         DataReference::Builtin(data) if !supported(*data) => {
             Some(DeclarationRule::UnsupportedDataType { data: *data })
         }

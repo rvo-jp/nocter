@@ -120,7 +120,7 @@ fn function_fields_reject_copy_before_publishing_any_field_type_or_contract() {
         let mut builder = reservations.finish().unwrap();
         let data = DataReference::Array {
             element: std::sync::Arc::new(callback(BuiltinType::I32.into())),
-            length: u64::from(!zero),
+            length: (u64::from(!zero)).into(),
         };
         builder
             .define_record(

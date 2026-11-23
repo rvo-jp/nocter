@@ -390,7 +390,7 @@ mod tests {
                     [],
                     DataReference::Array {
                         element: std::sync::Arc::new(BuiltinType::I32.into()),
-                        length,
+                        length: length.into(),
                     },
                 )
                 .unwrap();
@@ -402,7 +402,7 @@ mod tests {
                         name: symbols.get("value").unwrap(),
                         data: DataReference::Array {
                             element: std::sync::Arc::new(BuiltinType::I32.into()),
-                            length,
+                            length: length.into(),
                         },
                     }],
                 )
