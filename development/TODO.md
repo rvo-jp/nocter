@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify compound edit inputs that have one closed representation and no retained data
-dependencies. Keep the caller's original place initialized across drive, and qualify cleanup of
-replaced components separately from unstarted cancellation. Verify whole and component writes
-through the saved address and keep contextual carrier changes outside this proof.
+Store a local future's producer selector only where a reached drive, capture move or
+cancellation needs it. Follow the original ownership transfers and use a constant when an
+incoming edge supplies one known producer. Verify that unrelated activations of the same
+future type allocate no selector and that real joined storage retains the selected producer.
 
 ## Remaining Contextual Representation Qualification
 
@@ -830,6 +830,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain evaluated scalar edit places and fresh caller-owned edit temporaries. Verify that the
   original array element receives the update, an invalid selection traps before cancellation,
   and a stored future cannot outlive its temporary while immediate await and cancellation work.
+- [x] Qualify compound edit inputs with one closed representation and no dependent text or
+  callable channels. Verify complete and component replacement through the saved address,
+  including wide values, optional states and real owned-error cleanup. Verify that cancellation
+  preserves the caller's value and that an edited temporary is cleaned once in its evaluation.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

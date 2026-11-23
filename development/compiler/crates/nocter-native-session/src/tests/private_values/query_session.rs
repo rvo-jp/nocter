@@ -217,7 +217,7 @@ fn physical_query_session_unit_executes_selected_entries() {
         &session,
         "compound-deferred",
         |layout| matches!(layout, nocter_machine::MachineLayoutKind::Struct { fields } if fields.len() == 3),
-        2,
+        3,
         1,
     );
 }

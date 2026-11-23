@@ -239,6 +239,44 @@ fn local_future_edit_inputs_keep_selected_addresses_and_caller_temporaries() {
 }
 
 #[test]
+fn local_future_edit_keeps_the_complete_compound_initialized() {
+    let source = r"
+        struct State {
+            values: [i64; 3]
+            slot: i32?
+        }
+        async func update(edit state: State): i64 {
+            state.values[1] = 4294967319
+            state.slot = 11
+            state.values[1]
+        }
+        async func replace(edit state: State): i64 {
+            state = State { values: [29, 31, 37], slot: 13 }
+            state.values[0]
+        }
+        async func run(): i32 {
+            var state = State { values: [23, 5, 7], slot: none }
+            let partial = await update(state)
+            if partial != 4294967319 || state.values[1] != partial || state.values[0] != 23 {
+                return 3
+            }
+            if (state.slot otherwise { 0 }) != 11 { return 4 }
+            if (await replace(state)) != 29 || state.values[0] != 29 || state.values[2] != 37 {
+                return 5
+            }
+            29 + (state.slot otherwise { 0 })
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "local-future-compound-edit",
+        42,
+    );
+}
+
+#[test]
 fn private_type_and_value_names_select_independently_through_native_execution() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

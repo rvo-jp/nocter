@@ -131,16 +131,11 @@ impl Payload {
     pub const fn disposal(self) -> Disposal {
         self.disposal
     }
-    /// The admitted builtin leaves and their closed aggregate compositions have empty D/S here.
-    #[must_use]
-    pub const fn has_external_dependencies(self) -> bool {
-        false
-    }
 }
 
 /// A closed input whose descriptor suffices for local activation storage.
-/// Edits require a stable scalar: completion must leave the original representation
-/// initialized with no dependent access or disposal to write back.
+/// Edits require the same initialized representation at completion, with no dependent
+/// text or callable channels to write back.
 pub(in crate::value_access) fn local_future_input(
     program: &Program,
     data: TypeId,
@@ -150,19 +145,12 @@ pub(in crate::value_access) fn local_future_input(
     if !key.is_context_free() {
         return None;
     }
-    if operation == ValueInputOperation::Edit {
-        let PayloadSchema::Builtin(builtin) = program.data_schema(data)? else {
-            return None;
-        };
-        if builtin != BuiltinType::Bool
-            && nocter_model::BuiltinNumericType::for_builtin(builtin)
-                .and_then(nocter_model::BuiltinNumericType::integer_bounds)
-                .is_none()
-        {
-            return None;
-        }
-    }
-    let payload = payload(program, data).ok()?;
+    let domain = if operation == ValueInputOperation::Edit {
+        PayloadDomain::LocalFutureEdit
+    } else {
+        PayloadDomain::Ownership
+    };
+    let payload = payload_in(program, data, domain).ok()?;
     matches!(
         payload.disposal(),
         Disposal::Trivial | Disposal::OwnedError | Disposal::Aggregate
@@ -438,6 +426,16 @@ type Result<T> = std::result::Result<T, IntegrityError>;
 /// # Errors
 /// Rejects a type outside the supplied private program's supported payload domain.
 pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
+    payload_in(program, data, PayloadDomain::Ownership)
+}
+
+#[derive(Clone, Copy)]
+enum PayloadDomain {
+    Ownership,
+    LocalFutureEdit,
+}
+
+fn payload_in(program: &Program, data: TypeId, domain: PayloadDomain) -> Result<Payload> {
     // An aggregate or capture descriptor cannot hide an unadmitted descendant. Validate shared
     // schemas once before granting even the root cleanup obligation.
     let mut seen = std::collections::BTreeSet::new();
@@ -447,7 +445,16 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
         if !seen.insert((current, guarded)) {
             continue;
         }
-        let selected = match program.data_schema(current).ok_or(INVALID)? {
+        let schema = program.data_schema(current).ok_or(INVALID)?;
+        if matches!(domain, PayloadDomain::LocalFutureEdit)
+            && matches!(
+                schema,
+                PayloadSchema::Builtin(BuiltinType::Str) | PayloadSchema::Function(_)
+            )
+        {
+            return Err(INVALID);
+        }
+        let selected = match schema {
             PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
                 Disposal::Trivial
             }

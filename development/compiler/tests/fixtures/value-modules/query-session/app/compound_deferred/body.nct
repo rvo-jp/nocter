@@ -35,6 +35,18 @@ async func inspect(value: Packet): i64 {
     value.words[2]
 }
 
+async func replace(edit value: Packet): i64 {
+    value.unused = none
+    value.reason = errors.operation("discarded", "replacement")
+    value = packet("compound", true)
+    value.words[2]
+}
+
+async func skipped_edit(edit value: Packet): i64 {
+    value.words[1] = 0
+    value.words[2] / value.words[1]
+}
+
 async func main(): i32! {
     var iteration: i32 = 0
     while iteration < 3 {
@@ -49,11 +61,21 @@ async func main(): i32! {
     }
 
     let word = await inspect(packet("discarded", true))
-    if word != 4294967319 {
+    let edited_temporary = await replace(packet("discarded", false))
+    if word != 4294967319 || edited_temporary != 4294967319 {
         throw errors.operation("invalid", "temporary")
     }
 
-    let pending = receive(packet("compound", true))
+    var value = packet("discarded", true)
+    let skipped = skipped_edit(value)
+    drop skipped
+    let original = value.words[1]
+    let edited = await replace(value)
+    let pending = receive(value^)
     let moved = pending^
-    throw await moved^
+    let result = await moved^
+    if original != 5 || edited != 4294967319 {
+        throw errors.operation("invalid", "edit")
+    }
+    throw result^
 }
