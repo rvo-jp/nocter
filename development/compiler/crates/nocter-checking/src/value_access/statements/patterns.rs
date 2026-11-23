@@ -53,6 +53,7 @@ impl BranchBindings {
 enum Carrier {
     Owner(AccessLocalId),
     Place(AccessExpressionId),
+    ReceivedCase(AccessExpressionId),
 }
 
 impl Checker<'_, '_> {
@@ -66,18 +67,15 @@ impl Checker<'_, '_> {
             return Ok(statements);
         };
         let owns = bindings.kind.access_mode() == Mode::Own;
-        if owns
-            && let Some(leaf) = bindings
-                .leaves
-                .iter()
-                .find(|leaf| !self.copyable(leaf.data))
-        {
-            return self.reject(Rule::UnsupportedData, leaf.syntax);
-        }
+        let carrier = if owns {
+            Carrier::ReceivedCase(bindings.source)
+        } else {
+            Carrier::Place(bindings.source)
+        };
         self.form_leaves(
             node,
             bindings.kind,
-            Carrier::Place(bindings.source),
+            carrier,
             bindings.leaves,
             &mut statements,
         )?;
@@ -208,6 +206,18 @@ impl Checker<'_, '_> {
                     let place = self.intern_place(local, leaf.path, leaf.data);
                     self.transfer_place(leaf.syntax, place)?
                 }
+                Carrier::ReceivedCase(value) => self.emit(
+                    leaf.syntax,
+                    value_type(leaf.data, Mode::Own)
+                        .with_continuation(self.ty(value).may_complete()),
+                    ExpressionKind::Select {
+                        source: value,
+                        fields: leaf.path,
+                        action: SelectionAction::PreparedValue {
+                            copy: self.copyable(leaf.data),
+                        },
+                    },
+                )?,
                 Carrier::Place(value) => {
                     let projected = self.emit(
                         leaf.syntax,

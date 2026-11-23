@@ -75,6 +75,37 @@ func snapshot(input: i32): i32 {
     taken + retained
 }
 
+func record_score(): i32 {
+    let packet = Packet.recorded(
+        error.new("test.extracted", "transferred to the selected arm"),
+        (42, error.new("test.ignored", "discarded from the tuple")),
+        error.new("test.trailer", "discarded before the tuple")
+    )
+    if take packet^ is Packet.recorded(reason, (number, _), _) {
+        let enhanced = reason^.context("after transfer")
+        if enhanced.has_code("test.extracted") {
+            return number
+        }
+    }
+    0
+}
+
+struct Ticket { number: i32 }
+
+enum TicketCase {
+    empty
+    issued(ticket: Ticket)
+}
+
+const func redeem(number: i32): i32 {
+    match take TicketCase.issued(Ticket { number: number }) {
+        TicketCase.issued(ticket) { ticket.number }
+        TicketCase.empty { 0 }
+    }
+}
+
+const TICKET_SCORE: i32 = redeem(42)
+
 func main(): i32 {
     var steps = 0
     let packet = Packet.pair(note(steps, 1), note(steps, 2))
@@ -84,6 +115,7 @@ func main(): i32 {
         Packet.pair(_, _) { 0 }
         Packet.grid((_, _), _) { 1 }
         Packet.failed(_) { 1 }
+        Packet.recorded(_, _, _) { 1 }
         Packet.staged(_, _) { 1 }
     }
     var failure = Packet.failed(error.new("test.active", "active enum payload"))
@@ -108,6 +140,12 @@ func main(): i32 {
     }
     if receive(Packet.empty) != 21 || snapshot(21) != 42 {
         return 94
+    }
+    if record_score() != 42 {
+        return 93
+    }
+    if TICKET_SCORE != 42 || redeem(29) != 29 {
+        return 92
     }
     selected + steps + discarded
 }

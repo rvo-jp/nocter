@@ -7,6 +7,7 @@ enum Packet {
     pair(first: i32, second: i32)
     grid(values: (i32, i32), enabled: bool)
     failed(reason: error)
+    recorded(reason: error, details: (i32, error), trailer: error)
     staged(reason: error, marker: i32)
 }
 

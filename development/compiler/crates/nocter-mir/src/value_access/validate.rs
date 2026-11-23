@@ -25,6 +25,7 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         program,
         body: root,
         id: program.root,
+        case: None,
     };
     let used: BTreeSet<_> = program
         .bodies
@@ -68,12 +69,17 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
 struct Context<'a> {
     program: &'a Program,
     body: &'a Body,
     id: AccessInstanceId,
+    case: Option<enum_cases::CaseEdge<'a>>,
 }
-impl Context<'_> {
+impl<'body> Context<'body> {
+    fn with_case(self, case: Option<enum_cases::CaseEdge<'body>>) -> Self {
+        Self { case, ..self }
+    }
     fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
@@ -102,13 +108,6 @@ impl Context<'_> {
         Ok(())
     }
     fn place(&self, place: &Place) -> Result<(), Failure> {
-        self.guarded_place(place, None)
-    }
-    fn guarded_place(
-        &self,
-        place: &Place,
-        edge: Option<enum_cases::CaseEdge<'_>>,
-    ) -> Result<(), Failure> {
         self.require(!matches!(
             self.program.runtime.types().get(place.data),
             Some(RuntimeType::Uninhabited)
@@ -121,24 +120,20 @@ impl Context<'_> {
         self.require(slot.representations.contains(&place.root))?;
         self.merge_representation(slot, place.root)?;
         let mut data = place.root;
-        let mut used_case = false;
         for (index, projection) in place.projections.iter().enumerate() {
             data = match projection {
                 Projection::Field(id @ nocter_model::ValueField::EnumField { field, .. }) => {
-                    let edge = edge.ok_or_else(|| self.invalid())?;
+                    let edge = self.case.ok_or_else(|| self.invalid())?;
                     self.require(
-                        !used_case
-                            && edge.source.slot == place.slot
-                            && edge.source.root == place.root
+                        edge.contains(place)
                             && edge.source.data == data
-                            && *edge.source.projections == place.projections[..index]
+                            && edge.source.projections.len() == index
                             && self
                                 .program
                                 .runtime
                                 .enum_case_fields(data, edge.tag)
                                 .is_some_and(|fields| fields.iter().any(|(id, _)| id == field)),
                     )?;
-                    used_case = true;
                     self.program
                         .runtime
                         .value_field(data, *id)
@@ -172,11 +167,9 @@ impl Context<'_> {
             };
         }
         self.require(
-            used_case == edge.is_some()
-                && self
-                    .program
-                    .runtime
-                    .has_same_value_representation(data, place.data),
+            self.program
+                .runtime
+                .has_same_value_representation(data, place.data),
         )
     }
     fn snapshot(&self, id: nocter_model::MirLocalId, length: u64) -> Result<(), Failure> {
@@ -510,10 +503,6 @@ impl Context<'_> {
         let boolean = RuntimePrimitive::Bool;
         match operation {
             Operation::BoundsTrap => Ok(()),
-            Operation::BindEnumAddress {
-                destination,
-                source,
-            } => self.address_destination(*destination, source.data),
             Operation::PrimaryCondition {
                 source,
                 destination,
@@ -1053,7 +1042,12 @@ fn validate_geometry(context: &Context<'_>) -> Result<(), Failure> {
 }
 
 fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result<(), Failure> {
-    let context = Context { program, body, id };
+    let context = Context {
+        program,
+        body,
+        id,
+        case: None,
+    };
     validate_geometry(&context)?;
     let mut bound = BTreeSet::new();
     for &(slot, id) in &body.statics {
@@ -1097,6 +1091,8 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
         )?;
     }
     let mut lengths = BTreeMap::new();
+    let mut cases = enum_cases::incoming(body);
+    let mut unguarded = None;
     for (&at, action) in &body.actions {
         context.require(body.terminators.contains_key(&at.point))?;
         let length = lengths.entry(at.point).or_insert(0);
@@ -1104,9 +1100,6 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
         *length += 1;
         context.require(!action.alternatives.is_empty())?;
         for alternative in &action.alternatives {
-            for effect in alternative.before.iter().chain(&alternative.after) {
-                context.effect(effect)?;
-            }
             for bit in alternative
                 .tests
                 .iter()
@@ -1116,12 +1109,8 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
                 context.require(bit.word < body.flags.len() && bit.mask.is_power_of_two())?;
             }
         }
-        for effect in &action.call_bindings {
-            context.effect(effect)?;
-        }
-        for operation in &action.operations {
-            context.operation(operation)?;
-        }
+        let case = cases.get_mut(&at.point).unwrap_or(&mut unguarded);
+        enum_cases::action(&context, case, action)?;
     }
     for (&at, action) in &body.actions {
         if action
@@ -1146,8 +1135,7 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
             )?;
         }
     }
-    validate_control(&context)?;
-    enum_cases::validate(&context)
+    validate_control(&context)
 }
 
 fn validate_control(context: &Context<'_>) -> Result<(), Failure> {

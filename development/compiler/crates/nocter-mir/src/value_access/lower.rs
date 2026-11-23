@@ -492,19 +492,6 @@ impl Builder<'_> {
             .iter()
             .map(|field| {
                 Ok(match *field {
-                    nocter_model::ValueProjection::Record(id) => {
-                        Projection::Field(nocter_model::ValueField::Record(id))
-                    }
-                    nocter_model::ValueProjection::Variant(primary) => {
-                        Projection::Field(nocter_model::ValueField::Variant(primary))
-                    }
-                    nocter_model::ValueProjection::Tuple(index) => {
-                        Projection::Field(nocter_model::ValueField::Tuple(index))
-                    }
-                    nocter_model::ValueProjection::EnumField { .. } => return Err(self.invalid()),
-                    nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
-                        index,
-                    )) => Projection::Field(nocter_model::ValueField::Array(index)),
                     nocter_model::ValueProjection::Array(flow::resources::Index::Retained(
                         index,
                     )) => {
@@ -513,6 +500,10 @@ impl Builder<'_> {
                             self.root(Holder::IndexSnapshot(index), data, false)?.slot,
                         )
                     }
+                    _ => Projection::Field(field.try_map_index(|index| match *index {
+                        flow::resources::Index::Constant(index) => Ok(index),
+                        flow::resources::Index::Retained(_) => Err(self.invalid()),
+                    })?),
                 })
             })
             .collect()

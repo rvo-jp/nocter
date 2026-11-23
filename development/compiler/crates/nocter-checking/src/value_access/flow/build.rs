@@ -624,7 +624,7 @@ impl Builder<'_> {
                     id = base;
                 }
                 ExpressionKind::Select {
-                    action: SelectionAction::PreparedAccess,
+                    action: SelectionAction::PreparedAccess | SelectionAction::PreparedValue { .. },
                     ..
                 } => {
                     chain.push((id, None));

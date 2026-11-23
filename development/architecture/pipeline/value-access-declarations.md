@@ -173,16 +173,18 @@ Required evaluation and native lowering use this case table to read the tag once
 
 A pattern that discards every payload position needs only the tag read. Read and edit leave
 the payload in place. Edit checks update authority during inspection. Take uses the ordinary
-Copy or transfer boundary before inspecting the tag. When each named leaf has Copy evidence,
-the selected arm stages the snapshots in pattern order and then retires the complete received
-carrier before executing its body. A fallback or wholly discarded pattern retires it immediately.
+Copy or transfer boundary before inspecting the tag. The selected arm stages each named leaf
+in pattern order, copying when the leaf has Copy evidence and transferring it otherwise. It
+retires the received carrier before executing its body. A fallback or wholly discarded pattern
+retires the whole carrier immediately.
 
 Named read and edit bindings reuse the common tuple-leaf and lexical binding machinery.
 They alias the selected payload, including tuple components, and keep a fresh scrutinee's
 evaluation owner alive when needed. Access analysis tracks the full logical path and rejects
-changing the variant while a payload alias is still needed. When forming native addresses, MIR
-requires the exact case edge and checks that no intervening effect changes the inspected carrier.
-The occupied field reuses the dispatch's tag proof, so binding it emits no additional tag read.
+changing the variant while a payload alias is still needed. MIR qualifies addresses, copies,
+transfers and cleanup against the same case edge. That evidence remains valid through effects
+on disjoint storage and retirement of initialized children in the prepared owner. Forming a
+field address or supplying a leaf reuses the dispatch's tag proof.
 
 The selected branch edge qualifies its prepared owning carrier with the exact declared variant.
 The ownership ledger requires that evidence before removing a payload component. For a partially

@@ -447,7 +447,10 @@ impl Context<'_, '_> {
             return Ok(());
         }
         let selected = Holder::Expression(source).place().project_path(fields);
-        if action == SelectionAction::MovePayload {
+        if matches!(
+            action,
+            SelectionAction::MovePayload | SelectionAction::PreparedValue { copy: false }
+        ) {
             self.world.resources.move_to(
                 self.typed.program(),
                 &selected,

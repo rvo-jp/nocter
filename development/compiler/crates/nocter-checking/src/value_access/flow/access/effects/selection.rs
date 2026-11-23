@@ -1,7 +1,7 @@
 //! One structural access path, with evaluated value facts and no recipe-equality assumption.
 use super::super::state::{Key, Value};
-use super::{Context, Failure, Result, Root};
-use crate::value_access::{IndexAction, SelectionAction, flow::resources::Holder};
+use super::{Context, Failure, Result};
+use crate::value_access::IndexAction;
 use nocter_model::{AccessExpressionId, FieldPath, ValueAccessMode as Mode, ValueProjection};
 impl Context<'_, '_> {
     pub(super) fn index_failure(&self, id: AccessExpressionId) -> Result<()> {
@@ -52,21 +52,9 @@ impl Context<'_, '_> {
         id: AccessExpressionId,
         source: AccessExpressionId,
         fields: &FieldPath,
-        action: SelectionAction,
     ) -> Result<Value> {
-        let value = self.world.value(source)?;
-        let (mut region, actor) = match self.base_value(value)? {
-            Some(base) => base,
-            None if action == SelectionAction::PreparedAccess
-                && value.mode == Mode::Own
-                && self
-                    .world
-                    .resources
-                    .initialized_root(Holder::Expression(source)) =>
-            {
-                (Root::Expression(source).region(), None)
-            }
-            None => return Err(Failure::Integrity),
+        let Some((mut region, actor)) = self.base_value(self.world.value(source)?)? else {
+            return Err(Failure::Integrity);
         };
         region.project(fields);
         self.retain_place(Key::Expression(id), Some((region, actor)))

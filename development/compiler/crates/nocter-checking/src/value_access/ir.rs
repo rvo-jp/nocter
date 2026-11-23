@@ -115,6 +115,10 @@ pub enum SelectionAction {
     Access,
     /// Project an existing place whose address was evaluated earlier in this body.
     PreparedAccess,
+    /// Supply one leaf of a carrier already acquired by a take pattern.
+    PreparedValue {
+        copy: bool,
+    },
     CopyPayload,
     MovePayload,
     /// Resolve the remaining temporary-field supply after its result data is established.

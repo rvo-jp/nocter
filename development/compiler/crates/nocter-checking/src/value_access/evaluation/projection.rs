@@ -311,21 +311,22 @@ impl Builder<'_, '_> {
         fields
             .fields()
             .iter()
-            .map(|id| match *id {
-                nocter_model::ValueField::EnumField { variant, field } => {
-                    let case = self.program.variants().get(variant).ok_or(INVALID)?;
-                    let field = self.program.fields().get(field).ok_or(INVALID)?;
-                    if field.variant() != Some(variant) {
-                        return Err(INVALID);
-                    }
-                    Ok(plan::Projection::EnumField {
-                        tag: u64::try_from(case.position()).map_err(|_| INVALID)?,
-                        field: field.position(),
-                    })
-                }
-                _ => Ok(plan::Projection::Field(self.component_position(*id)?)),
-            })
+            .map(|&field| self.field_projection(field))
             .collect()
+    }
+    fn field_projection(&self, field: nocter_model::ValueField) -> Result<plan::Projection> {
+        let nocter_model::ValueField::EnumField { variant, field } = field else {
+            return Ok(plan::Projection::Field(self.component_position(field)?));
+        };
+        let case = self.program.variants().get(variant).ok_or(INVALID)?;
+        let field = self.program.fields().get(field).ok_or(INVALID)?;
+        if field.variant() != Some(variant) {
+            return Err(INVALID);
+        }
+        Ok(plan::Projection::EnumField {
+            tag: u64::try_from(case.position()).map_err(|_| INVALID)?,
+            field: field.position(),
+        })
     }
     fn referent(&mut self, source: Referent) -> Result<plan::Place> {
         match source {
@@ -350,23 +351,16 @@ impl Builder<'_, '_> {
             .iter()
             .map(|field| {
                 Ok(match *field {
-                    nocter_model::ValueProjection::Record(id) => plan::Projection::Field(
-                        self.component_position(nocter_model::ValueField::Record(id))?,
-                    ),
-                    nocter_model::ValueProjection::Tuple(index) => plan::Projection::Field(index),
-                    nocter_model::ValueProjection::Variant(primary) => {
-                        plan::Projection::Field(usize::from(!primary))
-                    }
-                    nocter_model::ValueProjection::EnumField { .. } => return Err(INVALID),
-                    nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
-                        index,
-                    )) => plan::Projection::Field(usize::try_from(index).map_err(|_| INVALID)?),
                     nocter_model::ValueProjection::Array(flow::resources::Index::Retained(
                         index,
                     )) => plan::Projection::Index {
                         slot: self.holder(Holder::IndexSnapshot(index))?,
                         bound: index.bound(),
                     },
+                    _ => self.field_projection(field.try_map_index(|index| match *index {
+                        flow::resources::Index::Constant(index) => Ok(index),
+                        flow::resources::Index::Retained(_) => Err(INVALID),
+                    })?)?,
                 })
             })
             .collect()
@@ -856,7 +850,8 @@ impl Builder<'_, '_> {
                 action:
                     SelectionAction::Access
                     | SelectionAction::PreparedAccess
-                    | SelectionAction::CopyPayload,
+                    | SelectionAction::CopyPayload
+                    | SelectionAction::PreparedValue { copy: true },
             } => {
                 let mut place = self.value(*source)?;
                 place.fields = place
@@ -953,7 +948,8 @@ impl Builder<'_, '_> {
             | ExpressionKind::Closure { .. }
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
-                action: SelectionAction::MovePayload,
+                action:
+                    SelectionAction::MovePayload | SelectionAction::PreparedValue { copy: false },
                 ..
             } => plan::Operation::None,
             ExpressionKind::Select {
@@ -961,6 +957,7 @@ impl Builder<'_, '_> {
                 fields,
                 action:
                     action @ (SelectionAction::CopyPayload
+                    | SelectionAction::PreparedValue { copy: true }
                     | SelectionAction::Access
                     | SelectionAction::PreparedAccess),
             } => self.component_operation(destination, source, &fields, action)?,
@@ -1001,11 +998,15 @@ impl Builder<'_, '_> {
                 destination,
                 source,
             },
-            SelectionAction::CopyPayload => plan::Operation::Copy {
-                destination: plan::Place::root(destination),
-                source,
-            },
-            SelectionAction::MovePayload | SelectionAction::PendingPayload => return Err(INVALID),
+            SelectionAction::CopyPayload | SelectionAction::PreparedValue { copy: true } => {
+                plan::Operation::Copy {
+                    destination: plan::Place::root(destination),
+                    source,
+                }
+            }
+            SelectionAction::MovePayload
+            | SelectionAction::PreparedValue { copy: false }
+            | SelectionAction::PendingPayload => return Err(INVALID),
         })
     }
 

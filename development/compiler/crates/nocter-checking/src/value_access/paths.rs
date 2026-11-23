@@ -2,7 +2,7 @@
 use super::{Expression, ExpressionKind, IndexAction, Referent, SelectionAction};
 use nocter_model::{
     AccessExpressionId, AccessLocalId, AccessPlaceId, FieldPath, IndexRelation, PathRelation,
-    ValueAccessMode, ValuePath, ValueProjection,
+    ValuePath, ValueProjection,
 };
 
 /// Evaluated numeric evidence, never an expression-site or loop-generation identity.
@@ -61,30 +61,6 @@ impl Expression {
             .and_then(|value| u64::try_from(value).ok())
             .map_or(IndexFact::Unknown, IndexFact::Known)
     }
-
-    /// An object already backed by the current evaluation, including an acquired pattern input.
-    fn temporary_projection<'a>(
-        &'a self,
-        expression: &impl Fn(AccessExpressionId) -> Option<&'a Self>,
-    ) -> Option<(AccessExpressionId, Option<&'a FieldPath>)> {
-        match &self.kind {
-            ExpressionKind::Boundary {
-                source,
-                action: super::BoundaryAction::TemporaryPlace,
-            } => Some((*source, None)),
-            ExpressionKind::Select {
-                source,
-                fields,
-                action: SelectionAction::PreparedAccess,
-            } => {
-                let prepared = expression(*source)?;
-                (prepared.ty.access()?.mode() == ValueAccessMode::Own
-                    && prepared.referent(*source).is_none())
-                .then_some((*source, Some(fields)))
-            }
-            _ => None,
-        }
-    }
 }
 /// Forwarded control already validated its selected place before leaving the producing scope.
 /// Provenance queries expand its alternatives; availability queries retain that receipt.
@@ -129,11 +105,12 @@ impl Referent {
             if value.referent(id) != Some(Referent::Evaluated(id)) {
                 return None;
             }
-            if let Some((source, fields)) = value.temporary_projection(&expression) {
+            if let ExpressionKind::Boundary {
+                source,
+                action: super::BoundaryAction::TemporaryPlace,
+            } = value.kind
+            {
                 if roots == ProjectionRoots::All {
-                    if let Some(fields) = fields {
-                        suffixes.push(known_by(fields, &constant));
-                    }
                     let fields = suffixes
                         .into_iter()
                         .rev()

@@ -6,6 +6,15 @@ use nocter_runtime_contract::{
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeValueVariantRepresentation,
 };
 
+fn selects_enum_field(place: &Place) -> bool {
+    place.projections.iter().any(|projection| {
+        matches!(
+            projection,
+            Projection::Field(nocter_model::ValueField::EnumField { .. })
+        )
+    })
+}
+
 fn lower_module(index: &str, body: &str) -> Program {
     let index = format!("see ./body.nct\n{index}");
     let body = format!("see ./index.nct\n{body}");
@@ -117,8 +126,10 @@ fn enum_field_addresses_require_the_exact_unmodified_case_edge() {
     );
     validate::program(&program).unwrap();
     assert!(
-        operations(&program.bodies[&program.root])
-            .any(|operation| matches!(operation, Operation::BindEnumAddress { .. }))
+        operations(&program.bodies[&program.root]).any(|operation| matches!(
+            operation,
+            Operation::Storage(Effect::BindAddress { source, .. }) if selects_enum_field(source)
+        ))
     );
     for corruption in 0..3 {
         let mut program = program.clone();
@@ -193,7 +204,6 @@ fn enum_take_stages_each_copy_before_releasing_its_prepared_carrier() {
                 _ => None,
             })
             .unwrap();
-        let mut addresses = Vec::new();
         let mut copies = 0;
         let mut retired = false;
         for (_, action) in body.actions.iter().filter(|(at, _)| at.point == selected) {
@@ -207,13 +217,12 @@ fn enum_take_stages_each_copy_before_releasing_its_prepared_carrier() {
                 .iter()
                 .any(|path| has_disposal(&path.before));
             for operation in &action.operations {
-                match operation {
-                    Operation::BindEnumAddress { destination, .. } => addresses.push(*destination),
-                    Operation::Copy { source, .. } if addresses.contains(&source.slot) => {
-                        assert!(!retired);
-                        copies += 1;
-                    }
-                    _ => {}
+                if let Operation::Copy { source, .. } = operation
+                    && source.slot == carrier.slot
+                    && selects_enum_field(source)
+                {
+                    assert!(!retired);
+                    copies += 1;
                 }
             }
             retired |= action

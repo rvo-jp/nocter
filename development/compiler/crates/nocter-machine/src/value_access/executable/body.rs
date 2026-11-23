@@ -589,12 +589,6 @@ impl<'a> Builder<'a> {
     fn operation(&mut self, operation: &mir::Operation) -> Result<(), Failure> {
         match operation {
             mir::Operation::BoundsTrap => return Err(Self::invalid()),
-            mir::Operation::BindEnumAddress {
-                destination,
-                source,
-            } => {
-                self.bind_address(*destination, source)?;
-            }
             mir::Operation::RequireVariant { source, primary } => {
                 self.require_variant(source, *primary)?;
             }

@@ -236,6 +236,7 @@ impl Builder<'_> {
                 fields,
                 action:
                     action @ (SelectionAction::CopyPayload
+                    | SelectionAction::PreparedValue { copy: true }
                     | SelectionAction::Access
                     | SelectionAction::PreparedAccess),
             } => self.selected_component(source, &fields, destination, action)?,
@@ -244,7 +245,8 @@ impl Builder<'_> {
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
-                action: SelectionAction::MovePayload,
+                action:
+                    SelectionAction::MovePayload | SelectionAction::PreparedValue { copy: false },
                 ..
             } => return Ok(Vec::new()),
             ExpressionKind::Scoped { .. }
@@ -291,17 +293,8 @@ impl Builder<'_> {
         destination: Place,
         action: SelectionAction,
     ) -> Result<Operation, Failure> {
-        let enum_field = matches!(
-            fields.fields().first(),
-            Some(nocter_model::ValueField::EnumField { .. })
-        );
         let source = self.component(source, fields, destination.data)?;
-        Ok(if enum_field && action == SelectionAction::PreparedAccess {
-            Operation::BindEnumAddress {
-                destination: destination.slot,
-                source,
-            }
-        } else if action.is_place() {
+        Ok(if action.is_place() {
             Self::alias(source, destination.slot)
         } else {
             Operation::Copy {

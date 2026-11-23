@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect non-Copy take leaves to the qualified prepared enum owner. Lower their moves and the
-active remainder cleanup using the same case edge that qualifies read/edit bindings. Verify
-mixed Copy and moved leaves, cleanup order, and interrupted branch exits.
+Bind user destructor declarations to their nominal family and original body. Establish their
+implicit complete edit receiver and unit result, check header constraints, and keep executable
+admission gated on body effects and once-only lifecycle integration.
 
 ## Remaining Contextual Representation Qualification
 
@@ -764,8 +764,12 @@ not a language restriction derived from the current realization boundary.
   Qualify both explicit transfer and an unmarked Copy scrutinee through the selected edge.
 - [x] Retain the matched case in the prepared owner's ledger entry. Remove only fields of that
   exact case and reject unqualified or different-case transfers without changing ownership.
-- [ ] Qualify take decomposition of named enum payloads. Preserve ownership ordering, active-case
-  remainder cleanup, and complete initialization for user-destructible carriers.
+- [x] Qualify take decomposition of named enum payloads with structural cleanup. Preserve written
+  order for mixed Copy and moved leaves, case-qualified remainder disposal, and scoped exit
+  cleanup. Verify required evaluation and native execution of move-only payloads.
+- [ ] Qualify take decomposition for user-destructible carriers when their lifecycle is admitted.
+  Permit Copy snapshots and whole-carrier disposal. Diagnose moves that would make the carrier
+  incomplete.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
