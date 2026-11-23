@@ -208,6 +208,10 @@ The selected transfer path is checked against the destructor reservations of its
 values. The same ancestry check protects ownership transitions, including indexed transfers.
 Copy snapshots leave the owning carrier complete. Replacement retires and installs one
 component in a single checked transition.
+For closed receivers, effect checking follows reached invocation instances and ordered
+retirement steps. A consuming callable adapter is checked against its completed environment.
+Primitive effects and backend release require target certificates. The checked unit retains
+the exact anonymous frames qualified for non-waiting, non-suspending destruction.
 The accepted-unit boundary requires effect and component-cleanup qualification before
 allowing destructor execution.
 

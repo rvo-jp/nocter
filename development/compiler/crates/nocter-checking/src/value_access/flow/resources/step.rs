@@ -119,6 +119,31 @@ pub enum PayloadSite<'a> {
 }
 
 impl<P> Step<P> {
+    /// Original payload obligation retired by a cleanup step. A scoped replacement retires the
+    /// old referent; array steps retain the array schema and their separate range or hole guards.
+    #[must_use]
+    pub const fn retired_payload(&self) -> Option<&P> {
+        match self {
+            Self::Dispose { payload, .. }
+            | Self::DisposeArrayRemainder { payload, .. }
+            | Self::DisposeArrayElements { payload, .. } => Some(payload),
+            Self::ReplaceReferent { retired, .. } => Some(retired),
+            Self::Capture { .. }
+            | Self::AdaptFunction { .. }
+            | Self::Transport { .. }
+            | Self::Assemble { .. }
+            | Self::Construct { .. }
+            | Self::Receive { .. }
+            | Self::DriveFuture { .. }
+            | Self::ConstructActivation { .. }
+            | Self::Move { .. }
+            | Self::MoveArrayElement { .. }
+            | Self::ConsolidateArrayPrefix { .. }
+            | Self::ReleaseContainer { .. }
+            | Self::Invoke { .. } => None,
+        }
+    }
+
     /// Project payload obligations without selecting another operation or changing place identity.
     /// # Errors
     /// Returns the supplied projection's error without publishing a partly transformed step.

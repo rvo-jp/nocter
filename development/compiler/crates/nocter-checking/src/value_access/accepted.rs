@@ -2,12 +2,13 @@
 pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 mod const_admission;
 mod deferred;
+mod destruction;
 mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required_const};
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{CodeKind, Program};
+use nocter_declarations::value_access::{CodeInstanceKey, CodeKind, Program};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{AccessCodeId, TypeId};
 use std::{
@@ -94,6 +95,7 @@ pub struct Unit {
     local_futures: deferred::LocalFutures,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
+    destructor_frames: BTreeSet<CodeInstanceKey>,
 }
 impl Unit {
     /// Checks all definitions, including unreachable and mutually recursive callees.
@@ -162,6 +164,8 @@ impl Unit {
         let queries = evaluation.queries;
         let mut definition_work =
             nocter_constant_evaluation::state::WorkBudget::new(evaluation.condition_limit);
+        let checked = check_queries(context, queries, &mut definition_work)?;
+        let destructor_frames = destruction::qualify(context, &checked, &mut definition_work)?;
         let Checked {
             program,
             bodies,
@@ -170,7 +174,7 @@ impl Unit {
             const_templates,
             deferred_drives,
             local_futures,
-        } = check_queries(context, queries, &mut definition_work)?;
+        } = checked;
         require_qualified_lifecycle(context)?;
         Ok(Self {
             initializers: evaluation
@@ -190,7 +194,12 @@ impl Unit {
             const_templates,
             deferred_drives,
             local_futures,
+            destructor_frames,
         })
+    }
+    /// Exact anonymous lifecycle frames with verified destruction effects.
+    pub fn destructor_frames(&self) -> impl Iterator<Item = &CodeInstanceKey> {
+        self.destructor_frames.iter()
     }
     /// The checked deferred body can run its admitted activation without suspension.
     #[must_use]

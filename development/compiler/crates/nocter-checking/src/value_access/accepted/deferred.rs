@@ -275,21 +275,8 @@ fn backing_data(step: &Step) -> Option<TypeId> {
     match step {
         Step::Construct { payload, .. }
         | Step::ConstructActivation { payload, .. }
-        | Step::Capture { payload, .. }
-        | Step::Dispose { payload, .. }
-        | Step::DisposeArrayRemainder { payload, .. }
-        | Step::DisposeArrayElements { payload, .. } => Some(payload.data()),
-        Step::ReplaceReferent { retired, .. } => Some(retired.data()),
-        Step::AdaptFunction { .. }
-        | Step::Transport { .. }
-        | Step::Assemble { .. }
-        | Step::DriveFuture { .. }
-        | Step::Receive { .. }
-        | Step::Move { .. }
-        | Step::MoveArrayElement { .. }
-        | Step::ConsolidateArrayPrefix { .. }
-        | Step::ReleaseContainer { .. }
-        | Step::Invoke { .. } => None,
+        | Step::Capture { payload, .. } => Some(payload.data()),
+        _ => step.retired_payload().map(|payload| payload.data()),
     }
 }
 

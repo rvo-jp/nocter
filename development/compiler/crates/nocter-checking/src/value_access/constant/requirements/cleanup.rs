@@ -1,6 +1,6 @@
 //! Original ordered cleanup selections, not a type/site reconstruction of a retired value.
 use super::{INVALID, Rule, Site, Violation, evaluation, flow};
-use crate::value_access::flow::resources::{self, Payload, Step};
+use crate::value_access::flow::resources::{self, Step};
 use crate::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey};
@@ -50,7 +50,11 @@ impl Condition {
         let Rule::UnsupportedCleanup(expected) = self.violation.rule() else {
             return Err(INVALID);
         };
-        let data = payload(self.original(body)?).ok_or(INVALID)?.data();
+        let data = self
+            .original(body)?
+            .retired_payload()
+            .ok_or(INVALID)?
+            .data();
         if data != expected {
             return Err(INVALID);
         }
@@ -65,7 +69,7 @@ impl Condition {
             Phase::After => &projected.after,
         };
         let step = steps.get(self.step).ok_or(INVALID)?;
-        Ok(payload(step).ok_or(INVALID)?.instance().clone())
+        Ok(step.retired_payload().ok_or(INVALID)?.instance().clone())
     }
 }
 pub(super) struct Projected {
@@ -104,29 +108,6 @@ pub(super) fn project(
     let after = projection.after_steps(transition.after_steps())?;
     Ok(Projected { before, after })
 }
-// The same role selector also applies to concretely projected resource steps. Replacements
-// inspect the retired obligation; the supplied value has a different role even at the same type.
-fn payload<P>(step: &Step<P>) -> Option<&P> {
-    match step {
-        Step::Dispose { payload, .. }
-        | Step::DisposeArrayRemainder { payload, .. }
-        | Step::DisposeArrayElements { payload, .. } => Some(payload),
-        Step::ReplaceReferent { retired, .. } => Some(retired),
-        Step::Capture { .. }
-        | Step::AdaptFunction { .. }
-        | Step::Transport { .. }
-        | Step::Assemble { .. }
-        | Step::Construct { .. }
-        | Step::Receive { .. }
-        | Step::DriveFuture { .. }
-        | Step::ConstructActivation { .. }
-        | Step::Move { .. }
-        | Step::MoveArrayElement { .. }
-        | Step::ConsolidateArrayPrefix { .. }
-        | Step::ReleaseContainer { .. }
-        | Step::Invoke { .. } => None,
-    }
-}
 pub(super) fn collect(
     body: &flow::Query,
     domain: &mut evaluation::Types,
@@ -141,7 +122,7 @@ pub(super) fn collect(
                     (Phase::After, alternative.after_steps()),
                 ] {
                     for (step, operation) in steps.iter().enumerate() {
-                        if let Some(payload) = payload::<Payload>(operation)
+                        if let Some(payload) = operation.retired_payload()
                             && !domain.supports(body.typed().program(), payload.data())?
                         {
                             conditions.push(Condition {

@@ -18,9 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Infer non-waiting, non-suspending destructor effects from reached checked operations, selected
-callees, resource retirement and target backing. Keep that proof separate from the exact
-ordering and instance selection of executable cleanup.
+Connect effect-qualified destructor instances to executable cleanup. Execute the anonymous
+body with complete `edit self` before cleaning the initialized components exactly once.
 
 ## Remaining Contextual Representation Qualification
 
@@ -782,8 +781,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Reject transfers that leave a user-destructible receiver incomplete, including component
   moves through enum bindings, temporary projections and array indices. Retain whole-value
   transfer, Copy snapshots and checked component replacement.
-- [ ] Infer destructor effects and integrate the complete-self body with exactly-once component
-  cleanup.
+- [x] Infer non-waiting and non-suspending effects for closed destructor receivers through
+  selected invocation frames, resource retirement, completed adapter environments and target
+  backing evidence. Locate a forbidden operation at its original source.
+- [ ] Integrate the complete-self body with exactly-once executable component cleanup.
+- [ ] Extend destructor effect and cleanup qualification to context-dependent receivers and
+  remaining target backing and release contracts.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

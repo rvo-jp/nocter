@@ -24,7 +24,7 @@ fn scoped_cleanup_conditions_retain_the_original_retired_step_and_reject_invalid
         let original = condition.original(body).unwrap();
         assert_eq!(
             condition.data(body).unwrap(),
-            payload(original).unwrap().data()
+            original.retired_payload().unwrap().data()
         );
         if let Step::ReplaceReferent {
             retired,
@@ -33,8 +33,8 @@ fn scoped_cleanup_conditions_retain_the_original_retired_step_and_reject_invalid
         } = original
         {
             assert_eq!(retired.data(), supplied.data());
-            assert!(std::ptr::eq(payload(original).unwrap(), retired));
-            assert!(!std::ptr::eq(payload(original).unwrap(), supplied));
+            assert!(std::ptr::eq(original.retired_payload().unwrap(), retired));
+            assert!(!std::ptr::eq(original.retired_payload().unwrap(), supplied));
             let Site::Cleanup(at) = condition.violation().site else {
                 panic!("cleanup")
             };
@@ -98,8 +98,14 @@ fn projected_cleanup_selects_the_retired_context_when_receiving_the_same_source_
         retired: retired.clone(),
         payload: supplied.clone(),
     };
-    assert_eq!(payload(&step).unwrap().instance(), retired.instance());
-    assert_ne!(payload(&step).unwrap().instance(), supplied.instance());
+    assert_eq!(
+        step.retired_payload().unwrap().instance(),
+        retired.instance()
+    );
+    assert_ne!(
+        step.retired_payload().unwrap().instance(),
+        supplied.instance()
+    );
 }
 
 #[test]
