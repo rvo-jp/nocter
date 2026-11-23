@@ -10,30 +10,33 @@ mod prepared;
 pub(in crate::value_access) use prepared::arguments as instantiate_prepared_data;
 pub use prepared::{PreparedData, PreparedDataFailure};
 
-fn input_type(
+fn input_channel(
     body: &flow::Query,
     frame: &CodeInstanceKey,
     local: AccessLocalId,
-) -> Result<nocter_model::TypeId, InstantiationFailure> {
+) -> Result<(nocter_model::TypeId, Option<usize>), InstantiationFailure> {
     if body.typed().code() != frame.code() {
         return Err(InstantiationFailure::WrongOwner);
     }
-    if !body
-        .typed()
-        .body()
-        .inputs()
-        .ordered()
-        .any(|input| input.local == local)
+    let body = body.typed().body();
+    let inputs = body.inputs();
+    let position = inputs
+        .explicit()
+        .iter()
+        .position(|input| input.local == local);
+    if position.is_none()
+        && inputs
+            .environment()
+            .is_none_or(|input| input.local != local)
     {
         return Err(InstantiationFailure::Unresolved);
     }
-    Ok(body
-        .typed()
-        .body()
+    let data = body
         .locals()
         .get(local)
         .ok_or(InstantiationFailure::Unresolved)?
-        .data)
+        .data;
+    Ok((data, position))
 }
 
 pub(in crate::value_access) fn completed_input(
@@ -44,7 +47,7 @@ pub(in crate::value_access) fn completed_input(
     local: AccessLocalId,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    let data = input_type(body, frame, local)?;
+    let (data, _) = input_channel(body, frame, local)?;
     super::instantiate_source_completed_input_data(program, evidence, frame, local, data, work)
 }
 
@@ -56,7 +59,11 @@ pub(in crate::value_access) fn input(
     local: AccessLocalId,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    let data = input_type(body, frame, local)?;
+    let (data, position) = input_channel(body, frame, local)?;
+    let selected = position.and_then(|position| frame.input_data(position));
+    if let Some(selected) = selected.filter(|selected| selected.data() == data) {
+        return Ok(selected.clone());
+    }
     if let Ok(key) = program.instantiate_closed_data(data) {
         return Ok(key);
     }

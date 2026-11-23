@@ -845,6 +845,10 @@ calculation or recovering source semantics.
 
 ### Private Input ABI
 
+The explicit input channel retains its selected compound domain at the original ordinal. The
+source-value graph follows the same domain through adaptations, place projections and direct writes.
+An unchanged field keeps its received domain when a disjoint field is updated.
+
 The private input ABI keeps the checked environment input before explicit inputs, preserving
 each exact body-local identity and input operation. Under the selected runtime ABI, read and
 edit input operations carry one address even for zero-byte data; take carries the stored value's ordinary

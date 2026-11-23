@@ -157,6 +157,80 @@ fn destructor_effects_follow_the_receiver_callback_not_the_nominal_schema() {
 }
 
 #[test]
+fn a_destructor_input_preserves_its_selected_domain_even_when_the_declared_type_closes() {
+    use nocter_declarations::value_access::PayloadSchema;
+    use nocter_model::{BuiltinType, ValueField};
+
+    let fixture = ValueModuleFixture::new(
+        &[
+            ("/app/index.nct", Root, "see ./body.nct\nstruct Slot"),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nstruct Slot { value: i32?\ncount: i32 }\nimpl Slot { drop { self.count += 1 } }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let unit = ModuleSourceUnit::prepare(&fixture.input())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let data = program.type_named("Slot").unwrap();
+    let closed = program.instantiate_closed_data(data).unwrap();
+    let Some(PayloadSchema::Aggregate(schema)) = program.data_schema(data) else {
+        panic!("the receiver has a record layout");
+    };
+    let mut components = schema.components();
+    let field = components.next().unwrap();
+    let count = components.next().unwrap();
+    let integer = program.data_type(BuiltinType::I32).unwrap();
+    let absent = program
+        .instantiate_components(
+            field.data,
+            [(
+                ValueField::Variant(true),
+                program.instantiate_uninhabited_data(integer).unwrap(),
+            )],
+        )
+        .unwrap();
+    let receiver = program
+        .instantiate_components(
+            data,
+            [
+                (field.field, absent),
+                (
+                    count.field,
+                    program.instantiate_closed_data(count.data).unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+    assert_ne!(receiver, closed);
+
+    let frame = program.bind_destructor(&receiver).unwrap();
+    let local = unit
+        .code_body(frame.code())
+        .unwrap()
+        .typed()
+        .body()
+        .inputs()
+        .explicit()[0]
+        .local;
+    let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
+    assert_eq!(
+        unit.instantiate_input_data(&frame, local, &mut work)
+            .unwrap(),
+        receiver
+    );
+    assert_eq!(
+        unit.qualify_destructor(receiver.clone(), &mut work)
+            .unwrap(),
+        [(frame, receiver)].into()
+    );
+}
+
+#[test]
 fn destructor_receiver_cannot_be_replaced_through_a_delegated_edit() {
     for (action, accepted) in [
         ("self = Handle { value: 0 }", false),

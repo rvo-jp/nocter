@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Preserve a selected compound input domain when its declared type also has a closed representation.
-Verify the entry channel and the retained components after an ordinary field update.
+Recognize adopted explicit generic arguments in named and member calls. Retain one source tree
+for elaboration and verify the boundary with comparisons and nested closing angles.
 
 ## Remaining Contextual Representation Qualification
 
@@ -303,6 +303,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   do not recover entry metadata from a raw-type default or from the closure's unrelated captures.
   Preserve matched entry/completion selection and distinguish committed reference inputs from
   frozen materialized preparation sources before widening source admission.
+- [x] Preserve selected compound inputs even when their declarations also have a closed domain.
+  Follow original adaptations and direct field updates to preserve unaffected components through
+  destruction's completed-input query.
 - [x] Give each callable leaf of a declared compound input its own declaration-owned contract
   identity without allocating extra physical parameters. Qualify deterministic publication,
   separate same-signature leaves, canonical input metadata and invalid-header rejection before

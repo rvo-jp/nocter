@@ -59,12 +59,36 @@ impl Query<'_, '_> {
                 return Ok(Fact::Unavailable);
             }
         }
+        if let ValueSource::Input { local, origin } = node.value
+            && let Some(selected) = self.projected_input_data(frame, local, origin, path)
+        {
+            if selected.data() == target {
+                return Ok(Fact::Data(selected));
+            }
+            if self.program.matches_compound_input(selected.data(), target)
+                || self.program.matches_compound_input(target, selected.data())
+            {
+                return Ok(selected
+                    .reproject(self.program, target)
+                    .map_or(Fact::Unavailable, Fact::Data));
+            }
+            return Ok(Fact::Unavailable);
+        }
         // Representation only: no seed execution, positive payload or numeric proof is supplied.
         let source_data = node.data.and_then(|data| {
             self.program
                 .project_data_by(data, path, |(), length| length > 0)
         });
+        // Retain the selected input's untouched components across an observed place write.
+        let preserves_context = frame.has_compound_input_contexts()
+            && matches!(
+                node.value,
+                ValueSource::Adapt { .. }
+                    | ValueSource::Replace { .. }
+                    | ValueSource::Select { .. }
+            );
         if source_data == Some(target)
+            && !preserves_context
             && let Ok(data) = self.program.instantiate_closed_data(target)
         {
             return Ok(Fact::Data(data));
@@ -81,20 +105,7 @@ impl Query<'_, '_> {
         kind: ValueSource,
     ) -> Result {
         match kind {
-            ValueSource::Input { local, origin } => {
-                match self.projected_input_data(frame, local, origin, path) {
-                    Some(key) if key.data() == target => Ok(Fact::Data(key)),
-                    Some(key)
-                        if self.program.matches_compound_input(key.data(), target)
-                            || self.program.matches_compound_input(target, key.data()) =>
-                    {
-                        Ok(key
-                            .reproject(self.program, target)
-                            .map_or(Fact::Unavailable, Fact::Data))
-                    }
-                    _ => Ok(Fact::Unavailable),
-                }
-            }
+            ValueSource::Input { .. } => Ok(Fact::Unavailable),
             ValueSource::Adapt { source } => self.read(
                 owner,
                 Key::Data(frame.clone(), source, path.clone(), target),
