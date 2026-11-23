@@ -4,8 +4,12 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use nocter_language::MODULE_ROOT_FILE_NAME;
+use nocter_model::StandardSourceKind;
 
 use crate::ParsedInitCommand;
+
+const TESTS_DIRECTORY: &str = "tests";
+const UNIT_TEST_DIRECTORY: &str = "unit";
 
 /// The source template selected for a newly initialized package.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,7 +56,7 @@ impl InitCommandResult {
     }
 }
 
-/// Creates the two source files owned by `nocter init` as one rollback-capable transaction.
+/// Creates the selected source template as one rollback-capable transaction.
 ///
 /// Existing files are checked before the first mutation and every created path is removed if a
 /// later write fails. Unrelated content in an existing target directory is never removed.
@@ -64,6 +68,7 @@ impl InitCommandResult {
 pub fn execute_init(
     command: ParsedInitCommand,
     current_directory: impl AsRef<Path>,
+    source_kind: StandardSourceKind,
 ) -> Result<InitCommandResult, InitCommandError> {
     let (directory, explicit_name, library) = command.into_parts();
     let root = resolve_target(current_directory.as_ref(), directory.as_deref())?;
@@ -76,11 +81,16 @@ pub fn execute_init(
             .map(Box::<str>::from)
             .ok_or_else(|| InitCommandError::MissingPackageName(root.clone()))?,
     };
-    let protected = [
-        root.join(MODULE_ROOT_FILE_NAME),
-        root.join("tests/unit").join(MODULE_ROOT_FILE_NAME),
-    ];
-    for path in &protected {
+    let kind = if library {
+        InitializedPackageKind::Library
+    } else {
+        InitializedPackageKind::Executable
+    };
+    let escaped_name = escape_string(&name);
+    let tests = root.join(TESTS_DIRECTORY);
+    let unit = tests.join(UNIT_TEST_DIRECTORY);
+    let sources = source_templates(&root, &unit, &escaped_name, kind, source_kind);
+    for (path, _) in &sources {
         match fs::symlink_metadata(path) {
             Ok(_) => return Err(InitCommandError::ExistingSource(path.clone())),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -94,37 +104,70 @@ pub fn execute_init(
         }
     }
 
-    let kind = if library {
-        InitializedPackageKind::Library
-    } else {
-        InitializedPackageKind::Executable
-    };
-    let escaped_name = escape_string(&name);
-    let root_source = root_template(&escaped_name, kind);
-    let test_source = test_template(kind);
-
     let mut transaction = InitTransaction::new();
     if let Err(error) = transaction.create_directory_chain(&root) {
         return transaction.abort(error);
     }
-    let tests = root.join("tests");
     if let Err(error) = transaction.create_directory(&tests) {
         return transaction.abort(error);
     }
-    let unit = tests.join("unit");
     if let Err(error) = transaction.create_directory(&unit) {
         return transaction.abort(error);
     }
-    for (path, contents) in [
-        (&protected[0], root_source.as_bytes()),
-        (&protected[1], test_source.as_bytes()),
-    ] {
-        if let Err(error) = transaction.write_new(path, contents) {
+    for (path, contents) in sources {
+        if let Err(error) = transaction.write_new(&path, contents.as_bytes()) {
             return transaction.abort(error);
         }
     }
     transaction.commit();
     Ok(InitCommandResult { root, name, kind })
+}
+
+fn source_templates(
+    root: &Path,
+    test: &Path,
+    name: &str,
+    kind: InitializedPackageKind,
+    source_kind: StandardSourceKind,
+) -> Vec<(PathBuf, String)> {
+    match source_kind {
+        StandardSourceKind::Released => vec![
+            (root.join(MODULE_ROOT_FILE_NAME), root_template(name, kind)),
+            (test.join(MODULE_ROOT_FILE_NAME), test_template(kind).into()),
+        ],
+        StandardSourceKind::ValueAccessV2 => {
+            let implementation = "implementation.nct";
+            let cases = "cases.nct";
+            let (signature, body, call) = match kind {
+                InitializedPackageKind::Executable => ("func main(): i32", "0".into(), "main"),
+                InitializedPackageKind::Library => (
+                    "func greeting(): str",
+                    format!("\"Hello from {name}\""),
+                    "greeting",
+                ),
+            };
+            vec![
+                (
+                    root.join(MODULE_ROOT_FILE_NAME),
+                    format!(
+                        "{}\nsee ./{implementation}\n\n{signature}\n",
+                        package_directives(name, kind, source_kind)
+                    ),
+                ),
+                (
+                    root.join(implementation),
+                    format!("see ./{MODULE_ROOT_FILE_NAME}\n\n{signature} {{\n    {body}\n}}\n"),
+                ),
+                (test.join(MODULE_ROOT_FILE_NAME), format!("see ./{cases}\n")),
+                (
+                    test.join(cases),
+                    format!(
+                        "use / as root\n\ntest package_initializes {{\n    let _ = root.{call}()\n}}\n"
+                    ),
+                ),
+            ]
+        }
+    }
 }
 
 fn resolve_target(current: &Path, requested: Option<&Path>) -> Result<PathBuf, InitCommandError> {
@@ -182,20 +225,28 @@ fn canonicalize_existing_prefix(target: &Path) -> Result<PathBuf, InitCommandErr
     }
 }
 
-fn package_directives(name: &str, kind: InitializedPackageKind) -> String {
+fn package_directives(
+    name: &str,
+    kind: InitializedPackageKind,
+    source_kind: StandardSourceKind,
+) -> String {
     let executable = match kind {
         InitializedPackageKind::Executable => {
             format!("#executable: {{\n    name: \"{name}\",\n}}\n")
         }
         InitializedPackageKind::Library => String::new(),
     };
+    let comma = match source_kind {
+        StandardSourceKind::Released => ",",
+        StandardSourceKind::ValueAccessV2 => "",
+    };
     format!(
-        "#package: {{ name: \"{name}\", version: \"0.1.0\", }}\n{executable}#test: {{\n    name: \"unit\",\n    module: \"./tests/unit\",\n}}\n"
+        "#package: {{ name: \"{name}\", version: \"0.1.0\"{comma} }}\n{executable}#test: {{\n    name: \"unit\",\n    module: \"./{TESTS_DIRECTORY}/{UNIT_TEST_DIRECTORY}\",\n}}\n"
     )
 }
 
 fn root_template(name: &str, kind: InitializedPackageKind) -> String {
-    let directives = package_directives(name, kind);
+    let directives = package_directives(name, kind, StandardSourceKind::Released);
     let body = match kind {
         InitializedPackageKind::Executable => format!(
             "use std/io\n\nblocking func main(): i32! {{\n    io.print(\"Hello from {name}\\n\")?\n    return 0\n}}\n"
@@ -271,7 +322,7 @@ impl InitTransaction {
     }
 
     fn create_directory(&mut self, directory: &Path) -> Result<(), InitCommandError> {
-        match fs::metadata(directory) {
+        match fs::symlink_metadata(directory) {
             Ok(metadata) if metadata.is_dir() => return Ok(()),
             Ok(_) => return Err(InitCommandError::NotDirectory(directory.into())),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -490,7 +541,12 @@ mod tests {
     #[test]
     fn executable_template_creates_only_the_owned_source_set() {
         let parent = temporary_root("executable");
-        let result = execute_init(parsed(&["init", "hello"]), &parent).unwrap();
+        let result = execute_init(
+            parsed(&["init", "hello"]),
+            &parent,
+            StandardSourceKind::Released,
+        )
+        .unwrap();
 
         assert_eq!(result.name(), "hello");
         assert_eq!(result.kind(), InitializedPackageKind::Executable);
@@ -526,7 +582,7 @@ mod tests {
             panic!("expected init command")
         };
 
-        let result = execute_init(command, &parent).unwrap();
+        let result = execute_init(command, &parent, StandardSourceKind::Released).unwrap();
 
         assert_eq!(result.kind(), InitializedPackageKind::Library);
         assert!(
@@ -549,7 +605,12 @@ mod tests {
         fs::create_dir(&package).unwrap();
         fs::write(package.join("index.nct"), "user content\n").unwrap();
 
-        let error = execute_init(parsed(&["init", "package"]), &parent).unwrap_err();
+        let error = execute_init(
+            parsed(&["init", "package"]),
+            &parent,
+            StandardSourceKind::Released,
+        )
+        .unwrap_err();
 
         let expected = fs::canonicalize(&package).unwrap().join("index.nct");
         assert!(matches!(error, InitCommandError::ExistingSource(ref path) if path == &expected));
@@ -559,6 +620,32 @@ mod tests {
         );
         assert!(package.join("index.nct").exists());
         assert!(!package.join("tests").exists());
+        fs::remove_dir_all(parent).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn initialization_does_not_write_through_a_nested_directory_link() {
+        let parent = temporary_root("linked-tests");
+        let package = parent.join("package");
+        let outside = parent.join("outside");
+        fs::create_dir(&package).unwrap();
+        fs::create_dir(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, package.join("tests")).unwrap();
+
+        let error = execute_init(
+            parsed(&["init", "package"]),
+            &parent,
+            StandardSourceKind::ValueAccessV2,
+        )
+        .unwrap_err();
+
+        assert!(
+            matches!(error, InitCommandError::NotDirectory(path) if path.ends_with("package/tests"))
+        );
+        assert_eq!(fs::read_dir(outside).unwrap().count(), 0);
+        assert!(!package.join("index.nct").exists());
+        assert!(!package.join("implementation.nct").exists());
         fs::remove_dir_all(parent).unwrap();
     }
 }

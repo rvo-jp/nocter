@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Generate executable and library starter packages in the selected v2 source profile. Keep public
-contracts and ordinary implementation/test bodies in their owning files, and verify both templates
-through installed commands. Preserve atomic initialization and refuse nested directory links.
+Keep native test compilation outcomes per selected v2 case. Preserve a later case's image when
+another case fails native lowering, report that failure with its original declaration identity,
+and verify ordering and isolation through the installed command.
 
 ## Remaining Contextual Representation Qualification
 
@@ -764,6 +764,9 @@ not a language restriction derived from the current realization boundary.
   and rejection of calls to test declarations.
 - [ ] Preserve later cases within a v2 test target when native specialization or image lowering
   fails for one checked case. Retain the exact case identity in its compile-failure report.
+- [x] Generate profile-selected v2 executable and library starter packages. Qualify separate
+  contracts and bodies, format/check/test and the native executable, and preserve atomic creation
+  without following nested directory links. Qualify both released templates separately.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

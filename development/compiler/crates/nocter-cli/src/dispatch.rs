@@ -78,7 +78,7 @@ pub(crate) fn execute_direct_command(
     };
     match command {
         DirectCommand::Help(request) => Ok(InvocationOutcome::Help(request)),
-        DirectCommand::Init(command) => execute_init(command, current_directory)
+        DirectCommand::Init(command) => execute_init(command, current_directory, source_kind()?)
             .map(InvocationOutcome::Init)
             .map_err(|error| InvocationError::new(InvocationErrorKind::Init(error), None)),
         DirectCommand::SourceInspection(command) => {

@@ -25,6 +25,10 @@ process launcher. `test` runs selected cases using the same test result and proc
 both profiles. Source-only commands pass the selected grammar to the source tooling without
 constructing a compilation session.
 
+`init` uses the selected source profile to generate one complete starter package. The v2 templates
+put public contracts and package metadata in `index.nct` and put implementation and test bodies in
+ordinary source files. The template transaction protects every generated path before writing.
+
 ## Internal Responsibilities
 
 - command schema and input planning

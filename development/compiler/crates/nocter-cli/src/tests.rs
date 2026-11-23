@@ -383,7 +383,7 @@ fn help_does_not_select_an_installation_or_prepare_source() {
 }
 
 #[test]
-fn initialization_does_not_select_an_installation_and_never_overwrites_source() {
+fn initialization_works_without_an_installation_and_never_overwrites_source() {
     let tree = TempTree::new("init");
     let missing_home = tree.0.join("missing-home");
     let outcome = execute_invocation(invocation(
@@ -414,6 +414,46 @@ fn initialization_does_not_select_an_installation_and_never_overwrites_source() 
     .unwrap_err();
     assert!(matches!(error.kind(), InvocationErrorKind::Init(_)));
     assert_eq!(error.exit_code(), 2);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_init_generates_usable_executable_and_library_packages() {
+    let tree = TempTree::new("installed-value-init");
+    let home = tree.value_access_installation();
+    let execute = |arguments, directory: &Path| {
+        execute_invocation(invocation(arguments, directory, &home, "arm64-darwin")).unwrap()
+    };
+    for (directory, arguments) in [
+        ("app", vec!["init", "app"]),
+        ("library", vec!["init", "library", "--library"]),
+    ] {
+        let InvocationOutcome::Init(created) = execute(arguments, &tree.0) else {
+            panic!("expected generated package");
+        };
+        let root = created.root();
+        assert_eq!(root.file_name().unwrap(), directory);
+        for source in [
+            "index.nct",
+            "implementation.nct",
+            "tests/unit/index.nct",
+            "tests/unit/cases.nct",
+        ] {
+            assert_eq!(execute(vec!["fmt", "--check", source], root).exit_code(), 0);
+        }
+        assert_eq!(execute(vec!["check", "--offline"], root).exit_code(), 0);
+        let InvocationOutcome::Test(results) = execute(vec!["test", "--offline"], root) else {
+            panic!("expected starter package test");
+        };
+        assert!(results.succeeded(), "{results:#?}");
+        assert_eq!(results.runs().len(), 1);
+        if directory == "app" {
+            let InvocationOutcome::Run(executed) = execute(vec!["run", "--offline"], root) else {
+                panic!("expected starter executable");
+            };
+            assert_eq!(executed.status().code(), Some(0));
+        }
+    }
 }
 
 #[test]
