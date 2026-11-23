@@ -53,14 +53,13 @@ pub(super) fn required(
                 }
                 children
             }
-            Some(RuntimeType::Aggregate) => {
-                let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
-                    runtime.type_representations().get(data)
-                else {
-                    return Err(Failure::InvalidRoot);
-                };
-                fields.iter().map(|field| field.ty()).collect()
-            }
+            Some(RuntimeType::Aggregate) => match runtime.type_representations().get(data) {
+                Some(RuntimeTypeRepresentation::ScalarEnum { .. }) => Vec::new(),
+                Some(RuntimeTypeRepresentation::ValueAggregate { fields }) => {
+                    fields.iter().map(|field| field.ty()).collect()
+                }
+                _ => return Err(Failure::InvalidRoot),
+            },
             Some(RuntimeType::FixedArray { element, length }) => {
                 if *length == 0 {
                     Vec::new()

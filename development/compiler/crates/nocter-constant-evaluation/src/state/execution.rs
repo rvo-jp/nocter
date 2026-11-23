@@ -429,6 +429,20 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     self.memory.storage.primitive(Data::Bool(*primary))?,
                 )
             }
+            Operation::EnumCondition {
+                source,
+                tag,
+                destination,
+            } => {
+                let value = self.read(frame, source)?;
+                let Data::EnumTag(actual) = value.data() else {
+                    return Err(Rule::InvalidPlan);
+                };
+                (
+                    *destination,
+                    self.memory.storage.primitive(Data::Bool(actual == tag))?,
+                )
+            }
             Operation::BoundsTrap => return Err(Rule::IndexOutOfBounds),
             Operation::Literal { destination, value } => {
                 (*destination, self.memory.storage.import(value)?)

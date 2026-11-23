@@ -64,11 +64,19 @@ impl Builder<'_> {
     ) -> Result<MachineValueId, Failure> {
         let (source, kind) = self.stored_outcome_tag(base, ty)?;
         let data = self.primitive(RuntimePrimitive::Unsigned(8))?;
+        self.tag_matches(source, data, u64::from(kind.primary_tag()))
+    }
+    pub(super) fn tag_matches(
+        &mut self,
+        source: MachineAddressId,
+        data: RuntimeDataId,
+        expected: u64,
+    ) -> Result<MachineValueId, Failure> {
         let tag = self.value(data, false, MachineOperationKind::Load { source })?;
-        let primary = self.value(
+        let expected = self.value(
             data,
             false,
-            MachineOperationKind::Constant(MachineConstant::Integer(kind.primary_tag().into())),
+            MachineOperationKind::Constant(MachineConstant::Integer(expected.into())),
         )?;
         self.value(
             self.primitive(RuntimePrimitive::Bool)?,
@@ -76,7 +84,7 @@ impl Builder<'_> {
             MachineOperationKind::Binary {
                 operation: MachineBinaryOperation::Equal,
                 left: tag,
-                right: primary,
+                right: expected,
                 check: MachineArithmeticCheck::NotRequired,
             },
         )

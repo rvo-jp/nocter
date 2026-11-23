@@ -882,6 +882,11 @@ impl Builder<'_, '_> {
                 source: self.referent(source)?,
                 destination,
             },
+            ExpressionKind::EnumCondition { source, tag } => plan::Operation::EnumCondition {
+                source: self.value(source)?,
+                tag,
+                destination,
+            },
             ExpressionKind::GuardView { source, primary } => plan::Operation::RequireVariant {
                 source: self.referent(source)?,
                 primary,

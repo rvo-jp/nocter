@@ -239,15 +239,8 @@ impl Checker<'_, '_> {
             let member = self.member_token(*suffix)?;
             if member.kind() == nocter_syntax::TokenKind::Identifier
                 && let Some(owner) = self.constructor_owner(*base)?
-                && let Some((data, id)) = self.enum_variant(owner, member)?
+                && let Some((data, tag)) = self.enum_variant(owner, member)?
             {
-                let position = self
-                    .program()
-                    .variants()
-                    .get(id)
-                    .ok_or(Failure::InconsistentSyntax)?
-                    .position();
-                let tag = u64::try_from(position).map_err(|_| Failure::InconsistentSyntax)?;
                 let value =
                     nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::EnumTag(tag)])
                         .map_err(|_| Failure::InconsistentSyntax)?;

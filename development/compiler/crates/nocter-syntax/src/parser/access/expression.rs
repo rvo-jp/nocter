@@ -508,7 +508,7 @@ fn if_(parser: &mut Parser<'_>) -> Expression {
     }
     parser.bump();
     let condition = parser.start();
-    header_expression(parser);
+    super::patterns::if_condition(parser);
     parser.complete(condition, NodeKind::IfCondition);
     super::required_block(parser);
     if parser.at_keyword(Keyword::Else) {

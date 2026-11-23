@@ -4,6 +4,7 @@ pub mod accepted;
 mod annotations;
 mod body_inputs;
 mod booleans;
+mod branch_patterns;
 mod calls;
 mod checker;
 mod closures;

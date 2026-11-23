@@ -180,6 +180,48 @@ fn async_source_preserves_await_outcome_and_future_type_boundaries() {
     assert!(tree("async primitive func p(): void", ParseGoal::V2CoreUnit).has_errors());
     super::super::snapshots::assert_token_projection(&source, "v2 future and await");
 }
+
+#[test]
+fn enum_condition_preserves_its_qualified_pattern_and_ordinary_else_if() {
+    use crate::{TokenKind, direct_node, direct_token_iter};
+    let parsed = tree(
+        "func choose(value: Status): i32 {\n\
+         if value\n is pkg.Status.active { 1 } else if true { 2 } else { 3 }\n\
+         }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let conditions = parsed
+        .nodes()
+        .filter_map(|(id, node)| (node.kind() == NodeKind::IfCondition).then_some(id))
+        .collect::<Vec<_>>();
+    let [enumeration, boolean] = conditions.as_slice() else {
+        panic!("one enum condition and one Boolean condition");
+    };
+    assert!(direct_node(&parsed, *enumeration, NodeKind::Expression).is_some());
+    let pattern = direct_node(&parsed, *enumeration, NodeKind::EnumPattern).unwrap();
+    assert_eq!(
+        direct_token_iter(&parsed, pattern)
+            .filter(|token| token.kind() == TokenKind::Identifier)
+            .count(),
+        3
+    );
+    assert!(direct_node(&parsed, *boolean, NodeKind::EnumPattern).is_none());
+    for source in [
+        "if value is active {}",
+        "if value is Status.active() {}",
+        "if value is Status. {}",
+    ] {
+        assert!(
+            tree(
+                &format!("func check(): void {{ {source} }}"),
+                ParseGoal::V2CoreUnit
+            )
+            .has_errors()
+        );
+    }
+    super::super::snapshots::assert_token_projection(&parsed, "v2 enum condition");
+}
 #[test]
 fn corpus_uses_the_production_goal_with_lossless_tokens_and_structural_snapshots() {
     let root = root();

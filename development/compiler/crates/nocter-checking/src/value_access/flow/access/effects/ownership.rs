@@ -302,6 +302,7 @@ impl Context<'_, '_> {
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::PrimaryCondition { .. }
+            | ExpressionKind::EnumCondition { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }

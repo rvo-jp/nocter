@@ -4,13 +4,32 @@ use ./status
 const CURRENT: status.Status = status.in_progress()
 static CATALOG: (status.State, status.State) = (CURRENT, status.State.idle)
 
+const func score(value: status.Status): i32 {
+    if value is status.State.active { 40 } else { 0 }
+}
+
+const SCORE: i32 = score(CURRENT) + score(status.Status.idle)
+
+func next_index(edit visits: i32): usize {
+    visits += 1
+    0
+}
+
 func receive(take current: status.Status, take secret: status.Secret, take token: status.Token): i32 {
     let copy_of_status = current
     let copy_of_token = token
     drop copy_of_status
     drop copy_of_token
     drop secret
-    42
+    let values = [current, status.State.idle]
+    var visits = 0
+    if values[next_index(visits)] is status.Status.stopped {
+        1
+    } else if current is status.Status.active {
+        SCORE + visits + 1
+    } else {
+        2
+    }
 }
 
 func main(): i32 {

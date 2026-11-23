@@ -1012,6 +1012,21 @@ fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
             "status.Secret.internal",
             "outside its visibility boundary",
         ),
+        (
+            "is status.Status.stopped",
+            "is status.Secret.internal",
+            "outside its visibility boundary",
+        ),
+        (
+            "if current is status.Status.active",
+            "if token is status.Status.idle",
+            "but this expression supplies",
+        ),
+        (
+            "is status.Status.active",
+            "is status.Status.active(payload)",
+            "a payloadless enum pattern has no bindings",
+        ),
         ("hidden^, token", "hidden, token", "E0371"),
     ] {
         assert!(original.contains(before));
@@ -1019,6 +1034,24 @@ fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
         let diagnostic = render(&execute("check").unwrap_err());
         assert!(diagnostic.contains(expected), "{diagnostic}");
     }
+    fs::write(&main, original).unwrap();
+    execute_invocation(invocation(
+        ["fmt", "main.nct"],
+        &package,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert!(matches!(
+        execute_invocation(invocation(
+            ["fmt", "--check", "main.nct"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap(),
+        InvocationOutcome::Format(nocter_command::FormatCommandResult::Unchanged)
+    ));
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

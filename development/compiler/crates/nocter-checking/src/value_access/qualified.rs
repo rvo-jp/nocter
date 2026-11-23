@@ -3,7 +3,7 @@ use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{
     BehaviorOwner, DeclarationId, Namespace, QualifiedNameError,
 };
-use nocter_model::{AccessCodeId, Symbol, TypeId, VariantId};
+use nocter_model::{AccessCodeId, Symbol, TypeId};
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken, TokenKind};
 
 pub(super) struct QualifiedSelection {
@@ -17,7 +17,7 @@ impl Checker<'_, '_> {
         &self,
         owner: BehaviorOwner,
         member: SyntaxToken,
-    ) -> Result<Option<(TypeId, VariantId)>, Failure> {
+    ) -> Result<Option<(TypeId, u64)>, Failure> {
         let BehaviorOwner::Nominal(nominal) = owner else {
             return Ok(None);
         };
@@ -36,7 +36,14 @@ impl Checker<'_, '_> {
         if !variant.accessible {
             return self.reject(Rule::InaccessibleName, member);
         }
-        Ok(Some((data, variant.id)))
+        let position = self
+            .program()
+            .variants()
+            .get(variant.id)
+            .ok_or(Failure::InconsistentSyntax)?
+            .position();
+        let tag = u64::try_from(position).map_err(|_| Failure::InconsistentSyntax)?;
+        Ok(Some((data, tag)))
     }
 
     fn path_symbols(&self, path: &[SyntaxToken]) -> Result<Vec<Option<Symbol>>, Failure> {

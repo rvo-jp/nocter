@@ -352,6 +352,10 @@ impl Context<'_, '_> {
                 }
                 Ok(Value::without_referent(Mode::Own))
             }
+            ExpressionKind::EnumCondition { source, .. } => {
+                self.read(self.world.value(source)?)?;
+                Ok(Value::without_referent(Mode::Own))
+            }
             ExpressionKind::RequirePrimary { source } => {
                 let value = self.world.value(source)?;
                 if value.mode != Mode::Own {

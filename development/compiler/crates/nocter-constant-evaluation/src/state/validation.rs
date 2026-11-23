@@ -451,14 +451,12 @@ fn operation(program: &Program, plan: &View<'_>, op: &Operation) -> Result<()> {
         Operation::PrimaryCondition {
             source,
             destination,
-        } => {
-            if !matches!(program.types.get(data(source)?), Some(Type::Variant { .. }))
-                || program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
-            {
-                return Err(INVALID);
-            }
-            Ok(())
-        }
+        } => tag_condition(program, plan, source, *destination, None),
+        Operation::EnumCondition {
+            source,
+            tag,
+            destination,
+        } => tag_condition(program, plan, source, *destination, Some(*tag)),
         Operation::RequireVariant { source, view, .. } => {
             variant_view(program, plan, source, *view)
         }
@@ -508,6 +506,24 @@ fn operation(program: &Program, plan: &View<'_>, op: &Operation) -> Result<()> {
             inputs,
         } => selected_calls::check(program, plan, *destination, callee, cases, inputs),
     }
+}
+fn tag_condition(
+    program: &Program,
+    plan: &View<'_>,
+    source: &Place,
+    destination: usize,
+    tag: Option<u64>,
+) -> Result<()> {
+    let source = program.types.get(place(program, plan, source)?);
+    let valid = match (source, tag) {
+        (Some(Type::Variant { .. }), None) => true,
+        (Some(Type::ScalarEnum { variants, .. }), Some(tag)) => tag < *variants,
+        _ => false,
+    };
+    if !valid || program.types.get(ordinary_slot(plan, destination)?.data) != Some(&Type::Bool) {
+        return Err(INVALID);
+    }
+    Ok(())
 }
 fn variant_view(
     program: &Program,

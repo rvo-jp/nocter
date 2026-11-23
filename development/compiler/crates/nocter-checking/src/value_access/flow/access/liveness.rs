@@ -331,7 +331,8 @@ fn expression_uses(
         ExpressionKind::Select { source, action, .. } => {
             uses.push((Carrier::Expression(source), update && action.is_place()));
         }
-        ExpressionKind::RequirePrimary { source }
+        ExpressionKind::EnumCondition { source, .. }
+        | ExpressionKind::RequirePrimary { source }
         | ExpressionKind::Repeat { seed: source }
         | ExpressionKind::AdaptFunction { source }
         | ExpressionKind::Closure {

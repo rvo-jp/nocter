@@ -438,9 +438,7 @@ impl Checker<'_, '_> {
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let condition_node = self.first_child(self.direct(node, NodeKind::IfCondition)?)?;
-        let condition = self.expression(condition_node, None, reachable)?;
-        self.require_data(condition, self.data(BuiltinType::Bool), condition_node)?;
+        let condition = self.if_condition(self.direct(node, NodeKind::IfCondition)?, reachable)?;
         let branches_reachable = reachable && self.ty(condition).may_complete();
         let known_condition = self.normal_boolean(condition);
         // A terminating condition never reaches either branch's exact outgoing value boundary.

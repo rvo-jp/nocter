@@ -124,6 +124,13 @@ statics. The target selects the smallest supported unsigned width that fits the 
 That width belongs to the representation. Source numeric operations still use their own data
 contracts.
 
+An unmarked [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
+variant through the same declaration and audience. The checker requires the scrutinee's exact
+nominal type, evaluates it once and reads the resulting place or value. Required evaluation
+compares the typed ordinal. Native lowering reads the tag using the enum's physical width and
+feeds the comparison into ordinary Boolean control flow. The current scalar branch path covers
+read input and payloadless patterns.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

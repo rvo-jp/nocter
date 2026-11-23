@@ -4,6 +4,7 @@ mod behavior;
 mod directives;
 mod expression;
 mod nominal;
+mod patterns;
 mod types;
 use types::type_;
 #[cfg(test)]

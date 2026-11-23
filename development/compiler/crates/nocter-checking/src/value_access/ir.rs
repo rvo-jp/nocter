@@ -460,6 +460,11 @@ pub enum ExpressionKind {
     PrimaryCondition {
         source: Referent,
     },
+    /// Test the ordinal of a selected variant in the source's exact nominal enum.
+    EnumCondition {
+        source: AccessExpressionId,
+        tag: u64,
+    },
     /// Require the primary branch before forwarding this owned carrier to payload selection.
     RequirePrimary {
         source: AccessExpressionId,

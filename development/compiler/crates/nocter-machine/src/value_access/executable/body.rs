@@ -607,8 +607,16 @@ impl<'a> Builder<'a> {
             } => {
                 let address = self.place(source)?;
                 let value = self.primary_condition(address, source.data)?;
-                let destination = self.place(destination)?;
-                self.emit(MachineOperationKind::Store { destination, value });
+                self.store(destination, value)?;
+            }
+            mir::Operation::EnumCondition {
+                source,
+                tag,
+                destination,
+            } => {
+                let address = self.place(source)?;
+                let value = self.tag_matches(address, source.data, *tag)?;
+                self.store(destination, value)?;
             }
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => self.constant(destination, value)?,
@@ -622,9 +630,7 @@ impl<'a> Builder<'a> {
                 destination,
                 copy,
                 bounds,
-            } => {
-                self.index(base, index, destination, *copy, *bounds)?;
-            }
+            } => self.index(base, index, destination, *copy, *bounds)?,
             mir::Operation::Repeat {
                 source,
                 destination,

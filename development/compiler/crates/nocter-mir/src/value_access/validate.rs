@@ -445,6 +445,21 @@ impl Context<'_> {
                     ) && self.primitive(destination.data, RuntimePrimitive::Bool),
                 )
             }
+            Operation::EnumCondition {
+                source,
+                tag,
+                destination,
+            } => {
+                self.place(source)?;
+                self.place(destination)?;
+                self.require(
+                    self.program
+                        .runtime
+                        .scalar_enum_variant(source.data, *tag)
+                        .is_some()
+                        && self.primitive(destination.data, boolean),
+                )
+            }
             Operation::RequireVariant { source, .. } => {
                 self.place(source)?;
                 self.require(matches!(

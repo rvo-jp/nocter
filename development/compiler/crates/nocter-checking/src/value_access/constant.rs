@@ -114,6 +114,7 @@ fn operation_rule(
         | ExpressionKind::GuardView { .. }
         | ExpressionKind::Scoped { .. }
         | ExpressionKind::PrimaryCondition { .. }
+        | ExpressionKind::EnumCondition { .. }
         | ExpressionKind::Block { .. }
         | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify read-mode scalar enum conditions in the adopted if-is form. Preserve one scrutinee
-evaluation, exact nominal variant identity and original visibility through required evaluation
-and native control flow.
+Qualify edit and take input in scalar enum if-is. Select contextual prefixes before type
+checking and preserve ordinary name expressions. Check update authority, transfer before both
+branches, and cleanup of the received carrier before entering the selected branch.
 
 ## Remaining Contextual Representation Qualification
 
@@ -715,9 +715,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify nongeneric scalar enum schemas and payloadless variant construction through
   ordinary source. Preserve original variant order and audiences, reject incomplete or
   conflicting schemas, and carry one selected tag through required and native execution.
-- [ ] Qualify read-mode scalar enum if-is through source and execution. Check repeated tags
-  across distinct nominal types, original variant audiences and once-evaluated scrutinees.
-  Keep edit/take access and payload bindings under the remaining control qualification.
+- [x] Qualify read-mode scalar enum if-is through source and execution. Check ordinal collisions
+  across distinct nominal types, original variant audiences, once-evaluated scrutinees, nested
+  scalar cleanup and installed formatting.
+- [ ] Qualify scalar enum if-is with contextual edit/take. Keep joint calls and indices, verify
+  update authority and caller-owned temporaries, and retire the acquired take carrier before the
+  selected branch. Check both Copy snapshots and marked transfers, including a false test.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
