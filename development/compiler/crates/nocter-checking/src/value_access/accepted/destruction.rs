@@ -1,7 +1,8 @@
 //! Required non-waiting and non-suspending effects of the checked destructor lifecycle.
-use super::{Checked, DeclarationContext, Failure, flow};
+use super::{DeclarationContext, Failure, Unit, flow};
 use crate::value_access::{
     CallKind, ExpressionKind, InstanceControl, InstantiationFailure, ResourceDataFailure,
+    ResourceDataProjection, results,
 };
 use flow::{
     Location, Operation,
@@ -31,54 +32,48 @@ const CLEANUP: &str = "this cleanup has no verified non-waiting implementation";
 
 pub(super) fn qualify(
     context: &DeclarationContext<'_>,
-    checked: &Checked,
+    unit: &Unit,
     work: &mut WorkBudget,
 ) -> Result<BTreeSet<CodeInstanceKey>, Failure> {
-    if !checked.program.has_destructors() {
+    if !unit.program.has_destructors() {
         return Ok(BTreeSet::new());
     }
     let mut proof = Proof {
-        context,
-        checked,
+        unit,
         abi: context.target().and_then(RuntimeAbiIdentity::for_target),
         frames: BTreeSet::new(),
         retired: BTreeSet::new(),
         pending: Vec::new(),
         work,
     };
-    for (root, declaration) in checked.program.codes().iter() {
+    for (root, declaration) in unit.program.codes().iter() {
         let CodeKind::Destructor(owner) = declaration.kind() else {
             continue;
         };
-        let data = checked
-            .program
-            .nominal_type_identity(owner)
-            .ok_or(INVALID)?;
-        let receiver = checked.program.instantiate_closed_data(data).map_err(|_| {
-            proof.rejection(
+        let data = unit.program.nominal_type_identity(owner).ok_or(INVALID)?;
+        let receiver = unit.program.instantiate_closed_data(data).map_err(|_| {
+            rejection(
+                context,
+                unit,
                 root,
-                None,
-                "the destructor receiver has no closed cleanup context",
+                CheckFailure::at_entry(
+                    root.into(),
+                    "the destructor receiver has no closed cleanup context",
+                ),
             )
         })?;
         proof
-            .retire(receiver)
-            .map_err(|message| proof.rejection(root, None, message))?;
-        while let Some(frame) = proof.pending.pop() {
-            if proof.frames.insert(frame.clone()) {
-                proof.body(root, &frame)?;
-            }
-        }
+            .require(root, receiver)
+            .map_err(|error| rejection(context, unit, root, error))?;
     }
     Ok(proof.frames.into_iter().map(|frame| frame.key).filter(|key| {
         matches!(key.code(), ValueCode::Declaration(code)
-            if checked.program.codes().get(code).is_some_and(|declaration| matches!(declaration.kind(), CodeKind::Destructor(_))))
+            if unit.program.codes().get(code).is_some_and(|declaration| matches!(declaration.kind(), CodeKind::Destructor(_))))
     }).collect())
 }
 
-struct Proof<'a, 'source, 'work> {
-    context: &'a DeclarationContext<'source>,
-    checked: &'a Checked,
+struct Proof<'a, 'work> {
+    unit: &'a Unit,
     abi: Option<RuntimeAbiIdentity>,
     frames: BTreeSet<Frame>,
     retired: BTreeSet<DataInstanceKey>,
@@ -92,15 +87,49 @@ struct Frame {
     protected: BTreeSet<AccessLocalId>,
 }
 
-impl Proof<'_, '_, '_> {
-    fn body(&mut self, root: AccessCodeId, frame: &Frame) -> Result<(), Failure> {
-        let body = self.checked.code(frame.key.code()).ok_or(INVALID)?;
+#[derive(Clone, Copy, Debug)]
+enum CheckFailure {
+    Integrity(flow::IntegrityError),
+    Rejected {
+        code: ValueCode,
+        at: Option<Location>,
+        message: &'static str,
+    },
+}
+
+impl CheckFailure {
+    fn at_entry(code: ValueCode, message: &'static str) -> Self {
+        Self::Rejected {
+            code,
+            at: None,
+            message,
+        }
+    }
+}
+
+impl Proof<'_, '_> {
+    fn require(&mut self, code: AccessCodeId, data: DataInstanceKey) -> Result<(), CheckFailure> {
+        self.retire(data)
+            .map_err(|message| CheckFailure::at_entry(code.into(), message))?;
+        while let Some(frame) = self.pending.pop() {
+            if self.frames.insert(frame.clone()) {
+                self.body(&frame)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn body(&mut self, frame: &Frame) -> Result<(), CheckFailure> {
+        let code = frame.key.code();
+        let body = self.unit.code_body(code).ok_or(CheckFailure::Integrity(
+            flow::IntegrityError::InconsistentTypedBody,
+        ))?;
         let protected =
-            Protected::new(body.typed(), &frame.protected).map_err(Failure::Integrity)?;
+            Protected::new(body.typed(), &frame.protected).map_err(CheckFailure::Integrity)?;
         let control = self
-            .checked
+            .unit
             .instantiate_control(&frame.key, self.work)
-            .map_err(|failure| self.rejection(root, None, metadata_failure(failure)))?;
+            .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)))?;
         for (point, block) in body.graph().points().iter() {
             if !control.reachable(point) {
                 continue;
@@ -108,7 +137,11 @@ impl Proof<'_, '_, '_> {
             for (action, operation) in block.actions.iter().enumerate() {
                 let at = Location { point, action };
                 self.operation(body, &control, &protected, at, &operation.operation)
-                    .map_err(|message| self.rejection(root, Some((body, at)), message))?;
+                    .map_err(|message| CheckFailure::Rejected {
+                        code,
+                        at: Some(at),
+                        message,
+                    })?;
             }
         }
         Ok(())
@@ -149,10 +182,16 @@ impl Proof<'_, '_, '_> {
             {
                 continue;
             }
-            let mut projection = self
-                .checked
-                .project_resource_data(control.frame(), at, control, self.work)
-                .map_err(resource_failure)?;
+            let mut projection = ResourceDataProjection::new(
+                &self.unit.program,
+                &self.unit.result_evidence,
+                Some(body),
+                control.frame(),
+                at,
+                Some(control),
+                self.work,
+            )
+            .map_err(resource_failure)?;
             let before = projection.steps(&before).map_err(resource_failure)?;
             let after = projection.after_steps(&after).map_err(resource_failure)?;
             for payload in before
@@ -195,16 +234,17 @@ impl Proof<'_, '_, '_> {
                 .is_some_and(|argument| argument.operation == ValueInputOperation::Take);
         let protected_positions =
             protected.positions(kind.explicit_arguments(arguments).ok_or(CLEANUP)?)?;
-        match self
-            .checked
-            .instantiate_invocation(frame, site, control, self.work)
-        {
+        let program = &self.unit.program;
+        let evidence = &self.unit.result_evidence;
+        match results::instantiate_controlled_invocation(
+            program, evidence, frame, site, control, self.work,
+        ) {
             Ok(selected) => self.invoke(selected, consumes_environment, &protected_positions),
             Err(InstantiationFailure::Unresolved) => {
-                let domain = self
-                    .checked
-                    .instantiate_invocation_domain(frame, site, control, self.work)
-                    .map_err(metadata_failure)?;
+                let domain = results::instantiate_controlled_invocation_domain(
+                    program, evidence, frame, site, control, self.work,
+                )
+                .map_err(metadata_failure)?;
                 for case in domain.cases() {
                     self.invoke(
                         case.frame().clone(),
@@ -223,7 +263,7 @@ impl Proof<'_, '_, '_> {
         code: ValueCode,
         steps: &'steps [Step],
     ) -> Cow<'steps, [Step]> {
-        let local = |step: &Step| self.checked.local_futures.contains_step(code, step);
+        let local = |step: &Step| self.unit.local_futures.contains_step(code, step);
         if steps.iter().any(local) {
             Cow::Owned(steps.iter().filter(|step| !local(step)).cloned().collect())
         } else {
@@ -238,7 +278,7 @@ impl Proof<'_, '_, '_> {
         protected_positions: &[usize],
     ) -> Result<(), &'static str> {
         if let ValueCode::Declaration(code) = selected.code()
-            && let Some(role) = self.context.primitives().role(code)
+            && let Some(role) = self.unit.primitives().role(code)
         {
             if !protected_positions.is_empty() {
                 return Err("a primitive cannot take over the receiver during destruction");
@@ -259,8 +299,8 @@ impl Proof<'_, '_, '_> {
                 self.retire_adapter_environment(&selected)?;
             }
             let body = self
-                .checked
-                .code(selected.code())
+                .unit
+                .code_body(selected.code())
                 .ok_or(CLEANUP)?
                 .typed()
                 .body();
@@ -284,8 +324,8 @@ impl Proof<'_, '_, '_> {
 
     fn retire_adapter_environment(&mut self, frame: &CodeInstanceKey) -> Result<(), &'static str> {
         let body = self
-            .checked
-            .code(frame.code())
+            .unit
+            .code_body(frame.code())
             .ok_or(CLEANUP)?
             .typed()
             .body();
@@ -295,10 +335,10 @@ impl Proof<'_, '_, '_> {
             return Ok(());
         }
         let data = body.locals().get(input.local).ok_or(CLEANUP)?.data;
-        let completed = match self.checked.program.instantiate_closed_data(data) {
+        let completed = match self.unit.program.instantiate_closed_data(data) {
             Ok(closed) => closed,
             Err(_) => self
-                .checked
+                .unit
                 .instantiate_completed_input_data(frame, input.local, self.work)
                 .map_err(metadata_failure)?,
         };
@@ -312,7 +352,7 @@ impl Proof<'_, '_, '_> {
         holder: Holder,
     ) -> Result<(), &'static str> {
         let cleanup = self
-            .checked
+            .unit
             .local_futures
             .cancellation(code, at, holder)
             .ok_or(CLEANUP)?;
@@ -325,7 +365,7 @@ impl Proof<'_, '_, '_> {
             .chain(selected.iter().flat_map(|(_, fields)| fields.iter()))
         {
             let data = self
-                .checked
+                .unit
                 .program
                 .instantiate_closed_data(input.payload.data())
                 .map_err(|_| CLEANUP)?;
@@ -335,7 +375,7 @@ impl Proof<'_, '_, '_> {
     }
 
     fn retire(&mut self, data: DataInstanceKey) -> Result<(), &'static str> {
-        let program = &self.checked.program;
+        let program = &self.unit.program;
         let mut pending = vec![data];
         while let Some(data) = pending.pop() {
             if data.is_uninhabited() || !self.retired.insert(data.clone()) {
@@ -347,7 +387,12 @@ impl Proof<'_, '_, '_> {
                     return Err("context-dependent destructor cleanup is unresolved");
                 }
                 let key = program.bind_destructor(&data).map_err(|_| CLEANUP)?;
-                let body = self.checked.code(key.code()).ok_or(CLEANUP)?.typed().body();
+                let body = self
+                    .unit
+                    .code_body(key.code())
+                    .ok_or(CLEANUP)?
+                    .typed()
+                    .body();
                 let [receiver] = body.inputs().explicit() else {
                     return Err(CLEANUP);
                 };
@@ -387,42 +432,47 @@ impl Proof<'_, '_, '_> {
         }
         Ok(())
     }
+}
 
-    fn rejection(
-        &self,
-        root: AccessCodeId,
-        operation: Option<(&flow::Query, Location)>,
-        message: &str,
-    ) -> Failure {
-        let project = || {
-            let source = self.context.code_source(root)?;
-            let destructor = self.context.source_origin(source.origin()).ok()?;
-            let mut notes = Vec::new();
-            let primary = if let Some((body, at)) = operation {
-                let verified = self.checked.result_evidence.verify(self.context).ok()?;
-                let bound = body.bind_verified(&verified).ok()?;
-                let origin = bound.origin(at).ok()?;
-                notes.push(DiagnosticNote::new(
-                    "this destructor requires verified cleanup",
-                    destructor,
-                ));
-                self.context.source_origin(origin).ok()?
-            } else {
-                destructor
-            };
-            Some(Failure::Flow {
-                callable: root,
-                diagnostics: Box::new([SourceDiagnostic::new(
-                    DiagnosticCode::E0291,
-                    message,
-                    primary,
-                    notes,
-                    None::<&str>,
-                )]),
-            })
+fn rejection(
+    context: &DeclarationContext<'_>,
+    unit: &Unit,
+    root: AccessCodeId,
+    error: CheckFailure,
+) -> Failure {
+    let (code, at, message) = match error {
+        CheckFailure::Rejected { code, at, message } => (code, at, message),
+        CheckFailure::Integrity(error) => return Failure::Integrity(error),
+    };
+    let project = || {
+        let destructor = context
+            .source_origin(context.code_source(root)?.origin())
+            .ok()?;
+        let mut notes = Vec::new();
+        let primary = if let Some(at) = at {
+            let verified = unit.result_evidence.verify(context).ok()?;
+            let bound = unit.code_body(code)?.bind_verified(&verified).ok()?;
+            let origin = bound.origin(at).ok()?;
+            notes.push(DiagnosticNote::new(
+                "this destructor requires verified cleanup",
+                destructor,
+            ));
+            context.source_origin(origin).ok()?
+        } else {
+            destructor
         };
-        project().unwrap_or(INVALID)
-    }
+        Some(Failure::Flow {
+            callable: root,
+            diagnostics: Box::new([SourceDiagnostic::new(
+                DiagnosticCode::E0291,
+                message,
+                primary,
+                notes,
+                None::<&str>,
+            )]),
+        })
+    };
+    project().unwrap_or(INVALID)
 }
 
 const fn metadata_failure(failure: InstantiationFailure) -> &'static str {

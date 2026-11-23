@@ -213,6 +213,8 @@ For closed receivers, effect checking follows reached invocation instances and o
 retirement steps. A consuming callable adapter is checked against its completed environment.
 Primitive effects and backend release require target certificates. The checked unit retains
 the exact anonymous frames qualified for non-waiting, non-suspending destruction.
+The check uses the accepted bodies and their instance metadata. Rejected operations retain their
+body and operation identities until source locations are bound against the original source.
 The declaration binder retains an exact receiver context in the ordinary explicit input slot.
 Effect analysis projects structural components through the shared declaration schema and
 follows callable environments through their selected witness.

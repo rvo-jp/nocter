@@ -164,8 +164,6 @@ impl Unit {
         let queries = evaluation.queries;
         let mut definition_work =
             nocter_constant_evaluation::state::WorkBudget::new(evaluation.condition_limit);
-        let checked = check_queries(context, queries, &mut definition_work)?;
-        let destructor_frames = destruction::qualify(context, &checked, &mut definition_work)?;
         let Checked {
             program,
             bodies,
@@ -174,8 +172,8 @@ impl Unit {
             const_templates,
             deferred_drives,
             local_futures,
-        } = checked;
-        Ok(Self {
+        } = check_queries(context, queries, &mut definition_work)?;
+        let mut unit = Self {
             initializers: evaluation
                 .values
                 .into_iter()
@@ -193,8 +191,10 @@ impl Unit {
             const_templates,
             deferred_drives,
             local_futures,
-            destructor_frames,
-        })
+            destructor_frames: BTreeSet::new(),
+        };
+        unit.destructor_frames = destruction::qualify(context, &unit, &mut definition_work)?;
+        Ok(unit)
     }
     /// Exact anonymous lifecycle frames with verified destruction effects.
     pub fn destructor_frames(&self) -> impl Iterator<Item = &CodeInstanceKey> {

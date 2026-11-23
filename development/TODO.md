@@ -18,9 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Prepare effect qualification for exact contextual receivers. Use the accepted body's canonical
-operations for semantic effect checks and bind source locations through a separate diagnostic
-projection.
+Qualify exact contextual receivers selected by the concrete lifecycle. Close their body edges
+with the ordinary invocation graph and preserve original operation identities on rejection.
 
 ## Remaining Contextual Representation Qualification
 
@@ -799,6 +798,8 @@ not a language restriction derived from the current realization boundary.
   receiver keys. Derive structural cleanup components from their shared declaration projection.
 - [x] Require a matched qualified frame for a reached authored destructor. Preserve the nominal
   obligation through stored data projection even when no executable body is ready.
+- [x] Run lifecycle effect analysis on accepted bodies and their canonical instance metadata.
+  Resolve source locations separately from the semantic proof.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
