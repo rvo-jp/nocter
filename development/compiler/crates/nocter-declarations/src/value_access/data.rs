@@ -535,12 +535,17 @@ impl Program {
                 definition,
                 arguments,
             } if arguments.as_slice().is_empty() => {
-                self.nominals().get(*definition).map(|schema| match schema {
-                    super::NominalSchema::Record(record) => PayloadSchema::Aggregate(
-                        super::AggregateSchema::record(record, self.fields()),
-                    ),
-                    super::NominalSchema::Enumeration(schema) => PayloadSchema::Enumeration(schema),
-                })
+                self.nominals()
+                    .get(*definition)
+                    .and_then(|schema| match schema {
+                        super::NominalSchema::Record(record) => Some(PayloadSchema::Aggregate(
+                            super::AggregateSchema::record(record, self.fields()),
+                        )),
+                        // Executable enum storage currently realizes payloadless variants.
+                        super::NominalSchema::Enumeration(schema) => {
+                            (!schema.has_payload()).then_some(PayloadSchema::Enumeration(schema))
+                        }
+                    })
             }
             TypeKind::FixedArray { element, length } => Some(PayloadSchema::Array(ArraySchema {
                 element: *element,

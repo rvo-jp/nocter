@@ -8,9 +8,9 @@ use crate::access_declarations::{
 };
 use crate::{DeclarationContractError, SurfaceDeclarationId};
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, HeaderFailure, HeaderStep, Program,
+    DataReference, DeclarationId, HeaderFailure, HeaderStep, Program, VariantDefinition,
 };
-use nocter_model::{AccessCodeId, FrozenData, Symbol};
+use nocter_model::{AccessCodeId, FrozenData};
 use std::collections::{BTreeMap, BTreeSet};
 
 enum Definition {
@@ -18,7 +18,7 @@ enum Definition {
     Record(definitions::RecordDefinition),
     Enumeration {
         copy: bool,
-        variants: Option<Box<[Symbol]>>,
+        variants: Option<Box<[VariantDefinition]>>,
     },
     Alias(DataReference),
 }
@@ -342,6 +342,7 @@ fn project_occurrence<'value>(
                             program
                                 .symbols()
                                 .get(crate::access_declarations::text(scope.syntax, variant))
+                                .map(VariantDefinition::scalar)
                                 .ok_or_else(integrity)
                         })
                         .collect::<Result<_, _>>()?,

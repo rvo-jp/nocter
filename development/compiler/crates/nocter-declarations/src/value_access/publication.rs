@@ -158,14 +158,14 @@ impl HeaderPublication {
     ) -> Result<(), crate::DefinitionError> {
         self.definitions.define_record(id, copy, fields)
     }
-    /// Load one define-once scalar enumeration into the fixed variant domain.
+    /// Load one define-once enumeration into the fixed variant and payload domain.
     /// # Errors
     /// Rejects foreign IDs, mismatched arity or an already-defined schema.
     pub fn define_enum(
         &mut self,
         id: NominalTypeId,
         copyable: bool,
-        variants: impl Into<Box<[nocter_model::Symbol]>>,
+        variants: impl Into<Box<[super::VariantDefinition]>>,
     ) -> Result<(), crate::DefinitionError> {
         self.definitions.define_enum(id, copyable, variants)
     }
@@ -224,7 +224,7 @@ impl HeaderPublication {
                 HeaderFailure::Rejected(vec![violation])
             })
     }
-    /// Publish exactly one contract, or report all of its currently missing record contracts.
+    /// Publish exactly one contract, or report its currently missing nominal contracts.
     /// # Errors
     /// Reports missing/invalid definitions or unknown IDs while preserving established contracts.
     /// # Panics

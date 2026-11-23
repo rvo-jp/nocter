@@ -17,7 +17,7 @@ fn scalar_enums_share_nominal_reservation_and_publish_variants_in_order() {
     let mut reservations = Reservations::new(symbols.clone());
     let container = reservations.reserve_record(name("Container"), 1);
     let status = reservations
-        .reserve_enum_in(ScopeId::ROOT, name("Status"), 2)
+        .reserve_enum_in(ScopeId::ROOT, name("Status"), [0, 0])
         .unwrap();
     assert_ne!(container, status);
     let mut headers = reservations.finish().unwrap().into_publication();
@@ -29,7 +29,11 @@ fn scalar_enums_share_nominal_reservation_and_publish_variants_in_order() {
         )
         .unwrap();
     headers
-        .define_enum(status, true, [name("idle"), name("busy")])
+        .define_enum(
+            status,
+            true,
+            [name("idle"), name("busy")].map(VariantDefinition::scalar),
+        )
         .unwrap();
     let waiting = headers.snapshot();
     assert!(waiting.enumeration(status).is_none() && waiting.variants().is_empty());
@@ -75,11 +79,16 @@ fn invalid_enum_definitions_publish_no_nominal_or_variant_schema() {
     ] {
         let mut reservations = Reservations::new(symbols.clone());
         let status = reservations
-            .reserve_enum_in(ScopeId::ROOT, symbols.get("Status").unwrap(), names.len())
+            .reserve_enum_in(
+                ScopeId::ROOT,
+                symbols.get("Status").unwrap(),
+                std::iter::repeat_n(0, names.len()),
+            )
             .unwrap();
         let mut headers = reservations.finish().unwrap().into_publication();
         let before = headers.snapshot();
-        headers.define_enum(status, true, names).unwrap();
+        let variants: Vec<_> = names.into_iter().map(VariantDefinition::scalar).collect();
+        headers.define_enum(status, true, variants).unwrap();
         let HeaderFailure::Rejected(violations) = headers.publish(status).unwrap_err() else {
             panic!("invalid enum schema");
         };
@@ -97,11 +106,13 @@ fn opaque_scalar_enum_does_not_give_copy_to_a_containing_record() {
     let name = |spelling| symbols.get(spelling).unwrap();
     let mut reservations = Reservations::new(symbols.clone());
     let status = reservations
-        .reserve_enum_in(ScopeId::ROOT, name("Status"), 1)
+        .reserve_enum_in(ScopeId::ROOT, name("Status"), [0])
         .unwrap();
     let container = reservations.reserve_record(name("Container"), 1);
     let mut headers = reservations.finish().unwrap().into_publication();
-    headers.define_enum(status, false, [name("idle")]).unwrap();
+    headers
+        .define_enum(status, false, [VariantDefinition::scalar(name("idle"))])
+        .unwrap();
     headers
         .define_record(
             container,
@@ -116,6 +127,176 @@ fn opaque_scalar_enum_does_not_give_copy_to_a_containing_record() {
     let program = headers.snapshot();
     assert!(!program.enumeration(status).unwrap().copyable());
     assert!(program.record(container).is_none());
+}
+
+#[test]
+fn enum_payload_fields_and_records_share_nominal_publication() {
+    let symbols = SymbolTable::from_spellings([
+        "Envelope", "Event", "Point", "none", "number", "point", "value", "x",
+    ]);
+    let name = |spelling| symbols.get(spelling).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let envelope = reservations.reserve_record(name("Envelope"), 1);
+    let event = reservations
+        .reserve_enum_in(ScopeId::ROOT, name("Event"), [0, 1, 1])
+        .unwrap();
+    let point = reservations.reserve_record(name("Point"), 1);
+    let mut headers = reservations.finish().unwrap().into_publication();
+    headers
+        .define_record(
+            envelope,
+            true,
+            [field(&symbols, "value", DataReference::Nominal(event))],
+        )
+        .unwrap();
+    headers
+        .define_record(point, true, [field(&symbols, "x", BuiltinType::I32.into())])
+        .unwrap();
+    headers
+        .define_enum(
+            event,
+            true,
+            [
+                VariantDefinition::scalar(name("none")),
+                VariantDefinition {
+                    name: name("number"),
+                    fields: Box::new([field(&symbols, "value", BuiltinType::I32.into())]),
+                },
+                VariantDefinition {
+                    name: name("point"),
+                    fields: Box::new([field(&symbols, "value", DataReference::Nominal(point))]),
+                },
+            ],
+        )
+        .unwrap();
+    headers.publish(envelope).unwrap();
+    let program = headers.snapshot();
+    let schema = program.enumeration(event).unwrap();
+    assert!(schema.has_payload() && schema.copyable());
+    assert!(program.record(envelope).unwrap().copyable());
+    assert!(!program.owned_payload_supported(schema.data()));
+    let &[empty, number, compound] = schema.variants() else {
+        panic!("declaration-order variants");
+    };
+    assert!(program.variants().get(empty).unwrap().fields().is_empty());
+    let get_field = |id| {
+        let [field] = program.variants().get(id).unwrap().fields() else {
+            panic!("one payload field");
+        };
+        program.fields().get(*field).unwrap()
+    };
+    let number_field = get_field(number);
+    let compound_field = get_field(compound);
+    assert_eq!(number_field.name(), compound_field.name());
+    assert_eq!(number_field.variant(), Some(number));
+    assert_eq!(compound_field.variant(), Some(compound));
+    assert_eq!(compound_field.position(), 0);
+    assert_eq!(compound_field.data(), program.record(point).unwrap().data());
+}
+
+#[test]
+fn invalid_payload_arity_and_copy_leave_the_enum_unpublished() {
+    use crate::value_access::HeaderFailure;
+    let symbols = SymbolTable::from_spellings(["Event", "empty", "report", "reason"]);
+    let name = |spelling| symbols.get(spelling).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let event = reservations
+        .reserve_enum_in(ScopeId::ROOT, name("Event"), [0, 1])
+        .unwrap();
+    let mut headers = reservations.finish().unwrap().into_publication();
+    let before = headers.snapshot();
+    assert!(matches!(
+        headers.define_enum(
+            event,
+            true,
+            [name("empty"), name("report")].map(VariantDefinition::scalar)
+        ),
+        Err(DefinitionError::WrongArity {
+            expected: 1,
+            actual: 0
+        })
+    ));
+    headers
+        .define_enum(
+            event,
+            true,
+            [
+                VariantDefinition::scalar(name("empty")),
+                VariantDefinition {
+                    name: name("report"),
+                    fields: Box::new([field(&symbols, "reason", BuiltinType::Error.into())]),
+                },
+            ],
+        )
+        .unwrap();
+    let HeaderFailure::Rejected(violations) = headers.publish(event).unwrap_err() else {
+        panic!("non-Copy payload invalidates the requested contract");
+    };
+    assert_eq!(
+        violations,
+        [DeclarationViolation {
+            declaration: event.into(),
+            position: HeaderPosition::VariantField {
+                variant: 1,
+                field: 0
+            },
+            rule: DeclarationRule::NonCopyField,
+        }]
+    );
+    let after = headers.snapshot();
+    assert!(after.preserves_headers(&before));
+    assert!(
+        after.nominals().is_empty() && after.fields().is_empty() && after.variants().is_empty()
+    );
+}
+
+#[test]
+fn mixed_nominal_cycle_is_reported_at_the_enum_payload_that_closes_it() {
+    use crate::value_access::HeaderFailure;
+    let symbols = SymbolTable::from_spellings(["Entry", "Link", "end", "more", "next"]);
+    let name = |spelling| symbols.get(spelling).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let entry = reservations.reserve_record(name("Entry"), 1);
+    let link = reservations
+        .reserve_enum_in(ScopeId::ROOT, name("Link"), [0, 1])
+        .unwrap();
+    let mut headers = reservations.finish().unwrap().into_publication();
+    headers
+        .define_record(
+            entry,
+            false,
+            [field(&symbols, "next", DataReference::Nominal(link))],
+        )
+        .unwrap();
+    headers
+        .define_enum(
+            link,
+            false,
+            [
+                VariantDefinition::scalar(name("end")),
+                VariantDefinition {
+                    name: name("more"),
+                    fields: Box::new([field(&symbols, "next", DataReference::Nominal(entry))]),
+                },
+            ],
+        )
+        .unwrap();
+    let HeaderFailure::Rejected(violations) = headers.publish(entry).unwrap_err() else {
+        panic!("mixed direct containment must be finite");
+    };
+    assert_eq!(
+        violations,
+        [DeclarationViolation {
+            declaration: link.into(),
+            position: HeaderPosition::VariantField {
+                variant: 1,
+                field: 0
+            },
+            rule: DeclarationRule::RecursivePayload { through: entry },
+        }]
+    );
+    let program = headers.snapshot();
+    assert!(program.nominals().is_empty() && program.variants().is_empty());
 }
 
 fn nested(reverse: bool) -> super::super::Program {

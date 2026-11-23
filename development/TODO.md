@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Reserve and publish typed variant payload fields in the common nominal declaration authority.
-Verify finite record/enum containment, exact field positions, structural Copy and atomic schema
-publication. Tie payload source admission to its later execution and resource qualification.
+Bind authored enum payload field types to their original variant and physical source scope.
+Reconcile required values, complete and opaque contracts, exact field diagnostics and public
+type exposure before proceeding to payload execution and resource qualification.
 
 ## Remaining Contextual Representation Qualification
 
@@ -724,9 +724,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify scalar enum match with the common pattern input and variant identity. Check
   complete accessible coverage or final discard, per-branch cleanup, once-evaluated source,
   exact result joins, and tag dispatch through required and native execution.
-- [ ] Qualify typed enum variant payload schemas. Reserve field identities under the original
+- [x] Qualify typed enum variant payload schemas. Reserve field identities under the original
   variant, verify mixed record/enum dependencies, field scopes, Copy and atomic failure before
   extending source and execution admission.
+- [ ] Bind payload-bearing enum schemas to physical declarations. Register required field-type
+  expressions and validate original visibility, source reconciliation, effective Copy, and
+  precise field diagnostics through ordinary header and body preparation.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

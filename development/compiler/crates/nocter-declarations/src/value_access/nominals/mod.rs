@@ -51,6 +51,7 @@ pub struct Enumeration {
     name: Symbol,
     data: TypeId,
     copyable: bool,
+    has_payload: bool,
     variants: Box<[VariantId]>,
     names: BTreeMap<Symbol, VariantId>,
 }
@@ -68,6 +69,10 @@ impl Enumeration {
         self.copyable
     }
     #[must_use]
+    pub const fn has_payload(&self) -> bool {
+        self.has_payload
+    }
+    #[must_use]
     pub const fn variants(&self) -> &[VariantId] {
         &self.variants
     }
@@ -77,11 +82,12 @@ impl Enumeration {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Variant {
     owner: NominalTypeId,
     name: Symbol,
     position: usize,
+    fields: Box<[AccessFieldId]>,
 }
 impl Variant {
     #[must_use]
@@ -95,6 +101,25 @@ impl Variant {
     #[must_use]
     pub const fn position(&self) -> usize {
         self.position
+    }
+    #[must_use]
+    pub const fn fields(&self) -> &[AccessFieldId] {
+        &self.fields
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VariantDefinition {
+    pub name: Symbol,
+    pub fields: Box<[FieldDefinition]>,
+}
+impl VariantDefinition {
+    #[must_use]
+    pub fn scalar(name: Symbol) -> Self {
+        Self {
+            name,
+            fields: Box::new([]),
+        }
     }
 }
 
@@ -141,6 +166,7 @@ impl Record {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Field {
     owner: NominalTypeId,
+    variant: Option<VariantId>,
     name: Symbol,
     position: usize,
     data: TypeId,
@@ -154,6 +180,10 @@ impl Field {
     #[must_use]
     pub const fn owner(&self) -> NominalTypeId {
         self.owner
+    }
+    #[must_use]
+    pub const fn variant(&self) -> Option<VariantId> {
+        self.variant
     }
     #[must_use]
     pub const fn name(&self) -> Symbol {
@@ -184,7 +214,7 @@ struct RecordDefinition {
 #[derive(Debug)]
 struct EnumDefinition {
     copyable: bool,
-    names: Box<[Symbol]>,
+    variants: Box<[VariantDefinition]>,
 }
 
 #[derive(Debug)]
@@ -199,6 +229,30 @@ impl Reservation {
             return None;
         };
         definition.as_ref()
+    }
+
+    fn visit_fields(&self, mut visit: impl FnMut(HeaderPosition, &FieldDefinition)) {
+        match &self.shape {
+            ReservationShape::Record {
+                definition: Some(definition),
+                ..
+            } => {
+                for (position, field) in definition.fields.iter().enumerate() {
+                    visit(HeaderPosition::Field(position), field);
+                }
+            }
+            ReservationShape::Enumeration {
+                definition: Some(definition),
+                ..
+            } => {
+                for (variant, definition) in definition.variants.iter().enumerate() {
+                    for (field, definition) in definition.fields.iter().enumerate() {
+                        visit(HeaderPosition::VariantField { variant, field }, definition);
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -215,24 +269,29 @@ enum ReservationShape {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct MemberSlot {
+struct FieldSlot {
+    owner: NominalTypeId,
+    variant: Option<VariantId>,
+    position: usize,
+}
+#[derive(Debug)]
+struct VariantSlot {
     owner: NominalTypeId,
     position: usize,
+    fields: Box<[AccessFieldId]>,
 }
 
 #[derive(Debug, Default)]
 pub(super) struct Builder {
     reservations: ArenaBuilder<NominalTypeId, Reservation>,
-    fields: ArenaBuilder<AccessFieldId, MemberSlot>,
-    variants: ArenaBuilder<VariantId, MemberSlot>,
+    fields: ArenaBuilder<AccessFieldId, FieldSlot>,
+    variants: ArenaBuilder<VariantId, VariantSlot>,
 }
 
 impl Builder {
     pub fn reserve(&mut self, scope: ScopeId, name: Symbol, field_count: usize) -> NominalTypeId {
         let owner = self.reservations.next_id();
-        let fields = (0..field_count)
-            .map(|position| self.fields.insert(MemberSlot { owner, position }))
-            .collect();
+        let fields = self.reserve_fields(owner, None, field_count);
         self.reservations.insert(Reservation {
             scope,
             name,
@@ -243,10 +302,25 @@ impl Builder {
         })
     }
 
-    pub fn reserve_enum(&mut self, scope: ScopeId, name: Symbol, count: usize) -> NominalTypeId {
+    pub fn reserve_enum(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        payload_counts: impl IntoIterator<Item = usize>,
+    ) -> NominalTypeId {
         let owner = self.reservations.next_id();
-        let variants = (0..count)
-            .map(|position| self.variants.insert(MemberSlot { owner, position }))
+        let variants = payload_counts
+            .into_iter()
+            .enumerate()
+            .map(|(position, count)| {
+                let variant = self.variants.next_id();
+                let fields = self.reserve_fields(owner, Some(variant), count);
+                self.variants.insert(VariantSlot {
+                    owner,
+                    position,
+                    fields,
+                })
+            })
             .collect();
         self.reservations.insert(Reservation {
             scope,
@@ -256,6 +330,23 @@ impl Builder {
                 definition: None,
             },
         })
+    }
+
+    fn reserve_fields(
+        &mut self,
+        owner: NominalTypeId,
+        variant: Option<VariantId>,
+        count: usize,
+    ) -> Box<[AccessFieldId]> {
+        (0..count)
+            .map(|position| {
+                self.fields.insert(FieldSlot {
+                    owner,
+                    variant,
+                    position,
+                })
+            })
+            .collect()
     }
 
     pub fn has_same_reserved_layout(&self, retained: &Schemas) -> bool {
@@ -280,12 +371,16 @@ impl Builder {
             })
             && self.fields.iter().all(|(id, slot)| {
                 retained.fields.get(id).is_some_and(|field| {
-                    field.owner == slot.owner && field.position == slot.position
+                    field.owner == slot.owner
+                        && field.variant == slot.variant
+                        && field.position == slot.position
                 })
             })
             && self.variants.iter().all(|(id, slot)| {
                 retained.variants.get(id).is_some_and(|variant| {
-                    variant.owner == slot.owner && variant.position == slot.position
+                    variant.owner == slot.owner
+                        && variant.position == slot.position
+                        && variant.fields == slot.fields
                 })
             })
     }
@@ -340,7 +435,7 @@ impl Builder {
         &mut self,
         id: NominalTypeId,
         copyable: bool,
-        variant_names: Box<[Symbol]>,
+        definitions: Box<[VariantDefinition]>,
     ) -> Result<(), DefinitionError> {
         let reservation = self
             .reservations
@@ -356,15 +451,29 @@ impl Builder {
         if definition.is_some() {
             return Err(DefinitionError::AlreadyDefined);
         }
-        if variant_names.len() != variants.len() {
+        if definitions.len() != variants.len() {
             return Err(DefinitionError::WrongArity {
                 expected: variants.len(),
-                actual: variant_names.len(),
+                actual: definitions.len(),
             });
+        }
+        for (&variant, payload) in variants.iter().zip(&definitions) {
+            let expected = self
+                .variants
+                .get(variant)
+                .expect("reserved variant")
+                .fields
+                .len();
+            if payload.fields.len() != expected {
+                return Err(DefinitionError::WrongArity {
+                    expected,
+                    actual: payload.fields.len(),
+                });
+            }
         }
         *definition = Some(EnumDefinition {
             copyable,
-            names: variant_names,
+            variants: definitions,
         });
         Ok(())
     }
@@ -396,38 +505,23 @@ impl Builder {
             });
         };
         if let Some(definition) = reservation.record_definition() {
-            let mut seen = BTreeMap::new();
-            for (index, field) in definition.fields.iter().enumerate() {
-                let position = HeaderPosition::Field(index);
-                if symbols.spelling(field.name).is_none() {
-                    report(position, DeclarationRule::UnknownSymbol);
-                } else if let Some(&first) = seen.get(&field.name) {
-                    report(position, DeclarationRule::DuplicateField { first });
-                } else {
-                    seen.insert(field.name, index);
-                }
-                if field.data.has_repeated_failure() {
-                    report(position, DeclarationRule::RepeatedFailure);
-                }
-                field.data.visit_leaves(|data| {
-                    if !matches!(data, DataReference::Function(_))
-                        && let Some(rule) = data_rule(data, self)
-                    {
-                        report(position, rule);
-                    }
-                });
-            }
+            self.validate_fields(
+                symbols,
+                &definition.fields,
+                HeaderPosition::Field,
+                &mut report,
+            );
         } else if let ReservationShape::Enumeration {
             definition: Some(definition),
             ..
         } = &reservation.shape
         {
-            let names = &definition.names;
-            if names.is_empty() {
+            if definition.variants.is_empty() {
                 report(HeaderPosition::Name, DeclarationRule::EmptyEnumeration);
             }
             let mut seen = BTreeMap::new();
-            for (index, &name) in names.iter().enumerate() {
+            for (index, variant) in definition.variants.iter().enumerate() {
+                let name = variant.name;
                 let position = HeaderPosition::Variant(index);
                 if symbols.spelling(name).is_none() {
                     report(position, DeclarationRule::UnknownSymbol);
@@ -436,6 +530,15 @@ impl Builder {
                 } else {
                     seen.insert(name, index);
                 }
+                self.validate_fields(
+                    symbols,
+                    &variant.fields,
+                    |field| HeaderPosition::VariantField {
+                        variant: index,
+                        field,
+                    },
+                    &mut report,
+                );
             }
         } else {
             report(HeaderPosition::Name, DeclarationRule::MissingDefinition);
@@ -446,23 +549,54 @@ impl Builder {
             Err(super::HeaderFailure::Rejected(violations))
         }
     }
+
+    fn validate_fields(
+        &self,
+        symbols: &SymbolTable,
+        fields: &[FieldDefinition],
+        position: impl Fn(usize) -> HeaderPosition,
+        mut report: impl FnMut(HeaderPosition, DeclarationRule),
+    ) {
+        let mut seen = BTreeMap::new();
+        for (index, field) in fields.iter().enumerate() {
+            let position = position(index);
+            if symbols.spelling(field.name).is_none() {
+                report(position, DeclarationRule::UnknownSymbol);
+            } else if let Some(&first) = seen.get(&field.name) {
+                report(position, DeclarationRule::DuplicateField { first });
+            } else {
+                seen.insert(field.name, index);
+            }
+            if field.data.has_repeated_failure() {
+                report(position, DeclarationRule::RepeatedFailure);
+            }
+            field.data.visit_leaves(|data| {
+                if !matches!(data, DataReference::Function(_))
+                    && let Some(rule) = data_rule(data, self)
+                {
+                    report(position, rule);
+                }
+            });
+        }
+    }
     pub fn cycle_violation(&self, path: &[NominalTypeId]) -> Option<DeclarationViolation> {
         if path.len() < 2 || path.first() != path.last() {
             return None;
         }
         let field_to = |parent, child| {
+            let mut found = None;
             self.reservations
                 .get(parent)?
-                .record_definition()?
-                .fields
-                .iter()
-                .position(|field| {
-                    let mut found = false;
-                    field.data.visit_payload_leaves(|data| {
-                        found |= matches!(data, DataReference::Nominal(id) if *id == child);
-                    });
-                    found
-                })
+                .visit_fields(|position, field| {
+                    if found.is_none() {
+                        field.data.visit_payload_leaves(|data| {
+                            if matches!(data, DataReference::Nominal(id) if *id == child) {
+                                found = Some(position);
+                            }
+                        });
+                    }
+                });
+            found
         };
         let mut closing = None;
         for edge in path.windows(2) {
@@ -471,7 +605,7 @@ impl Builder {
         let (owner, position, through) = closing?;
         Some(DeclarationViolation {
             declaration: DeclarationId::Nominal(owner),
-            position: HeaderPosition::Field(position),
+            position,
             rule: DeclarationRule::RecursivePayload { through },
         })
     }

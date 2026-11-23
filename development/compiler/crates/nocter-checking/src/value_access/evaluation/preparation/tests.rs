@@ -504,7 +504,8 @@ fn header_data(
         }
         HeaderPosition::Name
         | HeaderPosition::ParameterName { .. }
-        | HeaderPosition::Variant(_) => unreachable!(),
+        | HeaderPosition::Variant(_)
+        | HeaderPosition::VariantField { .. } => unreachable!(),
     }
 }
 

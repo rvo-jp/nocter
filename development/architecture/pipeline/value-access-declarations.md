@@ -117,6 +117,11 @@ exposure. Variant lookup checks the original schema's audience or direct source 
 including when an alias names the same type. Type-owned callable names and variant names share
 the owner's namespace.
 
+The nominal declaration authority reserves typed payload fields under their original variants.
+It uses the same field validation and type publication as records. Mixed containment edges
+participate in finite-schema checking, and the selected Copy contract checks every declared
+payload position. Executable layout qualification currently covers the scalar enum schema.
+
 A payloadless constructor selects its declared variant and produces the owning nominal value.
 Required evaluation validates and retains its tag under the exact enum schema. Native lowering
 materializes standalone tags as immediates and uses the same layout for nested constant data and

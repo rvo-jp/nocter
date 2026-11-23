@@ -841,9 +841,11 @@ fn reserve_canonical(
             ParsedHeader::Record(header) => {
                 reservations.reserve_record_in(scope, name, header.fields.len())
             }
-            ParsedHeader::Enumeration(header) if !header.opaque => {
-                reservations.reserve_enum_in(scope, name, header.source.variants.len())
-            }
+            ParsedHeader::Enumeration(header) if !header.opaque => reservations.reserve_enum_in(
+                scope,
+                name,
+                std::iter::repeat_n(0, header.source.variants.len()),
+            ),
             _ => return Err(integrity()),
         }
         .map_err(|_| integrity())?;

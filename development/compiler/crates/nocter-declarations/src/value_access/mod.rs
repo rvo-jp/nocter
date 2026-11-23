@@ -43,7 +43,9 @@ pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod nominals;
 use data::supported;
 pub use data::{ArraySchema, Component, DataReference, PayloadSchema, TupleData};
-pub use nominals::{Enumeration, Field, FieldDefinition, NominalSchema, Record, Variant};
+pub use nominals::{
+    Enumeration, Field, FieldDefinition, NominalSchema, Record, Variant, VariantDefinition,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeclarationId {
@@ -95,6 +97,7 @@ pub enum HeaderPosition {
     Result,
     Field(usize),
     Variant(usize),
+    VariantField { variant: usize, field: usize },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -947,19 +950,19 @@ impl Reservations {
         Ok(self.nominals.reserve(scope, name, field_count))
     }
 
-    /// Reserve a nominal identity and the declaration-order identities of its variants.
+    /// Reserve a nominal identity and the declaration-order variant and payload field identities.
     /// # Errors
     /// Rejects an unknown scope before reserving slots.
     pub fn reserve_enum_in(
         &mut self,
         scope: ScopeId,
         name: Symbol,
-        variant_count: usize,
+        payload_counts: impl IntoIterator<Item = usize>,
     ) -> Result<NominalTypeId, DefinitionError> {
         if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
-        Ok(self.nominals.reserve_enum(scope, name, variant_count))
+        Ok(self.nominals.reserve_enum(scope, name, payload_counts))
     }
 
     /// Reserve a type name that will resolve to an existing data identity.
@@ -1045,14 +1048,14 @@ impl Builder {
         self.nominals.define(id, copy, fields.into())
     }
 
-    /// Define the variants of a reserved scalar enum in declaration order.
+    /// Define the variants and their fields in declaration order.
     /// # Errors
     /// Rejects a wrong reservation kind, arity mismatch or a second definition.
     pub fn define_enum(
         &mut self,
         id: NominalTypeId,
         copyable: bool,
-        variants: impl Into<Box<[Symbol]>>,
+        variants: impl Into<Box<[VariantDefinition]>>,
     ) -> Result<(), DefinitionError> {
         self.nominals.define_enum(id, copyable, variants.into())
     }
