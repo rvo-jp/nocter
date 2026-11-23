@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Move the verified v2 process implementation into a canonical development standard-library
-package. Bind its exact trusted roles through one candidate profile and run it through the
-ordinary prepared command path with the real package. Keep qualification-only error helpers in
-the source fixtures and preserve the existing installed profile and qualified release artifacts.
+Make prepared commands and workspace analysis use one standard source profile for grammar and
+trusted declarations. Carry the selected v2 grammar through editor package topology, source
+overlays and compiler discovery. Verify a v2 source edit reports the current diagnostic and
+recovers using the development standard package.
 
 ## Remaining Contextual Representation Qualification
 
@@ -741,6 +741,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify name-based environment lookup under the selected v2 process profile. A checked
   byte read binds only through the v2 profile. Verify rejected names, empty/missing values,
   byte-exact matches and validation of every visited entry before the first match.
+- [x] Put the verified process API and its trusted implementation in the development standard
+  package. Select one exact profile for that package. Verify the same source through package
+  discovery and prepared check, build and run with a native Unicode argument.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

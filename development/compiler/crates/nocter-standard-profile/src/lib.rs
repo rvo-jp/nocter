@@ -38,6 +38,40 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
     .with_builtin_types(builtin_types(package))
 }
 
+/// Selects the canonical standard source profile for the development v2 package.
+#[must_use]
+pub fn development_value_access_toolchain(package: &PackageIdentity) -> ToolchainInput {
+    let process = module(package, &["internal", "process"]);
+    let mut roles = [
+        (PrimitiveRole::ProcessArgumentCount, "arg_count"),
+        (PrimitiveRole::ProcessArgument, "arg_checked"),
+        (PrimitiveRole::ProcessEnvironmentCount, "environment_count"),
+        (PrimitiveRole::ProcessEnvironmentName, "env_name_checked"),
+        (PrimitiveRole::ProcessEnvironmentValue, "env_value_checked"),
+    ]
+    .map(|(role, name)| PrimitiveRoleLocator::new(role, process.clone(), name))
+    .to_vec();
+    roles.extend([
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::NewError,
+            module(package, &["internal", "errors"]),
+            "new",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::StringByteAt,
+            module(package, &["internal", "text"]),
+            "byte_at",
+        ),
+    ]);
+    ToolchainInput::new(
+        package.clone(),
+        module(package, &[]),
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_primitive_roles(roles)
+}
+
 fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLocator> {
     RuntimeStorageRole::ALL
         .iter()

@@ -1,0 +1,18 @@
+see ./text.nct
+
+/// An entry of the process environment.
+struct EnvironmentEntry {
+    name: str
+    value: str
+}
+
+/// Returns the number of process arguments, including the executable spelling.
+func arg_count(): usize
+/// Returns one process argument, absence, or an encoding error.
+func arg(index: usize): str?!
+/// Returns the number of environment entries.
+func environment_count(): usize
+/// Returns one indexed environment entry, absence, or an encoding error.
+func environment(index: usize): EnvironmentEntry?!
+/// Looks up one environment name, preserving empty values and validation order.
+func env(name: str): str?!

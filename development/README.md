@@ -38,6 +38,7 @@ development/
 ├── packaging/         # assembly and installed-artifact qualification
 ├── site/              # documentation generator and website-only inputs
 ├── spec/              # adopted unreleased contracts
+├── stdlib/            # standard-library source for the v2 development profile
 ├── unicode/           # generated Unicode source data and its generator
 └── verification/      # disposable verification entry points
 ```

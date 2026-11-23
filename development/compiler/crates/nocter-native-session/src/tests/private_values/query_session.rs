@@ -13,15 +13,34 @@ use nocter_session::{
 };
 use nocter_syntax::ParseGoal;
 use std::fs;
+use std::path::Path;
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 const INVALID_PROCESS_TEXT: &[u8] =
     b"std.process.invalid_encoding: process text or requested environment name is invalid\n";
 
 fn copy_fixture(directory: &TempPackage) {
-    let fixture = nocter_test_support::repository_root()
-        .join("development/compiler/tests/fixtures/value-modules/query-session");
-    let mut folders = vec![fixture.clone()];
+    let repository = nocter_test_support::repository_root();
+    let fixture =
+        repository.join("development/compiler/tests/fixtures/value-modules/query-session");
+    copy_sources(directory, &fixture, Path::new(""));
+    copy_sources(
+        directory,
+        &repository.join("development/stdlib"),
+        Path::new("std"),
+    );
+    let trusted_errors = fixture.with_file_name("trusted-errors");
+    for module in ["context", "allocation_failure"] {
+        let index = format!("{module}/index.nct");
+        directory.source(
+            &format!("std/{index}"),
+            &fs::read_to_string(trusted_errors.join(index)).unwrap(),
+        );
+    }
+}
+
+fn copy_sources(directory: &TempPackage, root: &Path, prefix: &Path) {
+    let mut folders = vec![root.to_path_buf()];
     while let Some(folder) = folders.pop() {
         for entry in fs::read_dir(folder).unwrap() {
             let entry = entry.unwrap();
@@ -31,34 +50,21 @@ fn copy_fixture(directory: &TempPackage) {
                 folders.push(path);
             } else if kind.is_file() && path.extension().is_some_and(|extension| extension == "nct")
             {
-                let relative = path.strip_prefix(&fixture).unwrap().to_str().unwrap();
-                directory.source(relative, &fs::read_to_string(&path).unwrap());
+                let relative = prefix.join(path.strip_prefix(root).unwrap());
+                assert!(!directory.0.join(&relative).exists(), "{relative:?}");
+                directory.source(
+                    relative.to_str().unwrap(),
+                    &fs::read_to_string(&path).unwrap(),
+                );
             }
         }
-    }
-    let trusted_errors = fixture.with_file_name("trusted-errors");
-    for module in ["error", "context", "allocation_failure"] {
-        let index = format!("{module}/index.nct");
-        directory.source(
-            &format!("std/{index}"),
-            &fs::read_to_string(trusted_errors.join(index)).unwrap(),
-        );
     }
 }
 
 fn standard_profile(std: PackageIdentity) -> ToolchainInput {
-    ToolchainInput::new(
-        std.clone(),
-        ModuleIdentity::new(std.clone(), Vec::<&str>::new()),
-        Vec::new(),
-        Vec::new(),
-    )
-    .with_primitive_roles(vec![
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::NewError,
-            ModuleIdentity::new(std.clone(), ["error"]),
-            "operation",
-        ),
+    let profile = nocter_standard_profile::development_value_access_toolchain(&std);
+    let mut roles = profile.primitive_roles().to_vec();
+    roles.extend([
         PrimitiveRoleLocator::new(
             PrimitiveRole::ErrorContext,
             ModuleIdentity::new(std.clone(), ["context"]),
@@ -66,40 +72,11 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         ),
         PrimitiveRoleLocator::new(
             PrimitiveRole::AllocationFailureError,
-            ModuleIdentity::new(std.clone(), ["allocation_failure"]),
+            ModuleIdentity::new(std, ["allocation_failure"]),
             "operation",
         ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ProcessArgumentCount,
-            ModuleIdentity::new(std.clone(), ["process"]),
-            "arg_count",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ProcessArgument,
-            ModuleIdentity::new(std.clone(), ["process"]),
-            "arg_checked",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ProcessEnvironmentCount,
-            ModuleIdentity::new(std.clone(), ["process"]),
-            "environment_count",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ProcessEnvironmentName,
-            ModuleIdentity::new(std.clone(), ["process"]),
-            "env_name_checked",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::ProcessEnvironmentValue,
-            ModuleIdentity::new(std.clone(), ["process"]),
-            "env_value_checked",
-        ),
-        PrimitiveRoleLocator::new(
-            PrimitiveRole::StringByteAt,
-            ModuleIdentity::new(std, ["process"]),
-            "text_byte_at",
-        ),
-    ])
+    ]);
+    profile.with_primitive_roles(roles)
 }
 
 fn analyze_package(
@@ -511,8 +488,8 @@ fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence(
             .unwrap()
             .text_at(span.range()),
         Some(
-            "process.arg_count()"
-                | "process.environment_count()"
+            "runtime.arg_count()"
+                | "runtime.environment_count()"
                 | "errors.operation()"
                 | "static_error.operation()"
         )

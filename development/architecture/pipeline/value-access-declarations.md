@@ -430,6 +430,9 @@ after a bounds check on its explicit length. The selected source uses it to reje
 and names containing NUL or equals, compare exact bytes, and stop at the first matching valid
 entry. An invalid entry encountered earlier produces the normal encoding error. The released
 primitive registry is complete over its own profile; it cannot attach the v2-only text reader.
+The development standard-library [process module](../../stdlib/process/index.nct) supplies these
+source wrappers. Prepared package commands and native conformance cases select the same
+development profile and source package.
 
 Error-node creation can trap at its backing request. An independent cleanup certificate covers
 releasing the owned mappings in the actual chain. That evidence permits reached error disposal

@@ -3,7 +3,6 @@ use crate::{
     BuildCommandResult, CommandToolchain, ParsedCommand, execute_prepared_build,
     execute_prepared_check, parse_command_arguments,
 };
-use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_diagnostics::DiagnosticCode;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::StandardPackage;
@@ -43,23 +42,15 @@ impl Fixture {
             "nested/body.nct",
             "see ./index.nct\nfunc main(): i32 { 17 }\n",
         );
-        let standard = directory.join("std");
-        write_source(
-            &standard,
-            "index.nct",
-            "#package: { name: \"std\", version: \"2.0.0\" }\n",
-        );
+        let standard = nocter_test_support::repository_root().join("development/stdlib");
         let identity = PackageIdentity::new("test:standard-v2");
         let toolchain = CommandToolchain::new(
             CompilationTarget::Arm64Darwin,
             &directory,
             StandardPackage::new(identity.clone(), standard, "2.0.0"),
         )
-        .with_value_access_profile(ToolchainInput::new(
-            identity.clone(),
-            ModuleIdentity::new(identity, Vec::<&str>::new()),
-            Vec::new(),
-            Vec::new(),
+        .with_value_access_profile(nocter_standard_profile::development_value_access_toolchain(
+            &identity,
         ))
         .unwrap();
         Self {
@@ -205,6 +196,47 @@ fn prepared_v2_run_launches_the_selected_native_entry() {
     .unwrap();
     assert_eq!(executed.status().code(), Some(17));
     assert!(!fixture.directory.join("app/second").exists());
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn prepared_v2_commands_use_the_development_standard_process_module() {
+    let fixture = Fixture::new();
+    fs::write(
+        fixture.directory.join("app/body.nct"),
+        "use std/process\nsee ./index.nct\n\
+         func main(): i32! {\n\
+             if process.arg_count() != 2 { return 3 }\n\
+             let _ = process.arg(1)? otherwise { return 4 }\n\
+             42\n\
+         }",
+    )
+    .unwrap();
+    let selection = ["--executable", "first"];
+    let ParsedCommand::Check(check) = parse("check", &selection) else {
+        panic!("check command");
+    };
+    execute_prepared_check(
+        check.prepare(&fixture.directory).unwrap(),
+        &fixture.toolchain,
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+    let BuildCommandResult::Selected(build) = fixture.build(&selection).unwrap() else {
+        panic!("selected executable");
+    };
+    assert!(build.artifact().path().is_file());
+    let ParsedCommand::Run(run) = parse("run", &["--executable", "first", "--", "夜 two words"])
+    else {
+        panic!("run command");
+    };
+    let executed = crate::execute_prepared_run(
+        run.prepare(&fixture.directory).unwrap(),
+        &fixture.toolchain,
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+    assert_eq!(executed.status().code(), Some(42));
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

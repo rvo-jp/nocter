@@ -1,0 +1,10 @@
+#visibility: "/"
+primitive func arg_count(): usize
+#visibility: "/"
+primitive func arg_checked(index: usize): str??
+#visibility: "/"
+primitive func environment_count(): usize
+#visibility: "/"
+primitive func env_name_checked(index: usize): str??
+#visibility: "/"
+primitive func env_value_checked(index: usize): str??

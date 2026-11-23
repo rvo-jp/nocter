@@ -1,0 +1,2 @@
+#visibility: "/"
+primitive func byte_at(value: str, index: usize): u8?

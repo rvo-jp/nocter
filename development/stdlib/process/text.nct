@@ -1,4 +1,6 @@
-use /error as errors
+use /internal/errors
+use /internal/process as runtime
+use /internal/text
 see ./index.nct
 
 struct EnvironmentEntry {
@@ -11,21 +13,29 @@ func decoded(take encoding: str?): str! {
 }
 
 func invalid_encoding(): error {
-    errors.operation(
+    errors.new(
         "std.process.invalid_encoding",
         "process text or requested environment name is invalid",
     )
 }
 
 func arg(index: usize): str?! {
-    let encoding = arg_checked(index) otherwise { return none }
+    let encoding = runtime.arg_checked(index) otherwise { return none }
     decoded(encoding^)?
 }
 
+func arg_count(): usize {
+    runtime.arg_count()
+}
+
+func environment_count(): usize {
+    runtime.environment_count()
+}
+
 func environment(index: usize): EnvironmentEntry?! {
-    let name_encoding = env_name_checked(index) otherwise { return none }
+    let name_encoding = runtime.env_name_checked(index) otherwise { return none }
     let name = decoded(name_encoding^)?
-    let value_encoding = env_value_checked(index) otherwise { return none }
+    let value_encoding = runtime.env_value_checked(index) otherwise { return none }
     let value = decoded(value_encoding^)?
     EnvironmentEntry { name: name^, value: value^ }
 }
@@ -33,7 +43,7 @@ func environment(index: usize): EnvironmentEntry?! {
 func valid_name(name: str): bool {
     var index: usize = 0
     loop {
-        let byte = text_byte_at(name, index) otherwise { return index != 0 }
+        let byte = text.byte_at(name, index) otherwise { return index != 0 }
         if byte == 0 || byte == 61 { return false }
         index += 1
     }
@@ -42,11 +52,11 @@ func valid_name(name: str): bool {
 func same_name(left: str, right: str): bool {
     var index: usize = 0
     loop {
-        let a = text_byte_at(left, index) otherwise {
-            let _ = text_byte_at(right, index) otherwise { return true }
+        let a = text.byte_at(left, index) otherwise {
+            let _ = text.byte_at(right, index) otherwise { return true }
             return false
         }
-        let b = text_byte_at(right, index) otherwise { return false }
+        let b = text.byte_at(right, index) otherwise { return false }
         if a != b { return false }
         index += 1
     }

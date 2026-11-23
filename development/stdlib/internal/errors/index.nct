@@ -1,0 +1,2 @@
+#visibility: "/"
+primitive func new(code: str, message: str): error
