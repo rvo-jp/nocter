@@ -191,6 +191,7 @@ impl Checker<'_, '_> {
         self.require_closed_array_term(root)?;
         let scope = self.scope_at(root)?;
         if self.lookup(self.text(root)?).is_some()
+            || self.constant_parameter_at(root)?.is_some()
             || !self
                 .program()
                 .symbols()
@@ -236,6 +237,7 @@ impl Checker<'_, '_> {
         let root = *tokens.first().ok_or(Failure::InconsistentSyntax)?;
         self.require_closed_array_term(root)?;
         if self.lookup(self.text(root)?).is_some()
+            || self.constant_parameter_at(root)?.is_some()
             || tokens
                 .iter()
                 .any(|token| token.kind() != TokenKind::Identifier)

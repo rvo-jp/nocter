@@ -116,6 +116,7 @@ fn operation_rule(
         | ExpressionKind::PrimaryCondition { .. }
         | ExpressionKind::Block { .. }
         | ExpressionKind::Constant(_)
+        | ExpressionKind::GenericConstant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit

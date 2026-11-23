@@ -207,8 +207,10 @@ impl Ticket {
 func pass<T>(take value: T): T { value^ }
 func row<T, const N: usize>(take values: [T; N]): [T; N] { values^ }
 const func retire<T>(take value: T): void {}
+func extent<const N: usize>(): usize { N }
 
 func main(): i32 {
+    if extent<18>() + extent<24>() != 42 { return 2 }
     let ticket = pass<Ticket>(Ticket { state: 42 })
     let state = ticket.state
     retire<Ticket>(ticket^)

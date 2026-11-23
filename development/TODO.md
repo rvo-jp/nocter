@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Make lexical `usize` parameters available as values in checked generic bodies. Keep each original
-parameter identity through analysis, and materialize its exact scalar in required evaluation and
-native lowering from the selected application.
+Complete direct forwarding from an enclosing generic binder. Produce a call signature under the
+caller's symbolic assumptions, then close the retained argument sequence in each exact caller frame.
+Preserve the existing frame and work authorities for recursive applications.
 
 ## Remaining Contextual Representation Qualification
 
@@ -706,9 +706,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Admit generic const definitions and evaluate complete explicit applications through the
   existing condition and plan authorities. Qualify symbolic obligations, precise concrete
   failures, distinct frames and unchanged authored execution permission.
-- [ ] Realize constant parameter reads in ordinary generic bodies. Verify exact lexical binding,
+- [x] Realize constant parameter reads in ordinary generic bodies. Verify exact lexical binding,
   preservation across frame discovery, and identical constant/native scalar behavior with no
   additional runtime formal.
+- [ ] Forward direct type and constant arguments from enclosing generic binders. Check calls
+  against the original symbolic signatures, close applications when their caller is applied,
+  and verify capture-free substitution and reuse of identical recursive frames.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

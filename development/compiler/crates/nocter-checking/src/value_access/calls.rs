@@ -62,6 +62,9 @@ impl Checker<'_, '_> {
         let Some(name) = self.name_token(node)? else {
             return Ok(None);
         };
+        if self.constant_parameter_at(name)?.is_some() {
+            return Ok(None);
+        }
         self.require_header(Namespace::Value, name)?;
         let spelling = self.text(name)?;
         let scope = self.scope_at(name)?;
@@ -79,10 +82,25 @@ impl Checker<'_, '_> {
     }
     pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
         let token = self.name_token(node)?.ok_or(Failure::InconsistentSyntax)?;
+        let spelling = self.text(token)?;
+        if let Some(slot) = self.constant_parameter_at(token)? {
+            self.require_closed_array_term(token)?;
+            if !matches!(
+                self.code.root(),
+                nocter_model::ValueCodeRoot::Declaration(_)
+            ) {
+                return self.reject(Rule::OpenArrayLength, token);
+            }
+            return self.emit(
+                node,
+                value_type(self.data(nocter_model::BuiltinType::Usize), Mode::Own),
+                ExpressionKind::GenericConstant(slot),
+            );
+        }
         self.require_header(Namespace::Value, token)?;
         let scope = self.scope_at(token)?;
-        if self.lookup(self.text(token)?).is_none()
-            && let Some(name) = self.program().symbols().get(self.text(token)?)
+        if self.lookup(spelling).is_none()
+            && let Some(name) = self.program().symbols().get(spelling)
         {
             if self.program().has_namespace_in(scope, name) {
                 return self.reject(Rule::NamespaceValue, token);

@@ -335,6 +335,7 @@ impl Context<'_, '_> {
             }
             | ExpressionKind::Function(_)
             | ExpressionKind::Constant(_)
+            | ExpressionKind::GenericConstant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::PrimaryCondition { .. }
             | ExpressionKind::Boolean(_)

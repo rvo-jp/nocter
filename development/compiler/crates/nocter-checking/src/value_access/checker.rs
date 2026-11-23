@@ -671,6 +671,19 @@ impl<'a, 's> Checker<'a, 's> {
             }))
     }
 
+    pub(super) fn constant_parameter_at(
+        &self,
+        token: SyntaxToken,
+    ) -> Result<Option<GenericParameterId>, Failure> {
+        let name = self.text(token)?;
+        if self.lookup(name).is_some() || self.unavailable.contains(name) {
+            return Ok(None);
+        }
+        Ok(self.generic_parameter_at(token)?.and_then(|(id, slot)| {
+            (slot.domain() == GenericParameterDomain::UsizeConstant).then_some(id)
+        }))
+    }
+
     /// The count body is a required expression in the original declaration's generic scope.
     pub(super) fn require_closed_array_term(&self, token: SyntaxToken) -> Result<(), Failure> {
         let Some(code) = self.program().codes().get(self.code.source_owner()) else {
@@ -724,6 +737,7 @@ impl<'a, 's> Checker<'a, 's> {
         Ok(self.lookup(name).is_some()
             || self.unavailable.contains(name)
             || BuiltinType::from_spelling(name).is_some()
+            || self.generic_parameter_at(token)?.is_some()
             || self.program().symbols().get(name).is_some_and(|symbol| {
                 self.program().has_namespace_in(scope, symbol)
                     || self

@@ -1208,6 +1208,10 @@ restriction. An evaluatable application checks its concrete conditions and uses 
 required evaluator. Evaluator discovery and condition traversal preserve the complete application
 in each frame's identity.
 
+A value occurrence of a lexical `usize` parameter retains its original slot in the typed body.
+Required evaluation and native lowering read the selected scalar from that frame. The parameter
+occupies a compile-time slot, so the runtime calling convention retains the authored input list.
+
 Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
 joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,
 input operations and result data must already agree. Once those identities close, construction

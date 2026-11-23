@@ -396,6 +396,9 @@ impl Checker<'_, '_> {
         Ty::new(selected.data, self.local_ty(selected.local).mode())
     }
     fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessPlaceId>, Failure> {
+        if self.constant_parameter_at(token)?.is_some() {
+            return Ok(None);
+        }
         self.require_header(Namespace::Value, token)?;
         let spelling = self.text(token)?;
         let scope = self.scope_at(token)?;
@@ -443,6 +446,14 @@ impl Checker<'_, '_> {
         Ok(self.intern_place(local, FieldPath::default(), data))
     }
     pub fn place_name(&mut self, token: SyntaxToken, rule: Rule) -> Result<AccessPlaceId, Failure> {
+        if self.constant_parameter_at(token)?.is_some() {
+            return self.reject_message(
+                rule,
+                token,
+                "a constant parameter has no source storage".into(),
+                Vec::new(),
+            );
+        }
         if let Some(place) = self.named_place(token)? {
             return Ok(place);
         }

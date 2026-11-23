@@ -93,6 +93,17 @@ impl Checker<'_, '_> {
             return self.reject(Rule::RequiredValueScope, root);
         }
         self.require_closed_array_term(root)?;
+        if let Some((_, slot)) = self.generic_parameter_at(root)? {
+            return match slot.domain() {
+                GenericParameterDomain::Type => self.reject(Rule::UnknownName, root),
+                GenericParameterDomain::UsizeConstant => self.reject_message(
+                    Rule::UnqualifiedGenericCallable,
+                    root,
+                    "this argument depends on the enclosing generic application".into(),
+                    Vec::new(),
+                ),
+            };
+        }
         let declaration = self.declaration_path(Namespace::Value, path)?;
         let DeclarationId::Code(initializer) = declaration else {
             return Err(Failure::InconsistentSyntax);

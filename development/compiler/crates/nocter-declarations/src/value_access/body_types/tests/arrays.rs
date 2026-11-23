@@ -115,6 +115,12 @@ fn exact_frames_project_body_types_with_the_selected_length() {
         let data = program.instantiate_data(local, &frame).unwrap().data();
         assert_eq!(program.frame_type(&frame, generic_input), Ok(data));
         assert_eq!(array(&program, data).length(), count);
+        assert_eq!(
+            program.frame_constant(&frame, length.parameter().unwrap()),
+            Some(count)
+        );
+        let type_slot = program.generic_parameter_ids(owner).unwrap()[0];
+        assert_eq!(program.frame_constant(&frame, type_slot), None);
     }
     assert!(program.instantiate_closed_data(local).is_err());
 }

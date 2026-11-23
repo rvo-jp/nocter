@@ -885,6 +885,14 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::from_frozen(value).ok_or(INVALID)?,
             },
+            ExpressionKind::GenericConstant(slot) => plan::Operation::Literal {
+                destination,
+                value: plan::Value::integer(i128::from(
+                    self.program
+                        .frame_constant(self.instance, slot)
+                        .ok_or(INVALID)?,
+                )),
+            },
             ExpressionKind::Integer(v) => plan::Operation::Literal {
                 destination,
                 value: plan::Value::integer(v),

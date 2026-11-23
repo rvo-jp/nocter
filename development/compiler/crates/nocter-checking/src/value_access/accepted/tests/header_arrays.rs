@@ -58,6 +58,15 @@ fn a_header_count_evaluates_distinct_generic_frames() {
 }
 
 #[test]
+fn lexical_constant_parameters_supply_exact_values_to_required_evaluation() {
+    let text = "struct Data { items: [void; width()] }\nconst N: usize = 5\nconst func offset<const N: usize>(value: usize): usize { value + N }\nconst func width(): usize { offset<18>(2) + offset<20>(2) }";
+    let (sources, tree) = input(text);
+    let source =
+        SourceUnit::prepare(bound(&sources, &tree)).unwrap_or_else(|failure| panic!("{failure:?}"));
+    assert_eq!(array(source.unit(), "Data", 0).length(), 42);
+}
+
+#[test]
 fn generic_evaluation_checks_cleanup_after_selecting_array_length() {
     use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
     let text = "see ./index.nct\nstruct Data { items: [void; width()] }\nstruct Ticket {}\nimpl Ticket { drop {} }\nconst func retire<const N: usize>(take items: [Ticket; N]): void {}\nconst func width(): usize { retire<0>([])\n42 }";
@@ -189,6 +198,73 @@ fn computed_array_lengths_cannot_materialize_generic_parameters_as_global_values
             Some("N")
         );
     }
+}
+
+#[test]
+fn a_body_local_layout_query_cannot_read_an_unapplied_parameter() {
+    let (sources, tree) = input(
+        "const N: usize = 5\nfunc reserve<const N: usize>(): void { let _ : [u8; N + 1] = [] }",
+    );
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let error = diagnostic(&failure);
+    assert_eq!(error.code(), "E0291", "{failure:?}");
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(error.primary().span().range()),
+        Some("N")
+    );
+}
+
+#[test]
+fn a_constant_parameter_has_no_place_to_alias() {
+    let (sources, tree) =
+        input("static N: usize = 5\nfunc read_slot<const N: usize>(): void { read alias = N }");
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let error = diagnostic(&failure);
+    assert_eq!(error.code(), "E0370", "{failure:?}");
+    assert!(error.message().contains("no source storage"));
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(error.primary().span().range()),
+        Some("N")
+    );
+}
+
+#[test]
+fn a_local_cannot_rebind_its_generic_parameter_name() {
+    let (sources, tree) = input("func recur<const N: usize>(): void { let N: usize = 4 }");
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let error = diagnostic(&failure);
+    assert_eq!(error.code(), "E0341", "{failure:?}");
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(error.primary().span().range()),
+        Some("N")
+    );
+}
+
+#[test]
+fn an_enclosing_constant_argument_never_uses_a_same_spelled_global() {
+    let (sources, tree) = input(
+        "const N: usize = 5\nfunc inner<const N: usize>(): void {}\nfunc outer<const N: usize>(): void { inner<N>() }",
+    );
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let error = diagnostic(&failure);
+    assert_eq!(error.code(), "E0291", "{failure:?}");
+    assert!(error.message().contains("enclosing generic application"));
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(error.primary().span().range()),
+        Some("N")
+    );
 }
 
 #[test]

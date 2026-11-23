@@ -164,6 +164,16 @@ impl Builder<'_> {
                 destination,
                 value: Constant::Integer(value),
             },
+            ExpressionKind::GenericConstant(slot) => Operation::Constant {
+                destination,
+                value: Constant::Integer(i128::from(
+                    self.instances
+                        .unit()
+                        .program()
+                        .frame_constant(self.instance.key(), slot)
+                        .ok_or_else(|| self.invalid())?,
+                )),
+            },
             ExpressionKind::Boolean(value) => Operation::Constant {
                 destination,
                 value: Constant::Boolean(value),

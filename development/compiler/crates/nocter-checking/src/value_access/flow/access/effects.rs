@@ -439,6 +439,7 @@ impl Context<'_, '_> {
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Repeat { .. }
             | ExpressionKind::Constant(_)
+            | ExpressionKind::GenericConstant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit

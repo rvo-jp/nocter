@@ -1,8 +1,8 @@
 //! Canonical metadata bindings for one code frame; no body, const, layout or ownership admission.
 use super::{FunctionConstraint, FunctionMismatch, FunctionWitness, PayloadSchema, Program};
 use nocter_model::{
-    AccessCodeId, GenericApplication, TypeId, ValueCode, ValueCodeRoot, ValueFunctionOrigin,
-    ValueInvocation, ValueParameter,
+    AccessCodeId, GenericApplication, GenericParameterId, TypeId, ValueCode, ValueCodeRoot,
+    ValueFunctionOrigin, ValueInvocation, ValueParameter,
 };
 use std::collections::BTreeMap;
 mod context_debug;
@@ -358,6 +358,23 @@ impl Program {
         };
         let owner = frame.code().source_owner();
         self.applied_type(owner, application, data)
+    }
+
+    /// Select the value of an original `usize` parameter in its exact applied frame.
+    #[must_use]
+    pub fn frame_constant(&self, frame: &CodeInstanceKey, slot: GenericParameterId) -> Option<u64> {
+        let parameter = self.generic_parameter(slot)?;
+        let owner = parameter.owner();
+        if frame.code().root() != ValueCodeRoot::Declaration(owner) {
+            return None;
+        }
+        let application = frame.generic_application()?;
+        self.generic_frames.get(&owner)?.get(application)?;
+        application
+            .as_slice()
+            .get(parameter.position())?
+            .as_usize()?
+            .closed_value()
     }
 
     fn applied_type(

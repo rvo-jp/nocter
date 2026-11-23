@@ -477,6 +477,8 @@ pub enum ExpressionKind {
         source: AccessExpressionId,
     },
     Constant(nocter_model::FrozenData),
+    /// A lexical compile-time slot whose scalar is selected by the applied frame.
+    GenericConstant(nocter_model::GenericParameterId),
     Integer(i128),
     Boolean(bool),
     Unit,

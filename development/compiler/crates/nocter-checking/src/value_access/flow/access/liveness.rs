@@ -359,6 +359,7 @@ fn expression_uses(
         }
         ExpressionKind::Function(_)
         | ExpressionKind::Constant(_)
+        | ExpressionKind::GenericConstant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
