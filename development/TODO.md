@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Specialize destructor code only when an executable retirement needs it. Use the same exact
-lifecycle schedules for closed and contextual receivers, including unstarted-future cancellation.
+Carry the receiver's normal completion representation into implicit component cleanup. Use the
+checked post-state for the effect proof and preserve the original address through verified layout.
 
 ## Remaining Contextual Representation Qualification
 
@@ -804,6 +804,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Close reached contextual destructor frames whose receiver preserves its completed cleanup
   representation. Verify distinct stored functions, captured values and source-bound effect errors
   through installed native execution and test commands.
+- [x] Specialize destructor bodies from reached retirements in the concrete lifecycle. Cover
+  closed receivers, exact callable contexts and unstarted-future cancellation. Exclude unused
+  bodies and their private dependencies before constructing MIR.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

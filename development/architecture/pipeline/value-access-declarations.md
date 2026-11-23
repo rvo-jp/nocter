@@ -213,9 +213,10 @@ the complete carrier. Updates by a destructor do not change those bindings.
 Effect checking follows reached invocation instances and ordered retirement steps. A consuming
 callable adapter is checked against its completed environment. Primitive effects and backend
 release require target certificates. The checked unit qualifies closed receiver frames.
-For a receiver whose fields depend on supplied callables, the concrete lifecycle qualifies the
-actual represented value from the retired payload, including callable environments. It adds the
-qualified destructor and its reached invocation bodies through the existing instance builder.
+The concrete lifecycle selects executable destructor bodies from the representation of each
+retired payload, including owned callable environments and canceled activation inputs. For fields
+that depend on supplied callables, it qualifies the exact value before adding the body. Reached
+destructors and their invocation edges use the ordinary instance builder.
 Each contextual receiver must preserve its cleanup representation through normal body completion.
 The check uses the accepted bodies and their instance metadata. Rejected operations retain their
 body and operation identities until source locations are bound against the original source.

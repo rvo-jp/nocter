@@ -301,9 +301,6 @@ pub(super) fn close(
             .bind_code(nocter_model::ValueCode::Declaration(root), [])
             .map_err(|_| Failure::InvalidAcceptedUnit)?,
     );
-    for frame in unit.destructor_frames() {
-        builder.add_destructor(frame.clone());
-    }
     while builder.next(&unit, work)?.is_some() {}
     builder.finish(unit, root)
 }

@@ -1,7 +1,9 @@
-//! Close newly represented destructor receivers from the frozen retirement schedules.
+//! Close destructor bodies selected by the frozen retirement schedules.
 use super::{Body, Failure, INVALID, InstanceProgram, Location, Step, lower_body};
 use crate::value_access::{InstanceKey, build::Builder};
-use nocter_checking::value_access::{InstantiationFailure, accepted::Unit};
+use nocter_checking::value_access::{
+    InstantiationFailure, accepted::Unit, flow::resources::Disposal,
+};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::DataInstanceKey;
 use nocter_model::AccessInstanceId;
@@ -9,6 +11,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+
+#[cfg(test)]
+mod tests;
 
 pub(super) fn extend(
     instances: Arc<InstanceProgram>,
@@ -62,15 +67,27 @@ impl Retirements {
         work: &mut WorkBudget,
     ) -> Result<(), Failure> {
         for (&at, action) in body.actions() {
+            let mut require = |data: &DataInstanceKey| self.require(unit, instance, at, data, work);
             for alternative in action.alternatives() {
                 for step in alternative.before().iter().chain(alternative.after()) {
                     let payload = match step {
                         Step::DisposeEnvironment { payload, .. } => Some(payload),
-                        // Local activation captures have a closed representation at construction.
+                        Step::CancelLocalFuture { captures, .. } => {
+                            for input in captures.fields() {
+                                let data = unit
+                                    .program()
+                                    .instantiate_closed_data(input.payload.data())
+                                    .map_err(|_| INVALID)?;
+                                require(&data)?;
+                            }
+                            None
+                        }
                         _ => step.resource().and_then(|step| step.retired_payload()),
                     };
-                    if let Some(payload) = payload {
-                        self.require(unit, instance, at, payload.instance(), work)?;
+                    if let Some(payload) =
+                        payload.filter(|payload| payload.disposal() != Disposal::Trivial)
+                    {
+                        require(payload.instance())?;
                     }
                 }
             }
@@ -89,7 +106,7 @@ impl Retirements {
         let program = unit.program();
         let mut pending = vec![data.clone()];
         while let Some(data) = pending.pop() {
-            if data.is_context_free() || data.is_uninhabited() || !self.seen.insert(data.clone()) {
+            if data.is_uninhabited() || !self.seen.insert(data.clone()) {
                 continue;
             }
             work.step().map_err(|_| Failure::Payload {
@@ -97,21 +114,16 @@ impl Retirements {
                 at,
                 failure: InstantiationFailure::WorkLimit,
             })?;
-            if program.data_destructor(data.data()).is_none() {
-                pending.extend(data.cleanup_components(program).map_err(|_| INVALID)?);
-                continue;
-            }
-            // Qualification includes subsequent component cleanup and every reached destructor.
-            let key = program.bind_destructor(&data).map_err(|_| INVALID)?;
-            if !self.qualified.contains(&key) {
-                for frame in unit
-                    .qualify_destructor(data, work)
-                    .map_err(Failure::Destructor)?
-                {
-                    if self.qualified.insert(frame.clone()) {
-                        self.new.insert(frame);
-                    }
+            pending.extend(data.cleanup_components(program).map_err(|_| INVALID)?);
+            if program.data_destructor(data.data()).is_some() {
+                let key = program.bind_destructor(&data).map_err(|_| INVALID)?;
+                if !self.qualified.contains(&key) {
+                    self.qualified.extend(
+                        unit.qualify_destructor(data, work)
+                            .map_err(Failure::Destructor)?,
+                    );
                 }
+                self.new.insert(key);
             }
         }
         Ok(())

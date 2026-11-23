@@ -61,6 +61,19 @@ pub enum FutureCaptureCases<T> {
     Selected(Box<[(u64, Arc<[T]>)]>),
 }
 
+impl<T> FutureCaptureCases<T> {
+    /// Enumerate fields from every possible activation. Grants no active-case evidence.
+    pub fn fields(&self) -> impl Iterator<Item = &T> {
+        let (direct, selected) = match self {
+            Self::Direct(fields) => (fields.as_ref(), &[][..]),
+            Self::Selected(cases) => (&[][..], cases.as_ref()),
+        };
+        direct
+            .iter()
+            .chain(selected.iter().flat_map(|(_, fields)| fields.iter()))
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LocalFutureMove {
     pub inputs: FutureCaptureCases<nocter_declarations::value_access::FunctionInput>,

@@ -457,14 +457,7 @@ impl<'a, 'work> Proof<'a, 'work> {
             .local_futures
             .cancellation(code, at, holder)
             .ok_or(CLEANUP)?;
-        let (direct, selected) = match cleanup {
-            super::FutureCaptureCases::Direct(fields) => (fields.as_ref(), &[][..]),
-            super::FutureCaptureCases::Selected(cases) => (&[][..], cases.as_ref()),
-        };
-        for input in direct
-            .iter()
-            .chain(selected.iter().flat_map(|(_, fields)| fields.iter()))
-        {
+        for input in cleanup.fields() {
             let data = self
                 .unit
                 .program
