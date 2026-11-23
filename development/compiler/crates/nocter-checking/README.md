@@ -1198,6 +1198,10 @@ obligation. Producer analysis leaves its callable and tag facts unknown, and the
 the unspecialized payload as unavailable. A closed required expression inside the definition still
 has its own evaluation root.
 
+An explicit generic application projects the selected declaration's input and result types in the
+caller's canonical body type extension. Ordinary argument preparation uses that signature and
+the original passing operations. Executable frame binding is still pending.
+
 Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
 joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,
 input operations and result data must already agree. Once those identities close, construction

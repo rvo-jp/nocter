@@ -320,23 +320,7 @@ impl Program {
         let mut contract = match witness.origin {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
-                let callable = self.direct_callable(id)?;
-                let inputs = callable
-                    .parameters()
-                    .iter()
-                    .map(|id| {
-                        let parameter = self.parameters.get(*id)?;
-                        Some(FunctionInput {
-                            data: parameter.data(),
-                            operation: parameter.operation(),
-                        })
-                    })
-                    .collect::<Option<_>>()?;
-                FunctionConstraint {
-                    invocation: witness.invocation,
-                    inputs,
-                    result: callable.result(),
-                }
+                self.declaration_contract(self.direct_callable(id)?)?
             }
             ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
             ValueFunctionOrigin::Contract(id) => self.callable_contract(id)?.clone(),
@@ -353,6 +337,28 @@ impl Program {
         }
         contract.invocation = witness.invocation;
         Some(contract)
+    }
+
+    pub(super) fn declaration_contract(
+        &self,
+        callable: &super::Code,
+    ) -> Option<FunctionConstraint> {
+        let inputs = callable
+            .parameters()
+            .iter()
+            .map(|id| {
+                let parameter = self.parameters.get(*id)?;
+                Some(FunctionInput {
+                    data: parameter.data(),
+                    operation: parameter.operation(),
+                })
+            })
+            .collect::<Option<_>>()?;
+        Some(FunctionConstraint {
+            invocation: ValueInvocation::Read,
+            inputs,
+            result: callable.result(),
+        })
     }
 
     /// Validate one selected invocation adapter without reopening signature or witness selection.

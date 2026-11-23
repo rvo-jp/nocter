@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 mod applications;
 mod containment;
 mod contracts;
+mod generics;
 mod inputs;
 mod resolution;
 pub use resolution::ResolvedBodyTypes;

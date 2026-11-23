@@ -418,17 +418,10 @@ impl Checker<'_, '_> {
         selected: &Callee,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        if let Ok(arguments) = self.direct(suffix, NodeKind::GenericArguments) {
-            let (CalleeSource::Declared { .. }, ValueFunctionOrigin::Declaration(code)) =
-                (selected.source, selected.witness.origin)
-            else {
-                return self.reject_unparameterized_call(arguments);
-            };
-            self.check_explicit_generic_application(code, arguments)?;
-            return self.reject(Rule::UnqualifiedGenericCallable, arguments);
-        }
-        let arguments = self.children(suffix);
-        self.selected_call(node, &arguments, selected, reachable)
+        let generic = self.direct(suffix, NodeKind::GenericArguments).ok();
+        let mut arguments = self.children(suffix);
+        arguments.retain(|&argument| Some(argument) != generic);
+        self.selected_call(node, &arguments, selected, generic, reachable)
     }
 
     fn selected_call(
@@ -436,16 +429,51 @@ impl Checker<'_, '_> {
         node: NodeId,
         arguments: &[NodeId],
         selected: &Callee,
+        generic: Option<NodeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        if let ValueFunctionOrigin::Declaration(code) = selected.witness.origin {
-            self.require_nongeneric_callable(code, node)?;
+        let contract = if let Some(arguments) = generic {
+            let (CalleeSource::Declared { .. }, ValueFunctionOrigin::Declaration(code)) =
+                (selected.source, selected.witness.origin)
+            else {
+                return self.reject_unparameterized_call(arguments);
+            };
+            let application = self.explicit_generic_application(code, arguments)?;
+            match self.types.apply_callable_signature(code, &application) {
+                Ok(contract) => contract,
+                Err(_) => return self.reject_message(
+                    Rule::TypeMismatch,
+                    arguments,
+                    "these generic arguments do not produce a valid concrete callable signature"
+                        .into(),
+                    Vec::new(),
+                ),
+            }
+        } else {
+            if let ValueFunctionOrigin::Declaration(code) = selected.witness.origin {
+                self.require_nongeneric_callable(code, node)?;
+            }
+            self.program()
+                .function_contract(selected.witness)
+                .ok_or(Failure::InconsistentSyntax)?
+        };
+        let (kind, arguments, continues) =
+            self.prepare_call_arguments(node, arguments, selected.source, &contract, reachable)?;
+        if let Some(arguments) = generic {
+            return self.reject(Rule::UnqualifiedGenericCallable, arguments);
         }
-        let contract = self
-            .program()
-            .function_contract(selected.witness)
-            .ok_or(Failure::InconsistentSyntax)?;
-        let (receiver, inputs) = match selected.source {
+        self.emit_selected_call(node, selected, &contract, kind, arguments, continues)
+    }
+
+    fn prepare_call_arguments(
+        &mut self,
+        node: NodeId,
+        arguments: &[NodeId],
+        source: CalleeSource,
+        contract: &FunctionConstraint,
+        reachable: bool,
+    ) -> Result<(CallKind, CallArguments, bool), Failure> {
+        let (receiver, inputs) = match source {
             CalleeSource::Declared {
                 receiver: Some(receiver),
                 ..
@@ -462,29 +490,21 @@ impl Checker<'_, '_> {
             return self.reject(Rule::InvalidCall, node);
         }
         let mut plans = Vec::new();
-        let (kind, mut continues) =
-            if let CalleeSource::Value { environment, input } = selected.source {
-                plans.push(self.input_plan(self.first_child(node)?, environment, input, None)?);
-                (CallKind::Value, self.ty(environment).may_complete())
-            } else if let Some(((syntax, value), input)) = receiver {
-                plans.push(self.prepare_input(syntax, value, input)?);
-                (CallKind::Direct, self.ty(value).may_complete())
-            } else {
-                (CallKind::Direct, true)
-            };
+        let (kind, mut continues) = if let CalleeSource::Value { environment, input } = source {
+            plans.push(self.input_plan(self.first_child(node)?, environment, input, None)?);
+            (CallKind::Value, self.ty(environment).may_complete())
+        } else if let Some(((syntax, value), input)) = receiver {
+            plans.push(self.prepare_input(syntax, value, input)?);
+            (CallKind::Direct, self.ty(value).may_complete())
+        } else {
+            (CallKind::Direct, true)
+        };
         for (syntax, expected) in arguments.iter().copied().zip(inputs.iter().copied()) {
             let value = self.input_expression(syntax, expected, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
-        self.emit_selected_call(
-            node,
-            selected,
-            &contract,
-            kind,
-            CallArguments::in_order(plans),
-            continues,
-        )
+        Ok((kind, CallArguments::in_order(plans), continues))
     }
 
     fn require_nongeneric_callable(

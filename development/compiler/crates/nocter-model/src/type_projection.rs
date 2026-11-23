@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::{
-    CallableContract, InvalidParameterOrigin, TupleElements, TypeAuthority, TypeId, TypeKind,
-    TypeStore, TypeTransaction, UnknownTypeId,
+    InvalidParameterOrigin, TypeAuthority, TypeId, TypeKind, TypeStore, TypeTransaction,
+    UnknownTypeId,
 };
 
 /// Self-contained structural type authority projected from one root type.
@@ -93,145 +93,11 @@ fn project_type(
         projected.insert(source_id, target_id);
         return Ok(target_id);
     }
-    let target_kind = project_kind(source, target, projected, source_kind)?;
+    let target_kind =
+        source_kind.try_map_references(|ty| project_type(source, target, projected, ty))?;
     let target_id = target.intern(target_kind)?;
     projected.insert(source_id, target_id);
     Ok(target_id)
-}
-
-fn project_kind(
-    source: &TypeStore,
-    target: &mut TypeTransaction,
-    projected: &mut HashMap<TypeId, TypeId>,
-    source_kind: TypeKind,
-) -> Result<TypeKind, TypeProjectionError> {
-    Ok(match source_kind {
-        TypeKind::Builtin(_) => unreachable!("builtins are projected before structural types"),
-        TypeKind::ValueFunction { origin, invocation } => {
-            TypeKind::ValueFunction { origin, invocation }
-        }
-        TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
-        TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
-        TypeKind::Nominal {
-            definition,
-            arguments,
-        } => TypeKind::Nominal {
-            definition,
-            arguments: project_application(source, target, projected, &arguments)?,
-        },
-        TypeKind::AssociatedProjection { base, associated } => TypeKind::AssociatedProjection {
-            base: project_type(source, target, projected, base)?,
-            associated,
-        },
-        TypeKind::Opaque {
-            definition,
-            arguments,
-        } => TypeKind::Opaque {
-            definition,
-            arguments: project_application(source, target, projected, &arguments)?,
-        },
-        TypeKind::Pointer(pointee) => {
-            TypeKind::Pointer(project_type(source, target, projected, pointee)?)
-        }
-        TypeKind::Borrow {
-            capability,
-            referent,
-        } => TypeKind::Borrow {
-            capability,
-            referent: project_type(source, target, projected, referent)?,
-        },
-        TypeKind::Future(output) => {
-            TypeKind::Future(project_type(source, target, projected, output)?)
-        }
-        TypeKind::Slice(element) => {
-            TypeKind::Slice(project_type(source, target, projected, element)?)
-        }
-        TypeKind::FixedArray { element, length } => TypeKind::FixedArray {
-            element: project_type(source, target, projected, element)?,
-            length,
-        },
-        TypeKind::Tuple(elements) => {
-            let projected_elements = project_types(source, target, projected, elements.as_slice())?;
-            let [first, second, remaining @ ..] = projected_elements.as_ref() else {
-                unreachable!("tuple semantic identity always contains at least two elements")
-            };
-            TypeKind::Tuple(TupleElements::new(
-                *first,
-                *second,
-                remaining.iter().copied(),
-            ))
-        }
-        TypeKind::PackEntry { key, value } => TypeKind::PackEntry {
-            key: project_type(source, target, projected, key)?,
-            value: project_type(source, target, projected, value)?,
-        },
-        TypeKind::Closure {
-            definition,
-            arguments,
-        } => TypeKind::Closure {
-            definition,
-            arguments: project_application(source, target, projected, &arguments)?,
-        },
-        TypeKind::Callable(callable) => {
-            let contract = callable.contract();
-            let parameters = project_types(source, target, projected, contract.parameters())?;
-            let pack = contract
-                .pack()
-                .map(|pack| pack.try_map(|ty| project_type(source, target, projected, ty)))
-                .transpose()?;
-            let result = project_type(source, target, projected, contract.result())?;
-            TypeKind::Callable(crate::CallableType::new(
-                callable.representation(),
-                CallableContract::new_with_input_provenance(
-                    contract.capability(),
-                    contract.guarantees(),
-                    parameters,
-                    pack,
-                    contract.input_provenance().clone(),
-                    result,
-                    contract.provenance().clone(),
-                )?,
-            ))
-        }
-        TypeKind::Optional(payload) => {
-            TypeKind::Optional(project_type(source, target, projected, payload)?)
-        }
-        TypeKind::Fallible(payload) => {
-            TypeKind::Fallible(project_type(source, target, projected, payload)?)
-        }
-    })
-}
-
-fn project_types(
-    source: &TypeStore,
-    target: &mut TypeTransaction,
-    projected: &mut HashMap<TypeId, TypeId>,
-    types: &[TypeId],
-) -> Result<Box<[TypeId]>, TypeProjectionError> {
-    types
-        .iter()
-        .copied()
-        .map(|ty| project_type(source, target, projected, ty))
-        .collect::<Result<Vec<_>, _>>()
-        .map(Vec::into_boxed_slice)
-}
-
-fn project_application(
-    source: &TypeStore,
-    target: &mut TypeTransaction,
-    projected: &mut HashMap<TypeId, TypeId>,
-    application: &crate::GenericApplication,
-) -> Result<crate::GenericApplication, TypeProjectionError> {
-    application
-        .iter()
-        .map(|argument| match argument {
-            crate::GenericValue::Type(ty) => {
-                project_type(source, target, projected, *ty).map(crate::GenericValue::Type)
-            }
-            crate::GenericValue::Usize(value) => Ok(crate::GenericValue::Usize(*value)),
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(crate::GenericApplication::new)
 }
 
 #[cfg(test)]

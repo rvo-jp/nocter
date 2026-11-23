@@ -51,7 +51,7 @@ impl Checker<'_, '_> {
             let projection = self.receiver_projection(member.code)?;
             let value = self.receiver_value(receiver, Some(projection), reachable)?;
             let selected = Callee::direct(member.code, token, Some((source, value)));
-            return self.selected_call(node, &[], &selected, reachable);
+            return self.selected_call(node, &[], &selected, None, reachable);
         }
 
         let value = self.receiver_value(receiver, None, reachable)?;

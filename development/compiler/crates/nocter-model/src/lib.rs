@@ -25,6 +25,7 @@ mod symbol;
 mod target;
 mod type_projection;
 mod type_store;
+mod type_substitution;
 mod type_transaction;
 mod value_access;
 
@@ -65,6 +66,7 @@ pub use type_store::{
     CompileTimeGuarantee, InvalidParameterOrigin, NonblockingGuarantee, TrapGuarantee,
     TupleElements, TypeCursor, TypeKind, TypeStore, UnknownTypeId,
 };
+pub use type_substitution::{SubstitutionError, TypeSubstitution};
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};
 pub use value_access::{
     ValueAccess, ValueAccessMode, ValueApplication, ValueAppliedResult, ValueBindingKind,

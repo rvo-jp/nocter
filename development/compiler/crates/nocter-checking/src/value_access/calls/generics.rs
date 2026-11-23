@@ -16,11 +16,11 @@ impl Checker<'_, '_> {
         )
     }
 
-    pub(super) fn check_explicit_generic_application(
+    pub(super) fn explicit_generic_application(
         &mut self,
         code: AccessCodeId,
         list: NodeId,
-    ) -> Result<(), Failure> {
+    ) -> Result<GenericApplication, Failure> {
         let parameters = self
             .program()
             .generic_parameter_ids(code)
@@ -68,9 +68,7 @@ impl Checker<'_, '_> {
             };
             values.push(value);
         }
-        self.program()
-            .validate_generic_application(code, &GenericApplication::new(values))
-            .map_err(|_| Failure::InconsistentSyntax)
+        Ok(GenericApplication::new(values))
     }
 
     fn constant_argument(&mut self, source: NodeId) -> Result<u64, Failure> {

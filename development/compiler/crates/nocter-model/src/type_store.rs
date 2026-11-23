@@ -567,7 +567,7 @@ pub enum TypeKind {
 }
 
 impl TypeKind {
-    fn references(&self, visit: &mut impl FnMut(TypeId)) {
+    pub(crate) fn references(&self, visit: &mut impl FnMut(TypeId)) {
         match self {
             Self::Builtin(_)
             | Self::GenericParameter(_)
@@ -600,6 +600,94 @@ impl TypeKind {
                 visit(contract.result());
             }
         }
+    }
+
+    /// Rebuilds the type with every referenced type ID mapped in structural order.
+    /// Origins, constant arguments and callable guarantees retain their original meaning.
+    ///
+    /// # Errors
+    /// Propagates a mapping failure or invalid provenance in a reconstructed callable.
+    pub fn try_map_references<E>(
+        self,
+        mut map: impl FnMut(TypeId) -> Result<TypeId, E>,
+    ) -> Result<Self, E>
+    where
+        E: From<InvalidParameterOrigin>,
+    {
+        Ok(match self {
+            unchanged @ (Self::Builtin(_)
+            | Self::ValueFunction { .. }
+            | Self::GenericParameter(_)
+            | Self::InterfaceSelf(_)) => unchanged,
+            Self::Closure {
+                definition,
+                arguments,
+            } => Self::Closure {
+                definition,
+                arguments: arguments.try_map_types(&mut map)?,
+            },
+            Self::Nominal {
+                definition,
+                arguments,
+            } => Self::Nominal {
+                definition,
+                arguments: arguments.try_map_types(&mut map)?,
+            },
+            Self::AssociatedProjection { base, associated } => Self::AssociatedProjection {
+                base: map(base)?,
+                associated,
+            },
+            Self::Opaque {
+                definition,
+                arguments,
+            } => Self::Opaque {
+                definition,
+                arguments: arguments.try_map_types(&mut map)?,
+            },
+            Self::Pointer(base) => Self::Pointer(map(base)?),
+            Self::Borrow {
+                capability,
+                referent,
+            } => Self::Borrow {
+                capability,
+                referent: map(referent)?,
+            },
+            Self::Future(output) => Self::Future(map(output)?),
+            Self::Slice(element) => Self::Slice(map(element)?),
+            Self::FixedArray { element, length } => Self::FixedArray {
+                element: map(element)?,
+                length,
+            },
+            Self::Tuple(elements) => Self::Tuple(TupleElements(
+                elements.iter().map(&mut map).collect::<Result<_, _>>()?,
+            )),
+            Self::PackEntry { key, value } => Self::PackEntry {
+                key: map(key)?,
+                value: map(value)?,
+            },
+            Self::Callable(callable) => Self::Callable(CallableType::new(
+                callable.representation(),
+                CallableContract::new_with_input_provenance(
+                    callable.capability(),
+                    callable.guarantees(),
+                    callable
+                        .parameters()
+                        .iter()
+                        .copied()
+                        .map(&mut map)
+                        .collect::<Result<Vec<_>, _>>()?,
+                    callable
+                        .pack()
+                        .map(|pack| pack.try_map(&mut map))
+                        .transpose()?,
+                    callable.input_provenance().clone(),
+                    map(callable.result())?,
+                    callable.provenance().clone(),
+                )?,
+            )),
+            Self::Optional(payload) => Self::Optional(map(payload)?),
+            Self::Fallible(payload) => Self::Fallible(map(payload)?),
+        })
     }
 }
 

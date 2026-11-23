@@ -8,7 +8,7 @@ use crate::interface_implementation::{
     AssociatedImplementationSelection, CallableProofContext, InterfaceImplementationTable,
     RequirementPredicate, resolve_selected_associated_type, select_associated_implementation,
 };
-use crate::type_relations::{SubstitutionError, map_type_children};
+use crate::type_relations::SubstitutionError;
 use crate::{CheckedPredicate, is_concrete_type};
 
 /// The sole semantic authority for reducing associated projections after their names are bound.
@@ -117,9 +117,8 @@ impl<'program, R: RequirementPredicate> AssociatedTypeResolver<'program, R> {
                     .map_err(|unknown| AssociatedTypeResolutionError::UnknownType(unknown.id()))?
             }
         } else {
-            let rebuilt = map_type_children(kind, |child| {
-                self.reduce_type(types, child, finished, active)
-            })?;
+            let rebuilt =
+                kind.try_map_references(|child| self.reduce_type(types, child, finished, active))?;
             types
                 .intern(rebuilt)
                 .map_err(|unknown| AssociatedTypeResolutionError::UnknownType(unknown.id()))?
@@ -153,6 +152,12 @@ impl fmt::Display for AssociatedTypeResolutionError {
 }
 
 impl std::error::Error for AssociatedTypeResolutionError {}
+
+impl From<nocter_model::InvalidParameterOrigin> for AssociatedTypeResolutionError {
+    fn from(error: nocter_model::InvalidParameterOrigin) -> Self {
+        Self::from(SubstitutionError::from(error))
+    }
+}
 
 impl From<SubstitutionError> for AssociatedTypeResolutionError {
     fn from(error: SubstitutionError) -> Self {

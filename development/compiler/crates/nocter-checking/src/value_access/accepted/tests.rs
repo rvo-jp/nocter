@@ -383,6 +383,36 @@ fn explicit_generic_arguments_follow_the_selected_callable_schema() {
 }
 
 #[test]
+fn an_explicit_application_checks_values_against_the_concrete_signature() {
+    for (operand, code, origin) in [
+        ("[true, false]", "E0370", "true"),
+        ("[1, 2]", "E0291", "<i32, 2>"),
+    ] {
+        let text = format!(
+            "func keep<T, const N: usize>(take parts: [T; N]): [T; N] {{ parts^ }}\nfunc run(): void {{ let _ = keep<i32, 2>({operand}) }}"
+        );
+        let (sources, tree) = input(&text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(error),
+            ..
+        }) = failure
+        else {
+            panic!("{operand}: expected a source diagnostic, got {failure:?}");
+        };
+        let diagnostic = error.source();
+        assert_eq!(diagnostic.code(), code, "{operand}: {diagnostic:?}");
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.primary().span().range()),
+            Some(origin)
+        );
+    }
+}
+
+#[test]
 fn closed_deferred_drive_handles_pure_recursive_code_without_executing_it() {
     let unit = accepted("func recurse(): i32 { recurse() }\nasync func root(): i32 { recurse() }");
     let root = named(&unit, "root").typed().source_owner();

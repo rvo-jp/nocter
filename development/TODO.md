@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Specialize explicit calls to checked generic definitions. Project the selected signature through
-the canonical type substitution, bind a frame to the complete application, and verify that the
-original operations and deferred cleanup hold for the concrete payloads.
+Bind explicit calls to frames for checked generic definitions. Retain the complete application at
+the original call and close the frame's data using the canonical type authority. Preserve the
+checked operations and verify the deferred cleanup for the concrete representation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -694,7 +694,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain checked runtime generic definitions in the ordinary accepted unit. Verify symbolic
   producer and evaluator facts, independent closed required expressions, refusal to bind a
   generic definition as an executable root, and unrelated native entry selection.
-- [ ] Bind explicit applications to concrete signatures and frames. Qualify distinct types and
+- [x] Project explicitly applied signatures through the shared type substitution and prepare
+  concrete inputs through the ordinary boundary. Verify canonical replay, authored passing
+  operations, rollback on invalid data and original operand diagnostics.
+- [ ] Bind explicit applications to concrete frames. Qualify distinct types and
   lengths, exact input/return rules, original generic moves, and concrete cleanup through the
   ordinary native path.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and

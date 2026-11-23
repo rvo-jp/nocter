@@ -2,6 +2,78 @@ use super::*;
 use nocter_model::{ValueClosure, ValueFunctionOrigin};
 
 #[test]
+fn applied_signature_reuses_concrete_body_types_and_keeps_input_operations() {
+    use crate::GenericParameterDomain::{Type, UsizeConstant};
+    use nocter_model::{GenericApplication, GenericValue, UsizeTerm, ValueInputOperation};
+    use std::sync::Arc;
+
+    let symbols = SymbolTable::from_spellings(["decode", "T", "N", "parts"]);
+    let name = |text| symbols.get(text).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let code = reservations.reserve(name("decode"), 1);
+    reservations
+        .reserve_callable_generics(code, vec![(name("T"), Type), (name("N"), UsizeConstant)])
+        .unwrap();
+    let mut headers = reservations.finish().unwrap().into_publication();
+    let slots = headers.snapshot();
+    let &[element, count] = slots.generic_parameter_ids(code).unwrap() else {
+        panic!("expected two ordered binders");
+    };
+    let parameter = Arc::new(DataReference::GenericParameter(element));
+    headers
+        .define_generic(
+            code,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [ParameterDefinition {
+                binding: ParameterBinding::Name(name("parts")),
+                data: DataReference::Array {
+                    element: parameter.clone(),
+                    length: UsizeTerm::Parameter(count),
+                }
+                .into(),
+                operation: ValueInputOperation::Take,
+            }],
+            DataReference::Fallible(parameter),
+        )
+        .unwrap();
+    let header = headers.finish().unwrap();
+    let mut body = header.body_types(code).unwrap();
+    let integer = header.data_type(BuiltinType::I32).unwrap();
+    let result = body.fallible(integer).unwrap();
+    let count_four = GenericValue::Usize(4.into());
+    let before = body.program().types.store().cursor();
+    for values in [
+        vec![integer.into()],
+        vec![count_four, integer.into()],
+        vec![integer.into(), UsizeTerm::Parameter(count).into()],
+        vec![result.into(), count_four],
+    ] {
+        assert_eq!(
+            body.apply_callable_signature(code, &GenericApplication::new(values)),
+            Err(BodyTypeError::InvalidApplication)
+        );
+        assert_eq!(body.program().types.store().cursor(), before);
+    }
+    let applied = body
+        .apply_callable_signature(code, &GenericApplication::new([integer.into(), count_four]))
+        .unwrap();
+    assert_eq!(applied.result, result);
+    assert_eq!(applied.inputs[0].operation, ValueInputOperation::Take);
+    assert_eq!(applied.inputs[0].data, body.array(integer, 4).unwrap());
+    let body = body.finish();
+    assert!(
+        body.function_contract(FunctionWitness::from(code))
+            .is_none()
+    );
+    let canonical = header
+        .canonical_body_types(BTreeMap::from([(code.into(), &body)]))
+        .unwrap();
+    let data = canonical.project(code, applied.inputs[0].data).unwrap();
+    let canonical = canonical.finish();
+    assert_eq!(array(&canonical, data).length(), 4);
+}
+
+#[test]
 fn symbolic_array_suffix_replays_only_its_own_length_parameter() {
     use nocter_model::{TypeKind, UsizeTerm};
     let symbols = SymbolTable::from_spellings(["first", "second", "N"]);

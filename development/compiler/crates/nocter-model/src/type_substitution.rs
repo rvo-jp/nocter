@@ -1,16 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use nocter_model::{GenericParameterId, GenericValue, InterfaceId, TypeId, TypeKind, TypeStore};
-
-use super::{map_type_children, visit_type_children};
+use crate::{GenericParameterId, GenericValue, InterfaceId, TypeId, TypeKind, TypeStore};
 
 #[derive(Clone, Debug, Default)]
 pub struct TypeSubstitution {
     interface_self: Option<(InterfaceId, TypeId)>,
     generics: HashMap<GenericParameterId, TypeId>,
-    constants: HashMap<GenericParameterId, nocter_model::UsizeTerm>,
-    associated: HashMap<nocter_model::AssociatedTypeId, TypeId>,
+    constants: HashMap<GenericParameterId, crate::UsizeTerm>,
+    associated: HashMap<crate::AssociatedTypeId, TypeId>,
 }
 
 impl TypeSubstitution {
@@ -26,11 +24,7 @@ impl TypeSubstitution {
         self.constants.insert(source, value.into());
     }
 
-    pub fn bind_constant_term(
-        &mut self,
-        source: GenericParameterId,
-        value: nocter_model::UsizeTerm,
-    ) {
+    pub fn bind_constant_term(&mut self, source: GenericParameterId, value: crate::UsizeTerm) {
         self.constants.insert(source, value);
     }
 
@@ -41,11 +35,12 @@ impl TypeSubstitution {
         }
     }
 
-    pub fn bind_associated(&mut self, declaration: nocter_model::AssociatedTypeId, target: TypeId) {
+    pub fn bind_associated(&mut self, declaration: crate::AssociatedTypeId, target: TypeId) {
         self.associated.insert(declaration, target);
     }
 
-    pub(crate) fn extend(&mut self, other: &Self) {
+    /// Overlay bindings from another substitution. An incoming binding replaces the same slot.
+    pub fn extend(&mut self, other: &Self) {
         if let Some((interface, target)) = other.interface_self {
             self.set_interface_self(interface, target);
         }
@@ -77,7 +72,7 @@ impl TypeSubstitution {
     /// or rebuilding a structural type would violate store integrity.
     pub fn apply_type(
         &self,
-        types: &mut nocter_model::TypeTransaction,
+        types: &mut crate::TypeTransaction,
         root: TypeId,
     ) -> Result<TypeId, SubstitutionError> {
         enum Action {
@@ -113,7 +108,7 @@ impl TypeSubstitution {
                         pending.push(Action::Enter(replacement));
                     } else {
                         let mut children = Vec::new();
-                        visit_type_children(&kind, |child| children.push(child));
+                        kind.references(&mut |child| children.push(child));
                         pending.push(Action::Rebuild { source: ty, kind });
                         pending.extend(children.into_iter().rev().map(Action::Enter));
                     }
@@ -127,7 +122,7 @@ impl TypeSubstitution {
                     finished.insert(source, replacement);
                 }
                 Action::Rebuild { source, kind } => {
-                    let rebuilt = map_type_children(kind, |ty| {
+                    let rebuilt = kind.try_map_references(|ty| {
                         finished
                             .get(&ty)
                             .copied()
@@ -155,7 +150,7 @@ impl TypeSubstitution {
     /// Returns the same structural substitution failures as [`Self::apply_type`].
     pub fn apply_value(
         &self,
-        types: &mut nocter_model::TypeTransaction,
+        types: &mut crate::TypeTransaction,
         value: GenericValue,
     ) -> Result<GenericValue, SubstitutionError> {
         match value {
@@ -164,17 +159,20 @@ impl TypeSubstitution {
         }
     }
 
-    pub(crate) fn apply_application(
+    /// Apply this substitution in the authored order, preserving parameter kinds.
+    /// # Errors
+    /// Propagates a structural substitution failure from any argument.
+    pub fn apply_application(
         &self,
-        types: &mut nocter_model::TypeTransaction,
-        application: &nocter_model::GenericApplication,
-    ) -> Result<nocter_model::GenericApplication, SubstitutionError> {
+        types: &mut crate::TypeTransaction,
+        application: &crate::GenericApplication,
+    ) -> Result<crate::GenericApplication, SubstitutionError> {
         application
             .iter()
             .copied()
             .map(|value| self.apply_value(types, value))
             .collect::<Result<Vec<_>, _>>()
-            .map(nocter_model::GenericApplication::new)
+            .map(crate::GenericApplication::new)
     }
 
     fn direct_replacement(&self, types: &TypeStore, kind: &TypeKind) -> Option<TypeId> {
@@ -200,10 +198,10 @@ impl TypeSubstitution {
         match kind {
             TypeKind::FixedArray {
                 element,
-                length: nocter_model::UsizeTerm::Parameter(parameter),
+                length: crate::UsizeTerm::Parameter(parameter),
             } => TypeKind::FixedArray {
                 element,
-                length: self.constant_term(nocter_model::UsizeTerm::Parameter(parameter)),
+                length: self.constant_term(crate::UsizeTerm::Parameter(parameter)),
             },
             TypeKind::Nominal {
                 definition,
@@ -232,9 +230,9 @@ impl TypeSubstitution {
 
     fn apply_application_constants(
         &self,
-        application: &nocter_model::GenericApplication,
-    ) -> nocter_model::GenericApplication {
-        nocter_model::GenericApplication::new(
+        application: &crate::GenericApplication,
+    ) -> crate::GenericApplication {
+        crate::GenericApplication::new(
             application
                 .iter()
                 .map(|value| match value {
@@ -245,10 +243,10 @@ impl TypeSubstitution {
         )
     }
 
-    fn constant_term(&self, value: nocter_model::UsizeTerm) -> nocter_model::UsizeTerm {
+    fn constant_term(&self, value: crate::UsizeTerm) -> crate::UsizeTerm {
         let mut current = value;
         let mut visited = HashSet::new();
-        while let nocter_model::UsizeTerm::Parameter(parameter) = current {
+        while let crate::UsizeTerm::Parameter(parameter) = current {
             if !visited.insert(parameter) {
                 break;
             }
@@ -285,9 +283,15 @@ impl fmt::Display for SubstitutionError {
 
 impl std::error::Error for SubstitutionError {}
 
+impl From<crate::InvalidParameterOrigin> for SubstitutionError {
+    fn from(_: crate::InvalidParameterOrigin) -> Self {
+        Self::InvalidStore
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use nocter_model::{ArenaBuilder, GenericParameterId, NominalTypeId, TypeAuthority, TypeKind};
+    use crate::{ArenaBuilder, GenericParameterId, NominalTypeId, TypeAuthority, TypeKind};
 
     use super::TypeSubstitution;
 
@@ -300,7 +304,7 @@ mod tests {
         let mut types = TypeAuthority::new().transaction();
         let first_type = types.intern(TypeKind::GenericParameter(first)).unwrap();
         let second_type = types.intern(TypeKind::GenericParameter(second)).unwrap();
-        let expected = types.builtin(nocter_model::BuiltinType::I32);
+        let expected = types.builtin(crate::BuiltinType::I32);
         let mut substitution = TypeSubstitution::default();
         substitution.bind_generic(first, second_type);
         substitution.bind_generic(second, expected);
@@ -330,11 +334,11 @@ mod tests {
         let parameter = parameters.insert(());
         let _ = parameters.finish();
         let mut types = TypeAuthority::new().transaction();
-        let byte = types.builtin(nocter_model::BuiltinType::U8);
+        let byte = types.builtin(crate::BuiltinType::U8);
         let symbolic = types
             .intern(TypeKind::FixedArray {
                 element: byte,
-                length: nocter_model::UsizeTerm::Parameter(parameter),
+                length: crate::UsizeTerm::Parameter(parameter),
             })
             .unwrap();
         let mut substitution = TypeSubstitution::default();
@@ -354,7 +358,7 @@ mod tests {
         let parameter = parameters.insert(());
         let _ = parameters.finish();
         let mut types = TypeAuthority::new().transaction();
-        let byte = types.builtin(nocter_model::BuiltinType::U8);
+        let byte = types.builtin(crate::BuiltinType::U8);
         let symbolic = types
             .intern(TypeKind::Nominal {
                 definition: {
@@ -363,11 +367,9 @@ mod tests {
                     let _ = definitions.finish();
                     definition
                 },
-                arguments: nocter_model::GenericApplication::new([
-                    nocter_model::GenericValue::Type(byte),
-                    nocter_model::GenericValue::Usize(nocter_model::UsizeTerm::Parameter(
-                        parameter,
-                    )),
+                arguments: crate::GenericApplication::new([
+                    crate::GenericValue::Type(byte),
+                    crate::GenericValue::Usize(crate::UsizeTerm::Parameter(parameter)),
                 ]),
             })
             .unwrap();
