@@ -198,6 +198,8 @@ The declaration authority reserves one anonymous destructor per nominal family. 
 input is a complete `edit self` receiver of that family, and its result is unit. The header
 publishes only after the nominal schema establishes its effective Copy policy. A Copy family
 cannot publish a destructor. The declaration has no source name or function witness.
+The reserved family-to-code identity is available before publication and is part of the
+layout checked when reusing a sealed header product.
 
 The v2 parser reads the body from `drop { ... }` within an ordinary nominal implementation.
 Module binding retains the original file and behavior scope. The implicit receiver has a

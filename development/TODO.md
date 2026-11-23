@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Expose the exact reserved destructor identity to lifecycle and required-evaluation queries before
-body admission. Preserve its original nominal owner and require the relevant effect evidence
-before using destructor-bearing storage in compile-time or executable cleanup.
+Use the reserved destructor identity during required evaluation to exclude user destruction
+while retaining empty arrays and inactive enum payloads. Keep ordinary executable admission
+behind effect and ordered component-cleanup checks.
 
 ## Remaining Contextual Representation Qualification
 
@@ -775,6 +775,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind authored destructor declarations in ordinary implementation sources and check their
   bodies under the implicit receiver and unit result. Reject contract bodies and duplicate
   definitions, and retain the executable admission boundary.
+- [x] Expose the exact destructor reservation before header readiness. Include its nominal owner
+  in retained-header layout validation.
 - [ ] Infer destructor effects and integrate the complete-self body with exactly-once component
   cleanup. Make early header and required-value queries recognize reserved lifecycle obligations.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,

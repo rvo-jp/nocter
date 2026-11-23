@@ -34,6 +34,10 @@ fn destructor_requires_one_move_only_owner_and_has_no_callable_binding() {
         HeaderStep::Require(Box::new([owner.into()]))
     );
     assert_eq!(publication.snapshot().destructor(owner), None);
+    assert_eq!(
+        publication.snapshot().reserved_destructor(owner),
+        Some(destructor)
+    );
     publication.publish(destructor).unwrap();
     let program = publication.snapshot();
     assert_eq!(program.destructor(owner), Some(destructor));
@@ -102,4 +106,30 @@ fn destructor_publication_rejects_the_effective_copy_policy() {
                 .copyable()
         );
     }
+}
+
+#[test]
+fn reserved_layout_tracks_the_nominal_owner_of_an_anonymous_destructor() {
+    let symbols = SymbolTable::from_spellings(["First", "Second", "self"]);
+    let prepare = |selected: usize| {
+        let mut reservations = Reservations::new(symbols.clone());
+        let owners = ["First", "Second"]
+            .map(|name| reservations.reserve_record(symbols.get(name).unwrap(), 0));
+        let scopes = owners.map(|owner| {
+            reservations
+                .new_behavior_scope(ScopeId::ROOT, BehaviorOwner::Nominal(owner))
+                .unwrap()
+        });
+        reservations
+            .reserve_destructor(scopes[selected], owners[selected])
+            .unwrap();
+        let mut builder = reservations.finish().unwrap();
+        for owner in owners {
+            builder.define_record(owner, false, []).unwrap();
+        }
+        builder.into_publication()
+    };
+    let previous = prepare(0).finish().unwrap();
+    assert!(prepare(0).has_same_reserved_layout(&previous));
+    assert!(!prepare(1).has_same_reserved_layout(&previous));
 }

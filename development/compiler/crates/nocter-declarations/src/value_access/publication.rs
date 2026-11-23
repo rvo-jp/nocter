@@ -74,6 +74,7 @@ impl HeaderPublication {
             && self.definitions.symbols.as_ref() == retained.symbols.as_ref()
             && self.definitions.namespace.as_ref() == retained.namespace.as_ref()
             && self.definitions.codes.len() == retained.codes.len()
+            && self.definitions.destructors == retained.destructors
             && self.definitions.parameters.len() == retained.parameters.len()
             && self.definitions.aliases.len() == retained.aliases.len()
             && self.definitions.codes.iter().all(|(id, slot)| {
@@ -410,6 +411,7 @@ impl HeaderPublication {
             header_prefix: self.types.store().clone(),
             type_scope: super::TypeScope::Headers,
             codes: self.codes.snapshot(),
+            destructors: self.definitions.destructors.clone(),
             parameters: self.parameters.snapshot(),
             namespace: self.definitions.namespace.clone(),
             nominals: self.nominals.snapshot(),

@@ -286,6 +286,7 @@ pub struct Program {
     header_prefix: nocter_model::TypeStore,
     type_scope: TypeScope,
     codes: SparseArena<AccessCodeId, Code>,
+    destructors: Arc<BTreeMap<NominalTypeId, AccessCodeId>>,
     parameters: SparseArena<AccessParameterId, Parameter>,
     namespace: std::sync::Arc<namespace::Names>,
     nominals: nominals::Schemas,
@@ -526,9 +527,13 @@ impl Program {
     /// The family's published destructor declaration. Body and cleanup admission are separate.
     #[must_use]
     pub fn destructor(&self, owner: NominalTypeId) -> Option<AccessCodeId> {
-        self.codes
-            .iter()
-            .find_map(|(id, code)| (code.kind() == CodeKind::Destructor(owner)).then_some(id))
+        let id = self.reserved_destructor(owner)?;
+        self.codes.get(id).map(|_| id)
+    }
+    /// A lifecycle obligation in the closed name domain, independent of header/body readiness.
+    #[must_use]
+    pub fn reserved_destructor(&self, owner: NominalTypeId) -> Option<AccessCodeId> {
+        self.destructors.get(&owner).copied()
     }
     #[must_use]
     pub fn parameters(&self) -> &SparseArena<AccessParameterId, Parameter> {
@@ -673,6 +678,7 @@ pub struct Reservations {
     symbols: Arc<SymbolTable>,
     scopes: namespace::Scopes,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
+    destructors: BTreeMap<NominalTypeId, AccessCodeId>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
     nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
@@ -690,6 +696,7 @@ impl Reservations {
             symbols,
             scopes: namespace::Scopes::default(),
             codes: ArenaBuilder::new(),
+            destructors: BTreeMap::new(),
             parameters: ArenaBuilder::new(),
             nominals: nominals::Builder::default(),
             aliases: ArenaBuilder::new(),
@@ -893,25 +900,21 @@ impl Reservations {
             return Err(DefinitionError::UnknownId);
         }
         let receiver = self.symbols.get("self").ok_or(DefinitionError::UnknownId)?;
-        let kind = CodeKind::Destructor(owner);
-        if self.codes.iter().any(|(_, code)| {
-            code.definition
-                .as_ref()
-                .is_some_and(|definition| definition.kind == kind)
-        }) {
+        let std::collections::btree_map::Entry::Vacant(entry) = self.destructors.entry(owner)
+        else {
             return Err(DefinitionError::AlreadyDefined);
-        }
+        };
         let parameter = self.parameters.insert(ParameterSlot {
             owner: self.codes.next_id(),
             position: 0,
         });
-        Ok(self.codes.insert(Reservation {
+        let code = self.codes.insert(Reservation {
             scope,
             name: None,
             unqualified: false,
             parameters: Box::new([parameter]),
             definition: Some(Definition {
-                kind,
+                kind: CodeKind::Destructor(owner),
                 parameters: Box::new([ParameterDefinition {
                     binding: ParameterBinding::Name(receiver),
                     data: ValueDefinition::Data(DataReference::Nominal(owner)),
@@ -919,7 +922,9 @@ impl Reservations {
                 }]),
                 result_data: ValueDefinition::Data(BuiltinType::Void.into()),
             }),
-        }))
+        });
+        entry.insert(code);
+        Ok(code)
     }
 
     /// Reserve an anonymous required expression in an existing authored type slot.
@@ -1054,6 +1059,7 @@ impl Reservations {
         Ok(Builder {
             symbols: self.symbols,
             codes: self.codes,
+            destructors: Arc::new(self.destructors),
             parameters: self.parameters.finish(),
             nominals: self.nominals,
             aliases: self.aliases,
@@ -1069,6 +1075,7 @@ impl Reservations {
 pub struct Builder {
     symbols: Arc<SymbolTable>,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
+    destructors: Arc<BTreeMap<NominalTypeId, AccessCodeId>>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
     nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
