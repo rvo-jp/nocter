@@ -216,8 +216,9 @@ release require target certificates. The checked unit qualifies closed receiver 
 The concrete lifecycle selects executable destructor bodies from the representation of each
 retired payload, including owned callable environments and canceled activation inputs. For fields
 that depend on supplied callables, it qualifies the exact value before adding the body. Reached
-destructors and their invocation edges use the ordinary instance builder.
-Each contextual receiver must preserve its cleanup representation through normal body completion.
+destructors and their invocation edges use the ordinary instance builder. Effect analysis and the
+concrete lifecycle both visit components of the checked completion contract. Each contextual
+receiver must preserve its cleanup representation through normal body completion.
 The check uses the accepted bodies and their instance metadata. Rejected operations retain their
 body and operation identities until source locations are bound against the original source.
 Native command diagnostics report the rejected operation together with the destructor that requires it.

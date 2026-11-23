@@ -26,7 +26,7 @@ pub(super) fn extend(
     }
     let mut retired = Retirements {
         seen: BTreeSet::new(),
-        qualified: unit.destructor_frames().cloned().collect(),
+        qualified: unit.destructor_completions().clone(),
         new: BTreeSet::new(),
     };
     for (&id, body) in bodies.iter() {
@@ -54,7 +54,7 @@ pub(super) fn extend(
 
 struct Retirements {
     seen: BTreeSet<DataInstanceKey>,
-    qualified: BTreeSet<InstanceKey>,
+    qualified: BTreeMap<InstanceKey, DataInstanceKey>,
     new: BTreeSet<InstanceKey>,
 }
 
@@ -114,17 +114,20 @@ impl Retirements {
                 at,
                 failure: InstantiationFailure::WorkLimit,
             })?;
-            pending.extend(data.cleanup_components(program).map_err(|_| INVALID)?);
-            if program.data_destructor(data.data()).is_some() {
+            let cleanup = if program.data_destructor(data.data()).is_some() {
                 let key = program.bind_destructor(&data).map_err(|_| INVALID)?;
-                if !self.qualified.contains(&key) {
+                if !self.qualified.contains_key(&key) {
                     self.qualified.extend(
                         unit.qualify_destructor(data, work)
                             .map_err(Failure::Destructor)?,
                     );
                 }
-                self.new.insert(key);
-            }
+                self.new.insert(key.clone());
+                self.qualified.get(&key).ok_or(INVALID)?
+            } else {
+                &data
+            };
+            pending.extend(cleanup.cleanup_components(program).map_err(|_| INVALID)?);
         }
         Ok(())
     }

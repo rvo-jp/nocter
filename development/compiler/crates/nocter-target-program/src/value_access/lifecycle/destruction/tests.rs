@@ -40,7 +40,7 @@ fn only_reached_retirements_extend_the_original_instance_graph() {
             .find_map(|(id, code)| (code.name() == Some(symbol(name))).then_some(id))
             .unwrap()
     };
-    assert_eq!(unit.destructor_frames().count(), 3);
+    assert_eq!(unit.destructor_completions().len(), 3);
     let instances = Arc::new(InstanceProgram::prepare(Arc::clone(&unit), code("run")).unwrap());
     assert_eq!(instances.instances().len(), 1);
 

@@ -41,7 +41,7 @@ fn destructor_checks_a_reached_callees_authorized_wait() {
         let input = fixture.input().with_toolchain(toolchain.clone());
         let result = ModuleSourceUnit::prepare(&input);
         if !waits {
-            assert_eq!(result.unwrap().unit().destructor_frames().count(), 1);
+            assert_eq!(result.unwrap().unit().destructor_completions().len(), 1);
             continue;
         }
         let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) = result else {
@@ -98,7 +98,7 @@ fn destructor_effects_follow_the_receiver_callback_not_the_nominal_schema() {
     let prepared = ModuleSourceUnit::prepare(&input).unwrap();
     let unit = prepared.unit();
     let program = unit.program();
-    assert_eq!(unit.destructor_frames().count(), 0);
+    assert!(unit.destructor_completions().is_empty());
     let owner = program
         .codes()
         .iter()
@@ -124,8 +124,8 @@ fn destructor_effects_follow_the_receiver_callback_not_the_nominal_schema() {
     let safe = receiver("safe");
     let frame = program.bind_destructor(&safe).unwrap();
     assert_eq!(
-        unit.qualify_destructor(safe, &mut work).unwrap(),
-        [frame].into()
+        unit.qualify_destructor(safe.clone(), &mut work).unwrap(),
+        [(frame, safe)].into()
     );
     let error = unit
         .qualify_destructor(receiver("waiting"), &mut work)
@@ -181,7 +181,7 @@ fn destructor_receiver_cannot_be_replaced_through_a_delegated_edit() {
         let input = fixture.input();
         let result = ModuleSourceUnit::prepare(&input);
         if accepted {
-            assert_eq!(result.unwrap().unit().destructor_frames().count(), 1);
+            assert_eq!(result.unwrap().unit().destructor_completions().len(), 1);
             continue;
         }
         let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) = result else {

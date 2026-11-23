@@ -9,7 +9,7 @@ pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required
 pub use destruction::DestructorFailure;
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{CodeInstanceKey, Program};
+use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCodeId, TypeId};
 use std::{
@@ -110,7 +110,7 @@ pub struct Unit {
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
     destruction_abi: Option<nocter_runtime_contract::RuntimeAbiIdentity>,
-    destructor_frames: BTreeSet<CodeInstanceKey>,
+    destructor_completions: BTreeMap<CodeInstanceKey, DataInstanceKey>,
 }
 impl Unit {
     /// Checks all definitions, including unreachable and mutually recursive callees.
@@ -209,24 +209,25 @@ impl Unit {
             destruction_abi: context
                 .target()
                 .and_then(nocter_runtime_contract::RuntimeAbiIdentity::for_target),
-            destructor_frames: BTreeSet::new(),
+            destructor_completions: BTreeMap::new(),
         };
-        unit.destructor_frames = destruction::qualify(context, &unit, &mut definition_work)?;
+        unit.destructor_completions = destruction::qualify(context, &unit, &mut definition_work)?;
         Ok(unit)
     }
-    /// Exact anonymous lifecycle frames with verified destruction effects.
-    pub fn destructor_frames(&self) -> impl Iterator<Item = &CodeInstanceKey> {
-        self.destructor_frames.iter()
+    /// Verified anonymous destructor frames and their implicit component cleanup contracts.
+    #[must_use]
+    pub const fn destructor_completions(&self) -> &BTreeMap<CodeInstanceKey, DataInstanceKey> {
+        &self.destructor_completions
     }
     /// Qualify destruction of a retired nominal receiver using its actual represented inputs.
-    /// Returns the qualified root and any destructor frames required by its reached effects.
+    /// Returns cleanup contracts for the root and any destructor frames its effects reach.
     /// # Errors
     /// Rejects an invalid receiver or a reached effect without a non-waiting certificate.
     pub fn qualify_destructor(
         &self,
-        receiver: nocter_declarations::value_access::DataInstanceKey,
+        receiver: DataInstanceKey,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
-    ) -> Result<BTreeSet<CodeInstanceKey>, DestructorFailure> {
+    ) -> Result<BTreeMap<CodeInstanceKey, DataInstanceKey>, DestructorFailure> {
         destruction::qualify_receiver(self, receiver, work)
     }
     /// The checked deferred body can run its admitted activation without suspension.

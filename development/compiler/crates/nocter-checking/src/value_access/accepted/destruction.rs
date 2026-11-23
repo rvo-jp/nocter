@@ -16,7 +16,12 @@ use nocter_model::{
     ValueInputOperation,
 };
 use nocter_runtime_contract::RuntimeAbiIdentity;
-use std::{borrow::Cow, collections::BTreeSet, fmt, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    sync::Arc,
+};
 
 mod protection;
 use protection::Protected;
@@ -32,9 +37,9 @@ pub(super) fn qualify(
     context: &DeclarationContext<'_>,
     unit: &Unit,
     work: &mut WorkBudget,
-) -> Result<BTreeSet<CodeInstanceKey>, Failure> {
+) -> Result<BTreeMap<CodeInstanceKey, DataInstanceKey>, Failure> {
     if !unit.program.has_destructors() {
-        return Ok(BTreeSet::new());
+        return Ok(BTreeMap::new());
     }
     let mut proof = Proof::new(unit, work);
     for (root, declaration) in unit.program.codes().iter() {
@@ -52,7 +57,7 @@ pub(super) fn qualify(
             .require(root, receiver)
             .map_err(|error| rejection(context, unit, root, error))?;
     }
-    Ok(proof.destructors())
+    Ok(proof.completions)
 }
 
 /// The checked code and operation that made an exact receiver's destruction ineligible.
@@ -98,7 +103,7 @@ pub(super) fn qualify_receiver(
     unit: &Unit,
     receiver: DataInstanceKey,
     work: &mut WorkBudget,
-) -> Result<BTreeSet<CodeInstanceKey>, DestructorFailure> {
+) -> Result<BTreeMap<CodeInstanceKey, DataInstanceKey>, DestructorFailure> {
     let Some(root) = unit
         .program
         .data_destructor(receiver.data())
@@ -118,12 +123,13 @@ pub(super) fn qualify_receiver(
             failure,
             evidence: Arc::clone(&unit.result_evidence),
         })?;
-    Ok(proof.destructors())
+    Ok(proof.completions)
 }
 
 struct Proof<'a, 'work> {
     unit: &'a Unit,
     frames: BTreeSet<Frame>,
+    completions: BTreeMap<CodeInstanceKey, DataInstanceKey>,
     retired: BTreeSet<DataInstanceKey>,
     pending: Vec<Frame>,
     work: &'work mut WorkBudget,
@@ -160,29 +166,11 @@ impl<'a, 'work> Proof<'a, 'work> {
         Self {
             unit,
             frames: BTreeSet::new(),
+            completions: BTreeMap::new(),
             retired: BTreeSet::new(),
             pending: Vec::new(),
             work,
         }
-    }
-
-    fn destructors(self) -> BTreeSet<CodeInstanceKey> {
-        self.frames
-            .into_iter()
-            .filter_map(|Frame { key, .. }| {
-                let ValueCode::Declaration(code) = key.code() else {
-                    return None;
-                };
-                self.unit
-                    .program
-                    .codes()
-                    .get(code)
-                    .is_some_and(|declaration| {
-                        matches!(declaration.kind(), CodeKind::Destructor(_))
-                    })
-                    .then_some(key)
-            })
-            .collect()
     }
 
     fn require(&mut self, code: AccessCodeId, data: DataInstanceKey) -> Result<(), CheckFailure> {
@@ -221,30 +209,72 @@ impl<'a, 'work> Proof<'a, 'work> {
                     })?;
             }
         }
-        if let Some(received) = frame.key.input_data(0)
-            && let ValueCode::Declaration(id) = code
-            && self.unit.program.data_destructor(received.data()) == Some(id)
-            && body.graph().points().iter().any(|(point, _)| {
-                matches!(control.terminator(point), Some(flow::Terminator::Return))
-            })
+        if let ValueCode::Declaration(id) = code
+            && self
+                .unit
+                .program
+                .codes()
+                .get(id)
+                .is_some_and(|declaration| matches!(declaration.kind(), CodeKind::Destructor(_)))
         {
-            let [receiver] = body.typed().body().inputs().explicit() else {
+            let completed = self.completed_receiver(body, &control)?;
+            for component in completed
+                .cleanup_components(&self.unit.program)
+                .map_err(|_| CheckFailure::at_entry(code, CLEANUP))?
+            {
+                self.retire(component)
+                    .map_err(|message| CheckFailure::at_entry(code, message))?;
+            }
+            if let Some(previous) = self
+                .completions
+                .insert(frame.key.clone(), completed.clone())
+                && previous != completed
+            {
                 return Err(CheckFailure::Integrity(
                     flow::IntegrityError::InconsistentTypedBody,
-                ));
-            };
-            let completed = self
-                .unit
-                .instantiate_completed_input_data(&frame.key, receiver.local, self.work)
-                .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)))?;
-            if !received.has_same_representation(&self.unit.program, &completed) {
-                return Err(CheckFailure::at_entry(
-                    code,
-                    "the completed receiver has a different cleanup representation",
                 ));
             }
         }
         Ok(())
+    }
+
+    fn completed_receiver(
+        &mut self,
+        body: &flow::Query,
+        control: &InstanceControl,
+    ) -> Result<DataInstanceKey, CheckFailure> {
+        let frame = control.frame();
+        let code = frame.code();
+        let [receiver] = body.typed().body().inputs().explicit() else {
+            return Err(CheckFailure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ));
+        };
+        let Some(entry) = frame.input_data(0) else {
+            return self
+                .unit
+                .instantiate_input_data(frame, receiver.local, self.work)
+                .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)));
+        };
+        if !body
+            .graph()
+            .points()
+            .iter()
+            .any(|(point, _)| matches!(control.terminator(point), Some(flow::Terminator::Return)))
+        {
+            return Ok(entry.clone());
+        }
+        let completed = self
+            .unit
+            .instantiate_completed_input_data(frame, receiver.local, self.work)
+            .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)))?;
+        if !entry.has_same_representation(&self.unit.program, &completed) {
+            return Err(CheckFailure::at_entry(
+                code,
+                "the completed receiver has a different cleanup representation",
+            ));
+        }
+        Ok(completed)
     }
 
     fn operation(
@@ -491,6 +521,7 @@ impl<'a, 'work> Proof<'a, 'work> {
                     key,
                     protected: BTreeSet::from([receiver.local]),
                 });
+                continue;
             }
             if program.data_type(BuiltinType::Error) == Some(data.data())
                 && !self

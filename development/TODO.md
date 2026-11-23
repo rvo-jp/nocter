@@ -807,6 +807,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Specialize destructor bodies from reached retirements in the concrete lifecycle. Cover
   closed receivers, exact callable contexts and unstarted-future cancellation. Exclude unused
   bodies and their private dependencies before constructing MIR.
+- [x] Retain one checked completion contract for each qualified destructor frame. Use its
+  components for effect checking and concrete instance closure.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
