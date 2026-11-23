@@ -208,7 +208,8 @@ Temporary projections and consuming enum bindings must preserve the complete car
 immediately retire. For owners that remain in scope, the resource ledger checks surviving holes
 at each reached cleanup. The ancestry check covers incomplete user-destructible descendants of
 partially moved ordinary records, tuples and arrays. Restoring a moved field resumes ordinary
-cleanup of that same owner. Copy snapshots leave the owning carrier complete.
+cleanup of that same owner. Consuming enum patterns snapshot their Copy bindings before retiring
+the complete carrier. Updates by a destructor do not change those bindings.
 Effect checking follows reached invocation instances and ordered retirement steps. A consuming
 callable adapter is checked against its completed environment. Primitive effects and backend
 release require target certificates. The checked unit qualifies closed receiver frames.

@@ -137,6 +137,7 @@ fn destructor_entry_requires_restored_components_on_every_path() {
     for immediate in [
         "func run(): i32 { let value = make().item\nvalue.value }",
         "func run(take packet: Packet): i32 { if take packet^ is Packet.data(part) { part.value } else { 0 } }",
+        "func run(take packet: Packet): i32 { match take packet^ { Packet.data(part) { part.value }\n_ { 0 } } }",
     ] {
         let result = prepare(immediate);
         let Err(SourceFailure::Checking(accepted::Failure::Body {
@@ -155,6 +156,7 @@ fn destructor_entry_requires_restored_components_on_every_path() {
         "func run(): i32 { let pair = (make(), 0)\nlet moved = pair.0^\nmoved.count }",
         "func run(): i32 { make().count }",
         "func run(take packet: Packet): i32 { if take packet^ is Packet.number(value) { value } else { 0 } }",
+        "func run(take packet: Packet): i32 { match take packet^ { Packet.number(value) { value }\n_ { 0 } } }",
     ] {
         let result = prepare(valid);
         assert!(

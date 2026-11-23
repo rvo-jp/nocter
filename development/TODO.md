@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify consuming enum decomposition with user destructors. Verify that copied fields survive
-their original carrier's normal destruction and that an incomplete carrier cannot reach it.
+Specialize destructor code only when an executable retirement needs it. Use the same exact
+lifecycle schedules for closed and contextual receivers, including unstarted-future cancellation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -766,9 +766,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify take decomposition of named enum payloads with structural cleanup. Preserve written
   order for mixed Copy and moved leaves, case-qualified remainder disposal, and scoped exit
   cleanup. Verify required evaluation and native execution of move-only payloads.
-- [ ] Qualify take decomposition for user-destructible carriers when their lifecycle is admitted.
-  Permit Copy snapshots and whole-carrier disposal. Diagnose moves that would make the carrier
-  incomplete.
+- [x] Qualify take decomposition for user-destructible carriers. Verify that Copy snapshots in
+  both if-is and match survive complete-carrier destruction. Diagnose moves that would retire
+  an incomplete carrier.
 - [x] Reserve and publish one anonymous destructor header per nominal family with implicit
   edit self and unit completion. Check the published Copy policy before granting header readiness.
 - [x] Bind authored destructor declarations in ordinary implementation sources and check their

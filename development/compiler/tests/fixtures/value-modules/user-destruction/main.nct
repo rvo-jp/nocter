@@ -31,13 +31,14 @@ impl Cabinet {
 
 enum Parcel {
     empty
-    filled(ticket: Ticket)
+    filled(ticket: Ticket, amount: i32)
 }
 
 impl Parcel {
     drop {
-        if edit self is Parcel.filled(ticket) {
+        if edit self is Parcel.filled(ticket, amount) {
             ticket.state = 42
+            amount = 0
         }
     }
 }
@@ -99,8 +100,17 @@ func main(): i32 {
     restored.child = original^
     drop restored
 
-    let parcel = Parcel.filled(Ticket { state: 0 })
-    if take parcel^ is Parcel.filled(_) {}
+    let parcel = Parcel.filled(Ticket { state: 0 }, 42)
+    if take parcel^ is Parcel.filled(_, amount) {
+        if amount != 42 { return 0 }
+    } else {
+        return 0
+    }
+    let amount = match take Parcel.filled(Ticket { state: 0 }, 42) {
+        Parcel.filled(_, copied) { copied }
+        Parcel.empty { 0 }
+    }
+    if amount != 42 { return 0 }
     let empty = Parcel.empty
     drop empty
 
