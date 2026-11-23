@@ -27,6 +27,10 @@ ordinal and kind before signature publication. They cannot admit an ordinary cal
 Constant parameter annotations use ordinary header type lookup, including transparent aliases
 that resolve to `usize`. A different type is diagnosed on the annotation before any generic
 body checking. A non-name type constructor cannot request value evaluation to establish this domain.
+Callable signatures can retain references to their own type parameters in the common type store.
+Paired headers normalize both occurrences, and public signature checks still verify referenced
+ordinary types and aliases. A symbolic signature grants no function witness, body proof, or
+execution. Whole-source checking diagnoses a generic body or unspecialized use at its source.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

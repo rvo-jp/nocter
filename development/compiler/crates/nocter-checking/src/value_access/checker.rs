@@ -76,6 +76,26 @@ pub(super) fn prepare(
     let source = context
         .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
+    if !context
+        .program()
+        .generic_parameter_ids(callable)
+        .ok_or(Failure::InconsistentSyntax)?
+        .is_empty()
+    {
+        let origin = SyntaxOrigin::Node(
+            source
+                .generic_parameter_origin()
+                .ok_or(Failure::InconsistentSyntax)?,
+        );
+        let rule = Rule::UnqualifiedGenericCallable;
+        return Err(super::diagnostics::authored_rejection(
+            context.syntax(),
+            origin,
+            rule,
+            rule.diagnostic().1,
+            Vec::new(),
+        ));
+    }
     let result = context
         .program()
         .code_body_result(callable)

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind dependent v2 callable types to their reserved generic parameter identities in the canonical
-type store. Keep generic body proof and executable admission closed until their own obligations
-are met.
+Retain direct constant parameters in callable array type identities. Preserve normal evaluation
+for closed counts and diagnose any remaining symbolic arithmetic without substituting a different
+value. Keep generic body proof and executable admission behind their own obligations.
 
 ## Remaining Contextual Representation Qualification
 
@@ -676,6 +676,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Validate the `usize` domain of callable constant parameter annotations through ordinary
   type lookup. Qualify the original diagnostic span, alias dependencies and rejection of
   non-`usize` type constructors without requesting their structural values.
+- [x] Publish symbolic type-parameter references in canonical callable signatures. Qualify paired
+  source headers, correct binder owners and kinds, and rejection of unchecked bodies and
+  unspecialized calls through the ordinary declaration and checking paths.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

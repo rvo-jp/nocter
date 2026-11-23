@@ -82,6 +82,7 @@ fn project(
     let typed = matches!(
         violation.rule,
         R::UnknownDataName { .. }
+            | R::UnboundGenericType
             | R::QualifiedDataName { .. }
             | R::UnsupportedDataType { .. }
             | R::UnsupportedCallableData
@@ -267,6 +268,10 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
             "name is reserved for a built-in type",
         ),
         R::UnknownDataName { .. } => (DiagnosticCode::E0290, "unknown data type"),
+        R::UnboundGenericType => (
+            DiagnosticCode::E0290,
+            "this name is not a type parameter in this scope",
+        ),
         R::QualifiedDataName { error } => qualified_data_details(error),
         R::UnsupportedCallableData => (
             DiagnosticCode::E0291,

@@ -72,6 +72,40 @@ fn explicit_generic_arguments_cannot_disappear_during_ordinary_call_or_type_reso
 }
 
 #[test]
+fn generic_headers_do_not_admit_unchecked_bodies_or_unspecialized_calls() {
+    use crate::value_access::Rule::UnqualifiedGenericCallable;
+    for (text, origin) in [
+        ("func template<T>(): void {}", "<T>"),
+        (
+            "func run(): void { template() }\nfunc template<T>(): void {}",
+            "template()",
+        ),
+        (
+            "func run(): void { let _ = template }\nfunc template<T>(): void {}",
+            "template",
+        ),
+    ] {
+        let (sources, tree) = input(text);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(error),
+            ..
+        }) = failure
+        else {
+            panic!("expected authored rejection: {failure:?}");
+        };
+        assert_eq!(error.rule(), UnqualifiedGenericCallable);
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(error.source().primary().span().range()),
+            Some(origin)
+        );
+    }
+}
+
+#[test]
 fn closed_deferred_drive_handles_pure_recursive_code_without_executing_it() {
     let unit = accepted("func recurse(): i32 { recurse() }\nasync func root(): i32 { recurse() }");
     let root = named(&unit, "root").typed().source_owner();

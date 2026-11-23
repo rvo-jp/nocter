@@ -11,6 +11,7 @@ use nocter_declarations::value_access::{
     FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
     TupleData, ValueDefinition, VariantDefinition,
 };
+use nocter_declarations::{DefinitionError, GenericParameterDomain};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, BuiltinType, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol,
@@ -51,8 +52,22 @@ pub(super) struct HeaderScope<'syntax> {
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct CodeDefinition {
     pub kind: nocter_declarations::value_access::CodeKind,
+    generic: bool,
     pub parameters: Vec<ParameterDefinition>,
     pub result: ValueDefinition,
+}
+impl CodeDefinition {
+    pub fn publish(
+        self,
+        headers: &mut HeaderPublication,
+        id: AccessCodeId,
+    ) -> Result<(), DefinitionError> {
+        if self.generic {
+            headers.define_generic(id, self.kind, self.parameters, self.result)
+        } else {
+            headers.define(id, self.kind, self.parameters, self.result)
+        }
+    }
 }
 #[derive(Debug, Eq, PartialEq)]
 pub(super) struct RecordDefinition {
@@ -110,13 +125,8 @@ pub(super) fn define<'v>(
                 values,
             )?;
             if let Some(definition) = projected.definition {
-                publication
-                    .define(
-                        id,
-                        definition.kind,
-                        definition.parameters,
-                        definition.result,
-                    )
+                definition
+                    .publish(publication, id)
                     .map_err(|_| Failure::InconsistentSyntax)?;
             }
             Ok(projected.progress)
@@ -164,15 +174,17 @@ pub(super) fn project_code<'v>(
                 progress: definitions.progress,
             });
         }
-        let origin = SourceOrigin::from_node(scope.syntax.tree(), generics.origin)
-            .map_err(|_| Failure::InconsistentSyntax)?;
-        return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
-            DiagnosticCode::E0291,
-            "this generic callable does not have a qualified specialization",
-            origin,
-            [],
-            None::<&str>,
-        )])));
+        if header.kind == nocter_declarations::value_access::CodeKind::Primitive {
+            let origin = SourceOrigin::from_node(scope.syntax.tree(), generics.origin)
+                .map_err(|_| Failure::InconsistentSyntax)?;
+            return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
+                DiagnosticCode::E0291,
+                "this primitive does not have an authorized generic signature",
+                origin,
+                [],
+                None::<&str>,
+            )])));
+        }
     }
     let definition = definitions.function(id, header, source)?;
     Ok(Projection {
@@ -347,6 +359,22 @@ impl Definitions<'_, '_, '_> {
         match ty {
             TypeSyntax::Callable(contract) => self.callable_data(contract, owner, position),
             TypeSyntax::Named(path) => {
+                if let DeclarationId::Code(code) = owner
+                    && let [name] = path.as_ref()
+                    && let Some((id, parameter)) = self
+                        .program
+                        .generic_parameter_named(code, self.symbol(*name)?)
+                {
+                    return if parameter.domain() == GenericParameterDomain::Type {
+                        Ok(Some(DataReference::GenericParameter(id)))
+                    } else {
+                        self.selected_data(
+                            owner,
+                            position,
+                            Err(DeclarationRule::UnboundGenericType),
+                        )
+                    };
+                }
                 let resolved = self.lookup_data_path(path)?;
                 self.selected_data(owner, position, resolved)
             }
@@ -605,6 +633,7 @@ impl Definitions<'_, '_, '_> {
         )?;
         Ok(result.filter(|_| complete).map(|result| CodeDefinition {
             kind: header.kind,
+            generic: header.generics.is_some(),
             parameters,
             result,
         }))

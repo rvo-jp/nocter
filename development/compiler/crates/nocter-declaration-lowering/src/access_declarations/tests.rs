@@ -29,8 +29,10 @@ fn generic_function_parameters_share_one_name_domain_across_kinds() {
 }
 
 #[test]
-fn generic_slots_are_reserved_before_any_typed_callable_contract() {
+fn generic_slots_supply_symbolic_types_in_the_canonical_signature() {
     use nocter_declarations::GenericParameterDomain::{Type, UsizeConstant};
+    use nocter_declarations::value_access::FunctionWitness;
+    use nocter_model::TypeKind;
     let (sources, tree) = input(
         "func run<T, const N: usize>(take input: T): T { input^ }",
         ParseGoal::V2CoreUnit,
@@ -55,45 +57,79 @@ fn generic_slots_are_reserved_before_any_typed_callable_contract() {
     assert_eq!(authored, [(0, "T", Type), (1, "N", UsizeConstant)]);
     assert!(!program.header_ready(id));
 
-    let Err(Failure::Syntax(diagnostics)) = preparation.advance(id) else {
-        panic!("incomplete generic support must reject the header");
-    };
-    assert_eq!(diagnostics[0].code(), "E0291");
+    assert_eq!(preparation.advance(id).unwrap(), HeaderStep::Ready);
     let later = preparation.current();
-    assert_eq!(later.program().generic_parameter_ids(id), Some(slots));
-    assert!(!later.program().header_ready(id));
+    let program = later.program();
+    assert_eq!(program.generic_parameter_ids(id), Some(slots));
+    let header = program.codes().get(id).unwrap();
+    let result = header.result();
+    assert_eq!(
+        program.type_kind(result),
+        Some(&TypeKind::GenericParameter(slots[0]))
+    );
+    assert_eq!(
+        program
+            .parameters()
+            .get(header.parameters()[0])
+            .unwrap()
+            .data(),
+        result
+    );
+    assert!(program.data_schema(result).is_none());
+    assert!(program.function_data(FunctionWitness::from(id)).is_none());
+    assert!(
+        program
+            .function_contract(FunctionWitness::from(id))
+            .is_none()
+    );
+    assert!(program.code_execution(id).is_none());
 }
 
 #[test]
 fn constant_parameters_require_usize_at_the_annotation() {
-    for (annotation, expected) in [
-        ("i32", "E0283"),
-        ("[u8; absent]", "E0283"),
-        ("(usize)", "E0291"),
-    ] {
+    for (annotation, valid) in [("i32", false), ("[u8; absent]", false), ("(usize)", true)] {
         let (sources, tree) = input(
             &format!("func run<const N: {annotation}>(): void {{}}"),
             ParseGoal::V2CoreUnit,
         );
         let mut preparation = Preparation::prepare(bound(&sources, &tree)).unwrap();
         let id = preparation.code_ids().next().unwrap();
+        if valid {
+            assert_eq!(preparation.advance(id).unwrap(), HeaderStep::Ready);
+            continue;
+        }
         let Err(Failure::Syntax(diagnostics)) = preparation.advance(id) else {
-            panic!("constant parameter needs a qualified header");
+            panic!("constant parameter annotation must resolve to usize");
         };
         let [diagnostic] = diagnostics.as_ref() else {
             panic!("one annotation diagnostic")
         };
-        assert_eq!(diagnostic.code(), expected);
-        if expected == "E0283" {
-            assert_eq!(
-                sources
-                    .get(tree.source())
-                    .unwrap()
-                    .text_at(diagnostic.primary().span().range()),
-                Some(annotation),
-            );
-        }
+        assert_eq!(diagnostic.code(), "E0283");
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.primary().span().range()),
+            Some(annotation),
+        );
     }
+}
+
+#[test]
+fn a_constant_parameter_is_not_a_data_type() {
+    let (sources, tree) = input("func run<const N: usize>(): N {}", ParseGoal::V2CoreUnit);
+    let failure = Query::prepare(bound(&sources, &tree)).unwrap_err();
+    let Failure::Headers(diagnostics) = failure else {
+        panic!("{failure:?}")
+    };
+    assert_eq!(diagnostics[0].source().code(), "E0290");
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostics[0].source().primary().span().range()),
+        Some("N")
+    );
 }
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();

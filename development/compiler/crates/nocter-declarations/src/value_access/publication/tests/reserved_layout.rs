@@ -58,6 +58,49 @@ fn reserved_generic_slots_cannot_admit_an_ordinary_definition() {
     assert!(!headers.has_same_reserved_layout(&plain.finish().unwrap()));
 }
 
+#[test]
+fn a_generic_signature_cannot_borrow_another_owner_or_a_constant_slot() {
+    let symbols = SymbolTable::from_spellings(["decode", "other", "T", "N"]);
+    let name = |text| symbols.get(text).unwrap();
+    for foreign in [true, false] {
+        let mut reservations = Reservations::new(symbols.clone());
+        let decode = reservations.reserve(name("decode"), 0);
+        let other = reservations.reserve(name("other"), 0);
+        let ty = (name("T"), crate::GenericParameterDomain::Type);
+        let size = (name("N"), crate::GenericParameterDomain::UsizeConstant);
+        reservations
+            .reserve_callable_generics(decode, vec![ty, size])
+            .unwrap();
+        reservations
+            .reserve_callable_generics(other, vec![ty])
+            .unwrap();
+        let mut headers = reservations.finish().unwrap().into_publication();
+        let program = headers.snapshot();
+        let slot = if foreign {
+            program.generic_parameter_ids(other).unwrap()[0]
+        } else {
+            program.generic_parameter_ids(decode).unwrap()[1]
+        };
+        headers
+            .define_generic(
+                decode,
+                CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                [],
+                crate::value_access::DataReference::GenericParameter(slot),
+            )
+            .unwrap();
+        assert_eq!(
+            headers.publish(decode),
+            Err(HeaderFailure::Rejected(vec![DeclarationViolation {
+                declaration: decode.into(),
+                position: crate::value_access::HeaderPosition::Result,
+                rule: DeclarationRule::UnboundGenericType,
+            }]))
+        );
+        assert!(!headers.snapshot().header_ready(decode));
+    }
+}
+
 fn publication(
     parameters: [usize; 2],
     fields: [usize; 2],

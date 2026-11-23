@@ -105,6 +105,7 @@ impl Checker<'_, '_> {
             .get(target)
             .ok_or(Failure::InconsistentSyntax)?;
         if code.kind().is_callable() {
+            self.require_nongeneric_callable(target, token)?;
             let data = self
                 .program()
                 .function_data(FunctionWitness {
@@ -431,6 +432,9 @@ impl Checker<'_, '_> {
         selected: &Callee,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        if let ValueFunctionOrigin::Declaration(code) = selected.witness.origin {
+            self.require_nongeneric_callable(code, node)?;
+        }
         let contract = self
             .program()
             .function_contract(selected.witness)
@@ -475,6 +479,23 @@ impl Checker<'_, '_> {
             CallArguments::in_order(plans),
             continues,
         )
+    }
+
+    fn require_nongeneric_callable(
+        &self,
+        code: AccessCodeId,
+        origin: impl super::checker::Authored,
+    ) -> Result<(), Failure> {
+        if self
+            .program()
+            .generic_parameter_ids(code)
+            .ok_or(Failure::InconsistentSyntax)?
+            .is_empty()
+        {
+            Ok(())
+        } else {
+            self.reject(Rule::UnqualifiedGenericCallable, origin)
+        }
     }
 
     fn emit_selected_call(

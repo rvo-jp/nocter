@@ -75,7 +75,7 @@ impl ModuleAudiences {
                         .ok_or(Failure::InconsistentSyntax)?;
                     let ty = direct_node(tree, declaration.node(), NodeKind::Type)
                         .ok_or(Failure::InconsistentSyntax)?;
-                    checking.check(audience, syntax, scopes[index], ty, field.data())?;
+                    checking.check(audience, syntax, scopes[index], None, ty, field.data())?;
                 }
                 Some(DeclarationId::Nominal(id)) => {
                     if let Some(ParsedHeader::Enumeration(header)) = headers.get(&raw)
@@ -93,6 +93,7 @@ impl ModuleAudiences {
                         audience,
                         syntax,
                         scopes[index],
+                        None,
                         header.source.ty,
                         alias.data(),
                     )?;
@@ -147,7 +148,7 @@ impl Signatures<'_, '_> {
                     .fields()
                     .get(id)
                     .ok_or(Failure::InconsistentSyntax)?;
-                self.check(audience, syntax, scope, source.ty, field.data())?;
+                self.check(audience, syntax, scope, None, source.ty, field.data())?;
             }
         }
         Ok(())
@@ -169,20 +170,38 @@ impl Signatures<'_, '_> {
         if code.parameters().len() != header.parameters.len() {
             return Err(Failure::InconsistentSyntax);
         }
+        if let Some(generics) = &header.generics {
+            for (annotation, _) in generics.constant_annotations() {
+                self.check_type_paths(audience, syntax, scope, Some(id), annotation)?;
+            }
+        }
         for (&id, parameter) in code.parameters().iter().zip(&header.parameters) {
-            let data = self
+            let parameter_info = self
                 .program
                 .parameters()
                 .get(id)
-                .ok_or(Failure::InconsistentSyntax)?
-                .data();
+                .ok_or(Failure::InconsistentSyntax)?;
             let ty = parameter
                 .source
                 .type_node()
                 .ok_or(Failure::InconsistentSyntax)?;
-            self.check(audience, syntax, scope, ty, data)?;
+            self.check(
+                audience,
+                syntax,
+                scope,
+                Some(parameter_info.owner()),
+                ty,
+                parameter_info.data(),
+            )?;
         }
-        self.check(audience, syntax, scope, header.result_syntax, code.result())
+        self.check(
+            audience,
+            syntax,
+            scope,
+            Some(id),
+            header.result_syntax,
+            code.result(),
+        )
     }
 
     fn check(
@@ -190,10 +209,11 @@ impl Signatures<'_, '_> {
         audience: &ModuleAudience,
         syntax: BoundSyntax<'_>,
         scope: ScopeId,
+        owner: Option<AccessCodeId>,
         primary: NodeId,
         data: TypeId,
     ) -> Result<(), Failure> {
-        self.check_type_paths(audience, syntax, scope, primary)?;
+        self.check_type_paths(audience, syntax, scope, owner, primary)?;
         let mut seen = BTreeSet::new();
         let mut pending = vec![data];
         while let Some(data) = pending.pop() {
@@ -205,6 +225,17 @@ impl Signatures<'_, '_> {
                     return self.reject(syntax, SyntaxOrigin::Node(primary), record.into());
                 }
                 // Representation fields do not become part of the outward nominal contract.
+                continue;
+            }
+            if let Some(nocter_model::TypeKind::GenericParameter(id)) = self.program.type_kind(data)
+            {
+                if self
+                    .program
+                    .generic_parameter(*id)
+                    .is_none_or(|slot| Some(slot.owner()) != owner)
+                {
+                    return Err(Failure::InconsistentSyntax);
+                }
                 continue;
             }
             match self
@@ -242,6 +273,7 @@ impl Signatures<'_, '_> {
         audience: &ModuleAudience,
         syntax: BoundSyntax<'_>,
         scope: ScopeId,
+        owner: Option<AccessCodeId>,
         root: NodeId,
     ) -> Result<(), Failure> {
         if syntax
@@ -255,7 +287,15 @@ impl Signatures<'_, '_> {
         for path in source.named_paths() {
             if let [token] = path
                 && syntax.text_at(token.range()).is_some_and(|name| {
-                    name == "Self" || BuiltinType::from_spelling(name).is_some()
+                    name == "Self"
+                        || BuiltinType::from_spelling(name).is_some()
+                        || owner
+                            .and_then(|code| {
+                                self.program.symbols().get(name).and_then(|name| {
+                                    self.program.generic_parameter_named(code, name)
+                                })
+                            })
+                            .is_some()
                 })
             {
                 continue;

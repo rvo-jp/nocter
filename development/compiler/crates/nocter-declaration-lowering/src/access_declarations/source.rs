@@ -110,6 +110,7 @@ enum CodeSourceKind {
 struct CodeHeaderSource {
     name: SyntaxToken,
     deferred_modifier: Option<NodeId>,
+    generic_parameters: Option<NodeId>,
     parameters: Box<[ParameterSource<SyntaxOrigin>]>,
     result: NodeId,
 }
@@ -168,6 +169,7 @@ impl CodeSource {
             CodeHeaderSource {
                 name: header.name,
                 deferred_modifier: header.deferred_modifier,
+                generic_parameters: header.generics.as_ref().map(|list| list.origin),
                 parameters: header
                     .parameters
                     .iter()
@@ -192,6 +194,7 @@ impl CodeSource {
             CodeHeaderSource {
                 name,
                 deferred_modifier: None,
+                generic_parameters: None,
                 parameters: Box::new([]),
                 result: declaration,
             },
@@ -208,6 +211,7 @@ impl CodeSource {
             CodeHeaderSource {
                 name: keyword,
                 deferred_modifier: None,
+                generic_parameters: None,
                 parameters: Box::new([ParameterSource {
                     origin,
                     binding: ParameterBinding::Name(origin),
@@ -242,6 +246,12 @@ impl CodeSource {
     }
     pub(super) fn parameters(&self) -> &[ParameterSource<SyntaxOrigin>] {
         self.header().map_or(&[], |header| &header.parameters)
+    }
+
+    /// The complete authored compile-time parameter list, when one exists.
+    #[must_use]
+    pub fn generic_parameter_origin(&self) -> Option<NodeId> {
+        self.header()?.generic_parameters
     }
 
     /// The whole input pattern, or one named leaf in written order.

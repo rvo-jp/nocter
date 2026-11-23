@@ -98,6 +98,7 @@ pub enum Rule {
     InvalidConstruction,
     AnnotatedDiscard,
     RequiredValueScope,
+    UnqualifiedGenericCallable,
 }
 impl Rule {
     #[expect(
@@ -151,6 +152,10 @@ impl Rule {
             Self::UnqualifiedFuture => (
                 DiagnosticCode::E0291,
                 "this operation requires future lifecycle checking",
+            ),
+            Self::UnqualifiedGenericCallable => (
+                DiagnosticCode::E0291,
+                "this generic callable needs a checked body and specialization",
             ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

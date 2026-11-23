@@ -54,11 +54,14 @@ fn paired_generic_headers_reserve_one_ordered_slot_list() {
             .iter()
             .all(|&slot| program.generic_parameter(slot).unwrap().owner() == code)
     );
-    assert!(matches!(
-        advance(&mut scoped, code),
-        Err(ModuleSourcesFailure::Access(Failure::Syntax(diagnostics)))
-            if diagnostics[0].code() == "E0291"
-    ));
+    assert_eq!(advance(&mut scoped, code).unwrap(), HeaderProgress::Ready);
+    let sealed = scoped.seal().unwrap();
+    let program = sealed.program();
+    let result = program.codes().get(code).unwrap().result();
+    assert_eq!(
+        program.type_kind(result),
+        Some(&nocter_model::TypeKind::GenericParameter(slots[0]))
+    );
 
     let reordered = "see ./index.nct\nfunc decode<const N: usize, T>(take item: T): T { item^ }";
     let Err(ModuleSourcesFailure::Contract(diagnostic)) = inventory(
@@ -77,7 +80,7 @@ fn paired_generic_headers_reserve_one_ordered_slot_list() {
 
 #[test]
 fn constant_parameter_annotation_uses_the_published_alias_identity() {
-    for (target, diagnostic) in [("usize", "E0291"), ("i32", "E0283")] {
+    for (target, valid) in [("usize", true), ("i32", false)] {
         let index =
             format!("see ./body.nct\ntype Count = {target}\nfunc fill<const N: Count>(): void");
         let body = "see ./index.nct\nfunc fill<const N: Count>(): void {}";
@@ -110,11 +113,15 @@ fn constant_parameter_annotation_uses_the_published_alias_identity() {
         };
         assert_eq!(required.as_ref(), [alias]);
         assert_eq!(advance(&mut scoped, alias).unwrap(), HeaderProgress::Ready);
-        assert!(matches!(
-            advance(&mut scoped, fill),
-            Err(ModuleSourcesFailure::Access(Failure::Syntax(diagnostics)))
-                if diagnostics[0].code() == diagnostic
-        ));
+        let result = advance(&mut scoped, fill);
+        if valid {
+            assert_eq!(result.unwrap(), HeaderProgress::Ready);
+            scoped.seal().unwrap();
+        } else {
+            assert!(
+                matches!(result, Err(ModuleSourcesFailure::Access(Failure::Syntax(diagnostics))) if diagnostics[0].code() == "E0283")
+            );
+        }
     }
 }
 

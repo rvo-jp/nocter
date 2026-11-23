@@ -1,8 +1,8 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
 use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
 use nocter_model::{
-    AccessCodeId, BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeAliasId, TypeId,
-    TypeKind, ValueProjection, VariantId,
+    AccessCodeId, BuiltinType, FieldPath, GenericParameterId, NominalTypeId, SymbolTable,
+    TypeAliasId, TypeId, TypeKind, ValueProjection, VariantId,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -34,6 +34,7 @@ pub struct Component {
 pub enum DataReference {
     Builtin(BuiltinType),
     Nominal(NominalTypeId),
+    GenericParameter(GenericParameterId),
     /// A callable constraint inside an input descriptor, never an erased function pointer.
     Function(Box<super::FunctionDefinition>),
     Fallible(Arc<DataReference>),
@@ -64,6 +65,7 @@ impl PartialEq for DataReference {
             match (left, right) {
                 (Self::Builtin(a), Self::Builtin(b)) if a == b => {}
                 (Self::Nominal(a), Self::Nominal(b)) if a == b => {}
+                (Self::GenericParameter(a), Self::GenericParameter(b)) if a == b => {}
                 (Self::Fallible(a), Self::Fallible(b)) | (Self::Future(a), Self::Future(b)) => {
                     pending.push((a, b));
                 }
@@ -158,7 +160,9 @@ impl DataReference {
             | Self::Array {
                 element: payload, ..
             } => Arc::strong_count(payload) > 1,
-            Self::Builtin(_) | Self::Nominal(_) | Self::Function(_) => false,
+            Self::Builtin(_) | Self::Nominal(_) | Self::GenericParameter(_) | Self::Function(_) => {
+                false
+            }
         }
     }
 
@@ -846,6 +850,9 @@ fn resolve_reference_scoped(
             }
             DataReference::Nominal(id) => {
                 construct(ReferenceNode::Data(super::nominals::nominal_key(*id)))?
+            }
+            DataReference::GenericParameter(id) => {
+                construct(ReferenceNode::Data(TypeKind::GenericParameter(*id)))?
             }
             DataReference::Function(contract) => {
                 if entered_with.is_none() {

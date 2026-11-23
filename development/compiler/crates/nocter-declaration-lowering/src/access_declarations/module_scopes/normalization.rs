@@ -152,12 +152,9 @@ impl ScopedModuleSources<'_> {
             }
         }
         match (required, definition) {
-            (DeclarationId::Code(id), Definition::Code(definition)) => self.headers.define(
-                id,
-                definition.kind,
-                definition.parameters,
-                definition.result,
-            ),
+            (DeclarationId::Code(id), Definition::Code(definition)) => {
+                definition.publish(&mut self.headers, id)
+            }
             (DeclarationId::Nominal(id), Definition::Record(definition)) => self
                 .headers
                 .define_record(id, definition.copy, definition.fields),

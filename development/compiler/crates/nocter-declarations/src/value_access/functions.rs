@@ -320,10 +320,7 @@ impl Program {
         let mut contract = match witness.origin {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
-                let callable = self.codes.get(id)?;
-                if callable.kind().is_initializer() {
-                    return None;
-                }
+                let callable = self.direct_callable(id)?;
                 let inputs = callable
                     .parameters()
                     .iter()
@@ -385,9 +382,7 @@ impl Program {
                 self.closure(id)?;
             }
             ValueFunctionOrigin::Declaration(id) => {
-                if self.codes.get(id)?.kind().is_initializer() {
-                    return None;
-                }
+                self.direct_callable(id)?;
             }
             ValueFunctionOrigin::Parameter(id) => {
                 self.parameter_contract(id)?;

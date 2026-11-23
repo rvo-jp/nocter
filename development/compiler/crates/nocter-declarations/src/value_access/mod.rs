@@ -125,6 +125,7 @@ pub enum DeclarationRule {
     EmptyEnumeration,
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
+    UnboundGenericType,
     UnreadyAlias { alias: nocter_model::TypeAliasId },
     QualifiedDataName { error: QualifiedNameError },
     RecursivePayload { through: NominalTypeId },
@@ -334,14 +335,18 @@ impl Program {
     /// The original execution mode and, for a deferred callable, its body output.
     #[must_use]
     pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {
-        let code = self.codes.get(id)?;
-        match code.kind() {
-            CodeKind::DeferredFunction => Some(crate::CallableExecution::Deferred {
+        let code = self.direct_callable(id)?;
+        if code.kind() == CodeKind::DeferredFunction {
+            Some(crate::CallableExecution::Deferred {
                 output: self.code_body_result(id)?,
-            }),
-            kind if kind.is_callable() => Some(crate::CallableExecution::Immediate),
-            _ => None,
+            })
+        } else {
+            Some(crate::CallableExecution::Immediate)
         }
+    }
+    fn direct_callable(&self, id: AccessCodeId) -> Option<&Code> {
+        let code = self.codes.get(id)?;
+        (code.kind().is_callable() && self.generic_parameter_ids(id)?.is_empty()).then_some(code)
     }
     /// Execution for an exact function origin. Symbolic result, contract and formal origins
     /// carry a type constraint and cannot certify which body or constructor is selected.
@@ -1209,14 +1214,23 @@ impl Builder {
         parameters: impl Into<Box<[ParameterDefinition]>>,
         result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
-        let reservation = self.codes.get_mut(id).ok_or(DefinitionError::UnknownId)?;
         if !self.generic_parameters.ids(id).is_empty() {
             return Err(DefinitionError::RequiresGenericDefinition);
         }
+        self.define_reserved(id, kind, parameters.into(), result_data.into())
+    }
+
+    fn define_reserved(
+        &mut self,
+        id: AccessCodeId,
+        kind: CodeKind,
+        parameters: Box<[ParameterDefinition]>,
+        result_data: ValueDefinition,
+    ) -> Result<(), DefinitionError> {
+        let reservation = self.codes.get_mut(id).ok_or(DefinitionError::UnknownId)?;
         if reservation.definition.is_some() {
             return Err(DefinitionError::AlreadyDefined);
         }
-        let parameters = parameters.into();
         if parameters.len() != reservation.parameters.len() {
             return Err(DefinitionError::WrongArity {
                 expected: reservation.parameters.len(),
@@ -1226,7 +1240,7 @@ impl Builder {
         reservation.definition = Some(Definition {
             kind,
             parameters,
-            result_data: result_data.into(),
+            result_data,
         });
         Ok(())
     }
@@ -1258,11 +1272,9 @@ fn test_result() -> ValueDefinition {
 }
 
 fn validate_definition(
-    symbols: &SymbolTable,
-    namespace: &namespace::Names,
+    definitions: &Builder,
     id: AccessCodeId,
     reservation: &Reservation,
-    nominals: &nominals::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     let Some(definition) = &reservation.definition else {
@@ -1300,8 +1312,8 @@ fn validate_definition(
         });
     }
     validate_parameter_names(
-        symbols,
-        namespace,
+        &definitions.symbols,
+        &definitions.namespace,
         reservation.scope,
         id,
         definition
@@ -1319,14 +1331,14 @@ fn validate_definition(
                 rule: DeclarationRule::ParameterPatternMismatch,
             });
         }
-        validate_value(id, position, &parameter.data, true, nominals, violations);
+        validate_value(id, position, &parameter.data, true, definitions, violations);
     }
     validate_value(
         id,
         HeaderPosition::Result,
         &definition.result_data,
         definition.kind.is_callable(),
-        nominals,
+        definitions,
         violations,
     );
 }
@@ -1392,7 +1404,7 @@ fn validate_value(
     position: HeaderPosition,
     value: &ValueDefinition,
     allow_components: bool,
-    nominals: &nominals::Builder,
+    definitions: &Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     if value.has_repeated_failure() {
@@ -1409,30 +1421,28 @@ fn validate_value(
         {
             return;
         }
-        validate_data(callable, position, data, nominals, violations);
+        if let DataReference::GenericParameter(id) = data
+            && definitions.generic_parameters.get(*id).is_some_and(|slot| {
+                slot.owner() == callable && slot.domain() == GenericParameterDomain::Type
+            })
+        {
+            return;
+        }
+        if let Some(rule) = data_rule(data, &definitions.nominals) {
+            violations.push(DeclarationViolation {
+                declaration: DeclarationId::Code(callable),
+                position,
+                rule,
+            });
+        }
     });
-}
-
-fn validate_data(
-    callable: AccessCodeId,
-    position: HeaderPosition,
-    data: &DataReference,
-    nominals: &nominals::Builder,
-    violations: &mut Vec<DeclarationViolation>,
-) {
-    if let Some(rule) = data_rule(data, nominals) {
-        violations.push(DeclarationViolation {
-            declaration: DeclarationId::Code(callable),
-            position,
-            rule,
-        });
-    }
 }
 
 /// One raw-leaf validity policy for callable slots and record fields, independent of readiness.
 fn data_rule(data: &DataReference, nominals: &nominals::Builder) -> Option<DeclarationRule> {
     match data {
         DataReference::Function(_) => Some(DeclarationRule::UnsupportedCallableData),
+        DataReference::GenericParameter(_) => Some(DeclarationRule::UnboundGenericType),
         DataReference::Builtin(data) if !supported(*data) => {
             Some(DeclarationRule::UnsupportedDataType { data: *data })
         }

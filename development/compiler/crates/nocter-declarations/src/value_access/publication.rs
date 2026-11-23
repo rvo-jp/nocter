@@ -150,6 +150,25 @@ impl HeaderPublication {
     ) -> Result<(), crate::DefinitionError> {
         self.definitions.define(id, kind, parameters, result)
     }
+    /// Load a generic signature into its reserved compile-time scope. This cannot publish a
+    /// direct function witness or establish a checked body.
+    /// # Errors
+    /// Rejects absent generic slots, a non-function kind, mismatched arity or redefinition.
+    pub fn define_generic(
+        &mut self,
+        id: AccessCodeId,
+        kind: CodeKind,
+        parameters: impl Into<Box<[ParameterDefinition]>>,
+        result: impl Into<ValueDefinition>,
+    ) -> Result<(), crate::DefinitionError> {
+        if self.definitions.generic_parameters.ids(id).is_empty()
+            || !matches!(kind, CodeKind::Function(_) | CodeKind::DeferredFunction)
+        {
+            return Err(crate::DefinitionError::UnknownId);
+        }
+        self.definitions
+            .define_reserved(id, kind, parameters.into(), result.into())
+    }
     /// Load one define-once raw record into the fixed field domain.
     /// # Errors
     /// Rejects unknown IDs, mismatched arity or a second definition without replacement.
@@ -277,14 +296,7 @@ impl HeaderPublication {
                     .get(id)
                     .ok_or(HeaderFailure::UnknownId)?;
                 let mut violations = Vec::new();
-                validate_definition(
-                    &self.definitions.symbols,
-                    &self.definitions.namespace,
-                    id,
-                    reservation,
-                    &self.definitions.nominals,
-                    &mut violations,
-                );
+                validate_definition(&self.definitions, id, reservation, &mut violations);
                 if !violations.is_empty() {
                     return Err(HeaderFailure::Rejected(violations));
                 }
@@ -315,7 +327,7 @@ impl HeaderPublication {
             .definition
             .as_ref()
             .expect("validated definition");
-        if definition.kind.is_callable() {
+        if definition.kind.is_callable() && self.definitions.generic_parameters.ids(id).is_empty() {
             self.types = functions::publish_witnesses(&self.types, std::iter::once(id));
         }
         let mut types = self.types.transaction();
