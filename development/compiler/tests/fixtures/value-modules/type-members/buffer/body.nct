@@ -1,0 +1,9 @@
+see ./index.nct
+
+struct Buffer { value: i32 }
+impl Buffer {
+    const func create(value: i32): Self { Self { value: value } }
+    const method self.count(): i32 { self.value }
+    method edit self.add(value: i32): void { self.value = self.value + value }
+    method take self.finish(): i32 { self.value }
+}

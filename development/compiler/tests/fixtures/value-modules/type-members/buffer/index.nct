@@ -1,0 +1,9 @@
+see ./body.nct
+
+struct Buffer
+impl Buffer {
+    const func create(value: i32): Self
+    const method self.count(): i32
+    method edit self.add(value: i32): void
+    method take self.finish(): i32
+}

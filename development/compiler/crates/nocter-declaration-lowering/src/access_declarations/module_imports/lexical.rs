@@ -49,6 +49,7 @@ impl LexicalScopes {
 impl ImportBindings<'_, '_> {
     pub(super) fn bind_blocks(
         &mut self,
+        body_scopes: &BTreeMap<NodeId, ScopeId>,
         reservations: &mut Reservations,
     ) -> Result<LexicalScopes, ModuleSourcesFailure> {
         let paired = self.paired;
@@ -63,8 +64,15 @@ impl ImportBindings<'_, '_> {
         for (source, _) in paired.inventory.source_entries() {
             let syntax = syntax(paired, source)?;
             let mut blocks = Vec::<BlockScope>::new();
-            let mut pending = vec![(syntax.tree().root_id(), None::<usize>)];
-            while let Some((node, mut parent)) = pending.pop() {
+            let mut pending = vec![(
+                syntax.tree().root_id(),
+                None::<usize>,
+                self.source_scopes[source.index()],
+            )];
+            while let Some((node, mut parent, mut base)) = pending.pop() {
+                if let Some(scope) = body_scopes.get(&node) {
+                    base = *scope;
+                }
                 let imports = child_node_iter(syntax.tree(), node)
                     .filter_map(|node| resolutions.get(&node).copied())
                     .collect::<Vec<_>>();
@@ -72,9 +80,7 @@ impl ImportBindings<'_, '_> {
                     if syntax.tree().node(node).ok_or_else(integrity)?.kind() != NodeKind::Block {
                         return Err(integrity());
                     }
-                    let inherited = parent.map_or(self.source_scopes[source.index()], |index| {
-                        blocks[index].scope
-                    });
+                    let inherited = parent.map_or(base, |index| blocks[index].scope);
                     let scope = reservations
                         .new_lexical_scope(inherited)
                         .map_err(|_| integrity())?;
@@ -115,7 +121,7 @@ impl ImportBindings<'_, '_> {
                     parent = Some(index);
                 }
                 let children = child_node_iter(syntax.tree(), node).collect::<Vec<_>>();
-                pending.extend(children.into_iter().rev().map(|node| (node, parent)));
+                pending.extend(children.into_iter().rev().map(|node| (node, parent, base)));
             }
             if !blocks.is_empty() {
                 lexical.sources.insert(syntax.tree().source(), blocks);

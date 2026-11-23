@@ -1,5 +1,6 @@
 //! Recognition of the future bounded private core, using the shared lossless parser.
 //! No released-language production is an acceptance fallback for this parse goal.
+mod behavior;
 mod directives;
 mod expression;
 mod types;
@@ -53,7 +54,7 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
             || (parser.at_keyword(Keyword::Const)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
         {
-            function(parser);
+            function(parser, NodeKind::FunctionDeclaration);
         } else if parser.at_keyword(Keyword::Const)
             || parser.at_contextual(ContextualSpelling::Static)
         {
@@ -63,6 +64,8 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
         {
             record(parser);
+        } else if parser.at_keyword(Keyword::Impl) {
+            behavior::declaration(parser);
         } else if parser.at_keyword(Keyword::Test) {
             super::declaration::test_declaration(parser, required_block);
         } else {
@@ -96,8 +99,28 @@ fn record(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::StructDeclaration);
 }
 
-fn function(parser: &mut Parser<'_>) {
+fn function(parser: &mut Parser<'_>, kind: NodeKind) {
     let marker = parser.start();
+    function_with_prefix(parser, marker, kind);
+}
+
+fn function_with_prefix(parser: &mut Parser<'_>, marker: super::Marker, kind: NodeKind) {
+    callable_modifier(parser);
+    let primitive = parser.eat_keyword(Keyword::Primitive);
+    parser.expect_keyword(Keyword::Func);
+    parser.expect_name();
+    callable_tail(parser);
+    if primitive {
+        if parser.at_punctuation(Punctuation::LeftBrace) {
+            parser.error_token(ExpectedSyntax::Newline);
+        }
+    } else if parser.at_punctuation(Punctuation::LeftBrace) {
+        required_block(parser);
+    }
+    parser.complete(marker, kind);
+}
+
+fn callable_modifier(parser: &mut Parser<'_>) {
     let modifier_kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Const) => Some(NodeKind::CompileTimeModifier),
         TokenKind::Keyword(Keyword::Async) => Some(NodeKind::AsyncModifier),
@@ -108,9 +131,9 @@ fn function(parser: &mut Parser<'_>) {
         parser.bump();
         parser.complete(modifier, kind);
     }
-    let primitive = parser.eat_keyword(Keyword::Primitive);
-    parser.expect_keyword(Keyword::Func);
-    parser.expect_name();
+}
+
+fn callable_tail(parser: &mut Parser<'_>) {
     let tail = parser.start();
     let parameters = parser.start();
     if parser.expect_punctuation(Punctuation::LeftParen) {
@@ -126,14 +149,6 @@ fn function(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
     parser.complete(tail, NodeKind::CallableTail);
-    if primitive {
-        if parser.at_punctuation(Punctuation::LeftBrace) {
-            parser.error_token(ExpectedSyntax::Newline);
-        }
-    } else if parser.at_punctuation(Punctuation::LeftBrace) {
-        required_block(parser);
-    }
-    parser.complete(marker, NodeKind::FunctionDeclaration);
 }
 
 fn initializer(parser: &mut Parser<'_>) {

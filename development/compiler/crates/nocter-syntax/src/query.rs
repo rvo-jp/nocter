@@ -177,6 +177,7 @@ pub(crate) const fn is_declaration(kind: NodeKind) -> bool {
             | NodeKind::ConstructionFunction
             | NodeKind::LiteralDeclaration
             | NodeKind::InstanceDeclaration
+            | NodeKind::TypeBehaviorDeclaration
             | NodeKind::InherentMethod
             | NodeKind::CoercionDeclaration
             | NodeKind::EqualityOperator

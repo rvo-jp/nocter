@@ -10,7 +10,11 @@ use nocter_syntax::BoundSyntax;
 
 /// Declarations that can introduce a name in the source's ordinary lookup scope.
 pub(super) fn has_source_name(declaration: SurfaceDeclaration) -> bool {
-    declaration.owner().is_none() && declaration.kind() != crate::SurfaceDeclarationKind::Test
+    declaration.owner().is_none()
+        && !matches!(
+            declaration.kind(),
+            crate::SurfaceDeclarationKind::Test | crate::SurfaceDeclarationKind::TypeBehavior
+        )
 }
 
 /// Physical source lookup consists of the current file and its directly seen files.

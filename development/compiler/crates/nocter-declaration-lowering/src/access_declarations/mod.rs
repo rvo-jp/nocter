@@ -8,7 +8,10 @@ mod module_imports;
 mod module_scopes;
 pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
-pub use module_scopes::{ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources};
+pub use module_scopes::{
+    ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources, TypeMember,
+    TypeMemberKind,
+};
 mod primitives;
 mod projection;
 mod source;
@@ -135,6 +138,7 @@ impl<'source> Preparation<'source> {
                     | NodeKind::BlockUseDeclaration
                     | NodeKind::TargetDirective
                     | NodeKind::TestDeclaration
+                    | NodeKind::TypeBehaviorDeclaration
             )
         }) {
             return Err(Failure::ModuleInputRequired);
@@ -453,6 +457,13 @@ impl Query {
 }
 
 impl<'source> Context<'source> {
+    /// Select the member identity and its accessibility from this exact physical source.
+    #[must_use]
+    pub fn type_member(&self, owner: NominalTypeId, name: &str) -> Option<TypeMember> {
+        let name = self.program().symbols().get(name)?;
+        self.module?
+            .type_member(self.syntax.tree().source(), owner, name)
+    }
     /// Returns the unit's selected target when the context came from a physical source inventory.
     #[must_use]
     pub fn target(&self) -> Option<nocter_model::CompilationTarget> {

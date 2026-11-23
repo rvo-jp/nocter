@@ -254,7 +254,15 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     let marker = parser.start();
     let kind = match parser.current_kind() {
         TokenKind::Identifier => {
-            parser.expect_name();
+            if parser.at_contextual(crate::ContextualSpelling::UpperSelf)
+                && (parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Dot)
+                    || (allow_braces
+                        && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::LeftBrace)))
+            {
+                parser.bump();
+            } else {
+                parser.expect_name();
+            }
             NodeKind::ReferenceExpression
         }
         TokenKind::IntegerLiteral

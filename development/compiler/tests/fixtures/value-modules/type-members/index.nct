@@ -1,0 +1,5 @@
+#package: { name: "app", version: "2.0.0" }
+#executable: { name: "app" }
+see ./main.nct
+
+func main(): i32

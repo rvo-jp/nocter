@@ -32,6 +32,20 @@ module inventory in source order and lowers their checked bodies through the sam
 The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
 defines source reuse and recovery scope.
 
+### Type-Owned Calls
+
+Non-generic structs support [named construction and method contracts](../../spec/language/type-behavior.md#functions-and-methods)
+on direct places and produced values.
+The physical source binding resolves each `impl` to the directly visible nominal owned by its
+module. It pairs complete public and implementation signatures, supplies `Self` in their lexical
+scopes, and selects members by nominal identity and member name. The effective member audience
+includes the nominal owner's boundary. Each member has an ordinary checked code identity.
+
+The checker selects a constructor through the type or a method through the evaluated receiver.
+A method supplies the receiver as the first input under the same access and transfer rules as
+an explicit argument. The selected code and authored member token feed the existing call,
+compile-time evaluation, native lowering, and named navigation paths.
+
 ## Implemented Handoff
 
 ```text
@@ -62,7 +76,7 @@ V2CoreUnit syntax + exact source
   -> closed private MIR (runtime shapes, input slots, control, computation, calls and resource phases)
   -> common MachineProgram (shared layouts, ABI, body optimization, cleanup helpers and dataflow)
   -> common ARM64 lowering + Mach-O image writing
-       (bounded private entry; no public CLI admission)
+       (bounded native entry under the selected v2 source profile)
 ```
 
 ## Responsibilities

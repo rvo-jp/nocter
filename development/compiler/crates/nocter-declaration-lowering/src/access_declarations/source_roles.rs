@@ -14,6 +14,8 @@ pub enum SourceRoleRule {
     MissingBody,
     MissingInitializer,
     MissingRepresentation,
+    TypeBehaviorOwner,
+    ConstructionResult,
     VisibilityOutsideContract,
     PackageMetadataOutsideContract,
 }
@@ -61,7 +63,24 @@ pub fn validate_source_role(
     {
         return reject(syntax, SourceRoleRule::PackageMetadataOutsideContract, node);
     }
-    for declaration in headers::declarations(syntax)? {
+    let tree = syntax.tree();
+    if root {
+        for item in nocter_syntax::direct_node_iter(tree, tree.root_id(), NodeKind::Item) {
+            if nocter_syntax::direct_node(tree, item, NodeKind::TypeBehaviorDeclaration).is_some()
+                && let Some(visibility) =
+                    nocter_syntax::direct_node(tree, item, NodeKind::Visibility)
+            {
+                return reject(
+                    syntax,
+                    SourceRoleRule::VisibilityOutsideContract,
+                    visibility,
+                );
+            }
+        }
+    }
+    let mut pending = headers::declarations(syntax)?;
+    pending.reverse();
+    while let Some(declaration) = pending.pop() {
         let kind = syntax
             .tree()
             .node(declaration)
@@ -71,7 +90,24 @@ pub fn validate_source_role(
             NodeKind::TestDeclaration => declaration_body(syntax.tree(), declaration)
                 .filter(|_| root)
                 .map(|body| (SourceRoleRule::BodyInContract, body)),
-            NodeKind::FunctionDeclaration => {
+            NodeKind::TypeBehaviorDeclaration => {
+                pending.extend(
+                    nocter_syntax::child_node_iter(tree, declaration)
+                        .rev()
+                        .filter(|&node| {
+                            tree.node(node).is_some_and(|node| {
+                                matches!(
+                                    node.kind(),
+                                    NodeKind::ConstructionFunction | NodeKind::InherentMethod
+                                )
+                            })
+                        }),
+                );
+                None
+            }
+            NodeKind::FunctionDeclaration
+            | NodeKind::ConstructionFunction
+            | NodeKind::InherentMethod => {
                 let body = declaration_body(syntax.tree(), declaration);
                 match (root, body) {
                     (true, Some(body)) => Some((SourceRoleRule::BodyInContract, body)),
@@ -104,8 +140,17 @@ pub fn validate_source_role(
 }
 
 fn reject(syntax: BoundSyntax<'_>, rule: SourceRoleRule, subject: NodeId) -> Result<(), Failure> {
-    let origin =
-        SourceOrigin::from_node(syntax.tree(), subject).map_err(|_| Failure::InconsistentSyntax)?;
+    Err(role_failure(syntax, rule, subject))
+}
+
+pub(super) fn role_failure(
+    syntax: BoundSyntax<'_>,
+    rule: SourceRoleRule,
+    subject: NodeId,
+) -> Failure {
+    let Ok(origin) = SourceOrigin::from_node(syntax.tree(), subject) else {
+        return Failure::InconsistentSyntax;
+    };
     let (code, message) = match rule {
         SourceRoleRule::BodyInContract => (
             DiagnosticCode::E0237,
@@ -135,9 +180,17 @@ fn reject(syntax: BoundSyntax<'_>, rule: SourceRoleRule, subject: NodeId) -> Res
             DiagnosticCode::E0231,
             "a record outside a contract source requires its complete representation",
         ),
+        SourceRoleRule::TypeBehaviorOwner => (
+            DiagnosticCode::E0231,
+            "impl requires one directly visible nominal declaration owned by this module",
+        ),
+        SourceRoleRule::ConstructionResult => (
+            DiagnosticCode::E0370,
+            "a type-owned func must deliver its Self type, optionally wrapped in an outcome",
+        ),
     };
-    Err(Failure::SourceRole(Box::new(SourceRoleDiagnostic {
+    Failure::SourceRole(Box::new(SourceRoleDiagnostic {
         rule,
         source: SourceDiagnostic::new(code, message, origin, Vec::new(), None::<&str>),
-    })))
+    }))
 }

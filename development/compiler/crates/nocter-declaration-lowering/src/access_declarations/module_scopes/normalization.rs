@@ -39,7 +39,7 @@ impl ScopedModuleSources<'_> {
                 let physical = self.binding.paired.inventory.declarations()[raw.index()];
                 let scope = HeaderScope {
                     syntax: syntax(&self.binding.paired, physical.source())?,
-                    lookup: self.binding.scopes[physical.source().index()],
+                    lookup: self.binding.declaration_scopes[raw.index()],
                 };
                 let Projection {
                     definition,
@@ -85,6 +85,19 @@ impl ScopedModuleSources<'_> {
                 }
                 missing.extend(progress.missing);
                 if let Some(definition) = definition {
+                    if physical.kind() == crate::SurfaceDeclarationKind::ConstructionFunction {
+                        let (Definition::Code(code), ParsedHeader::Code(header)) =
+                            (&definition, header)
+                        else {
+                            return Err(integrity());
+                        };
+                        self.binding.members.verify_result(
+                            *raw,
+                            scope.syntax,
+                            header.result_syntax,
+                            &code.result,
+                        )?;
+                    }
                     projected.insert(*raw, definition);
                 }
             }

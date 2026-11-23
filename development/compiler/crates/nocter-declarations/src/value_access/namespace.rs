@@ -180,9 +180,6 @@ impl Names {
         }
         unreachable!("a nonempty finite path returns at its final component")
     }
-    pub fn values(&self) -> impl ExactSizeIterator<Item = &DeclarationId> {
-        self.bindings.values().map(|binding| &binding.declaration)
-    }
     pub fn declarations(&self) -> impl Iterator<Item = DeclarationId> + '_ {
         self.bindings
             .values()
@@ -206,7 +203,7 @@ pub(super) fn close(
     let names = codes
         .iter()
         .filter_map(|(id, reservation)| {
-            reservation.name.map(|name| {
+            reservation.source_name().map(|name| {
                 (
                     reservation.scope,
                     name,

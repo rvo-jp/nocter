@@ -1,6 +1,6 @@
 //! Public semantic type names, never hidden representation payloads or const supplier names.
 use super::{ModuleAudience, ModuleAudiences, VisibilityDiagnostic, VisibilityRule};
-use crate::access_declarations::{Failure, headers};
+use crate::access_declarations::{Failure, module_scopes::ParsedHeader};
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
 use nocter_declarations::value_access::{AggregateForm, DeclarationId, PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
@@ -16,6 +16,7 @@ impl ModuleAudiences {
         declarations: &[Option<DeclarationId>],
         fields: &[Option<AccessFieldId>],
         program: &Program,
+        headers: &BTreeMap<SurfaceDeclarationId, ParsedHeader>,
     ) -> Result<(), Failure> {
         let exported_records = surface
             .declarations()
@@ -52,17 +53,13 @@ impl ModuleAudiences {
             .ok_or(Failure::InconsistentSyntax)?;
             match declarations[index] {
                 Some(DeclarationId::Code(id)) => {
-                    let header = match declaration.kind() {
-                        SurfaceDeclarationKind::Function
-                        | SurfaceDeclarationKind::PrimitiveFunction => {
-                            headers::function(syntax, declaration.node())?
-                        }
-                        SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static => {
-                            headers::initializer(syntax, declaration.node())?
-                        }
-                        _ => return Err(Failure::InconsistentSyntax),
+                    let Some(ParsedHeader::Code(header)) = headers.get(&raw) else {
+                        return Err(Failure::InconsistentSyntax);
                     };
                     let code = program.codes().get(id).ok_or(Failure::InconsistentSyntax)?;
+                    if code.parameters().len() != header.parameters.len() {
+                        return Err(Failure::InconsistentSyntax);
+                    }
                     for (&parameter, source) in code.parameters().iter().zip(&header.parameters) {
                         let parameter = program
                             .parameters()
@@ -83,6 +80,7 @@ impl ModuleAudiences {
                     checking.check(audience, syntax, ty, field.data())?;
                 }
                 Some(DeclarationId::Record(_)) => {}
+                None if declaration.kind() == SurfaceDeclarationKind::TypeBehavior => {}
                 _ => return Err(Failure::InconsistentSyntax),
             }
         }

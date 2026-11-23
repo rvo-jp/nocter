@@ -75,18 +75,26 @@ impl Checker<'_, '_> {
                 NodeKind::MemberSuffix => {
                     let mut members = vec![self.member_token(suffix)?];
                     let mut end = step;
-                    while pending.peek().is_some_and(|(_, _, suffix)| {
-                        suffix.is_some_and(|suffix| {
-                            matches!(self.kind(suffix), Ok(NodeKind::MemberSuffix))
-                        })
-                    }) {
-                        let (node, _, suffix) =
-                            pending.next().ok_or(Failure::InconsistentSyntax)?;
-                        end = node;
-                        members
-                            .push(self.member_token(suffix.ok_or(Failure::InconsistentSyntax)?)?);
+                    while let Some(&(next, _, Some(next_suffix))) = pending.peek()
+                        && self.kind(next_suffix)? == NodeKind::MemberSuffix
+                    {
+                        pending.next();
+                        end = next;
+                        members.push(self.member_token(next_suffix)?);
                     }
-                    self.component_value(end, value, &members)?
+                    if let Some(&(call, _, Some(arguments))) = pending.peek()
+                        && self.kind(arguments)? == NodeKind::CallSuffix
+                    {
+                        pending.next();
+                        members.pop();
+                        if !members.is_empty() {
+                            value =
+                                self.component_value(self.first_child(end)?, value, &members)?;
+                        }
+                        self.call_member_value(call, arguments, end, value, reachable)?
+                    } else {
+                        self.component_value(end, value, &members)?
+                    }
                 }
                 NodeKind::CallSuffix => self.call_value(step, suffix, value, reachable)?,
                 _ => return Err(Failure::InconsistentSyntax),

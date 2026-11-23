@@ -58,6 +58,7 @@ impl ModuleExports {
     pub fn bind(
         paired: &PairedModuleSources<'_>,
         source_scopes: &[ScopeId],
+        body_scopes: &BTreeMap<NodeId, ScopeId>,
         declarations: &[Option<DeclarationId>],
         reservations: &mut Reservations,
     ) -> Result<(Self, LexicalScopes), ModuleSourcesFailure> {
@@ -77,7 +78,7 @@ impl ModuleExports {
                 )?;
             }
         }
-        let lexical = bindings.bind_blocks(reservations)?;
+        let lexical = bindings.bind_blocks(body_scopes, reservations)?;
         Ok((bindings.finish(reservations)?, lexical))
     }
     pub fn lookup(
@@ -135,7 +136,9 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
         let modules = inventory.surface.modules();
         let mut exports = vec![BTreeMap::new(); modules.len()];
         for (raw, declaration) in inventory.declaration_entries() {
-            if declaration.owner().is_some() || inventory.audience(raw).is_none() {
+            if !super::module_sources::has_source_name(declaration)
+                || inventory.audience(raw).is_none()
+            {
                 continue;
             }
             let target = declarations[raw.index()].ok_or_else(integrity)?;

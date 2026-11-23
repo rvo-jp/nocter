@@ -104,6 +104,21 @@ impl ModuleAudiences {
     pub fn declaration_handle(&self, raw: SurfaceDeclarationId) -> Option<Arc<ModuleAudience>> {
         self.declarations.get(raw.index())?.clone()
     }
+    pub fn constrain_member(
+        &mut self,
+        member: SurfaceDeclarationId,
+        owner: SurfaceDeclarationId,
+    ) -> Result<(), Failure> {
+        let Some(audience) = self.declaration(member).cloned() else {
+            return Ok(());
+        };
+        let owner = self.declaration(owner).ok_or(Failure::InconsistentSyntax)?;
+        let audience = audience
+            .intersection(owner)
+            .ok_or(Failure::InconsistentSyntax)?;
+        self.declarations[member.index()] = Some(Arc::new(audience));
+        Ok(())
+    }
     pub fn import_handle(&self, node: NodeId) -> Option<Arc<ModuleAudience>> {
         self.imports.get(&node).cloned()
     }

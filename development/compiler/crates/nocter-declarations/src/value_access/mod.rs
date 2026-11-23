@@ -314,12 +314,7 @@ impl Program {
         code: AccessCodeId,
         names: impl IntoIterator<Item = Symbol>,
     ) -> Result<Vec<DeclarationViolation>, DefinitionError> {
-        if !self.has_scope(scope)
-            || !self
-                .namespace
-                .declarations()
-                .any(|id| id == DeclarationId::Code(code))
-        {
+        if !self.has_scope(scope) || !self.codes.is_reserved(code) {
             return Err(DefinitionError::UnknownId);
         }
         let mut violations = Vec::new();
@@ -543,13 +538,14 @@ impl Program {
         if let Some(name) = code.name() {
             return self.symbols.spelling(name).map(str::to_owned);
         }
-        let CodeKind::TypeExpression(source) = code.kind() else {
-            return None;
-        };
-        Some(format!(
-            "type expression in {}",
-            self.declaration_label(source.declaration)?
-        ))
+        match code.kind() {
+            CodeKind::Test(name) => self.symbols.spelling(name).map(str::to_owned),
+            CodeKind::TypeExpression(source) => Some(format!(
+                "type expression in {}",
+                self.declaration_label(source.declaration)?
+            )),
+            _ => None,
+        }
     }
     #[must_use]
     pub fn static_declaration(&self, id: nocter_model::ValueStatic) -> Option<&Code> {
@@ -570,8 +566,15 @@ struct Definition {
 struct Reservation {
     scope: ScopeId,
     name: Option<Symbol>,
+    unqualified: bool,
     parameters: Box<[AccessParameterId]>,
     definition: Option<Definition>,
+}
+
+impl Reservation {
+    fn source_name(&self) -> Option<Symbol> {
+        self.name.filter(|_| self.unqualified)
+    }
 }
 
 /// Identity and authored position, without a provisional data type or input operation.
@@ -643,7 +646,11 @@ impl Reservations {
         audience: Option<Arc<nocter_model::ModuleAudience>>,
     ) -> Result<(), DefinitionError> {
         let known = match declaration {
-            DeclarationId::Code(id) => self.codes.get(id).is_some_and(|code| code.name.is_some()),
+            DeclarationId::Code(id) => self
+                .codes
+                .get(id)
+                .and_then(Reservation::source_name)
+                .is_some(),
             DeclarationId::Record(id) => self.records.field_ids(id).is_some(),
         };
         if !self.scopes.contains(scope) || !known {
@@ -689,7 +696,7 @@ impl Reservations {
             .bind_namespace(&self.symbols, scope, name, target, audience)
     }
     pub fn reserve(&mut self, name: Symbol, parameter_count: usize) -> AccessCodeId {
-        self.reserve_known_scope(ScopeId::ROOT, name, parameter_count)
+        self.reserve_known_scope(ScopeId::ROOT, name, parameter_count, true)
     }
     /// Reserve a named callable/value in one known scope.
     /// # Errors
@@ -703,13 +710,30 @@ impl Reservations {
         if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
-        Ok(self.reserve_known_scope(scope, name, parameter_count))
+        Ok(self.reserve_known_scope(scope, name, parameter_count, true))
     }
+
+    /// Reserve code selected only through a type-owned member identity.
+    /// # Errors
+    /// Rejects an unknown scope or spelling before allocating any code or parameter slots.
+    pub fn reserve_type_member(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        parameter_count: usize,
+    ) -> Result<AccessCodeId, DefinitionError> {
+        if !self.scopes.contains(scope) || self.symbols.spelling(name).is_none() {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.reserve_known_scope(scope, name, parameter_count, false))
+    }
+
     fn reserve_known_scope(
         &mut self,
         scope: ScopeId,
         name: Symbol,
         parameter_count: usize,
+        unqualified: bool,
     ) -> AccessCodeId {
         let owner = self.codes.next_id();
         let parameters = (0..parameter_count)
@@ -718,6 +742,7 @@ impl Reservations {
         self.codes.insert(Reservation {
             scope,
             name: Some(name),
+            unqualified,
             parameters,
             definition: None,
         })
@@ -737,6 +762,7 @@ impl Reservations {
         Ok(self.codes.insert(Reservation {
             scope,
             name: None,
+            unqualified: false,
             parameters: Box::new([]),
             definition: Some(Definition {
                 kind: CodeKind::Test(name),
@@ -793,6 +819,7 @@ impl Reservations {
         Ok(self.codes.insert(Reservation {
             scope,
             name: None,
+            unqualified: false,
             parameters: Box::new([]),
             definition: Some(Definition {
                 kind: CodeKind::TypeExpression(source),

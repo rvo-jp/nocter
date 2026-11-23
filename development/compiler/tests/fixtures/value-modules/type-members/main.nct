@@ -1,0 +1,16 @@
+see ./index.nct
+use ./buffer
+
+copy struct Buffer { value: i32 }
+impl Buffer {
+    method take self.count(): i32 { self.value }
+}
+
+const baseline: i32 = buffer.Buffer.create(2).count()
+
+func main(): i32 {
+    let local = Buffer { value: 2 }
+    var value = buffer.Buffer.create(30)
+    value.add(baseline + buffer.Buffer.create(6).count() + local.count() + local.count())
+    value^.finish()
+}

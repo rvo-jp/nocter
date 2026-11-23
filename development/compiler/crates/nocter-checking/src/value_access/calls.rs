@@ -4,17 +4,44 @@ use super::{
     checker::Checker,
     ir::{Argument, ArgumentAction, CallKind, ExpressionKind, value_type},
 };
+use nocter_declaration_lowering::access_declarations::{TypeMember, TypeMemberKind};
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueInvocation,
 };
-use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
+use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken, TokenKind};
 
 struct Callee {
     witness: FunctionWitness,
-    environment: Option<(AccessExpressionId, FunctionInput)>,
-    declaration_token: Option<SyntaxToken>,
-    completes: bool,
+    source: CalleeSource,
+}
+
+#[derive(Clone, Copy)]
+enum CalleeSource {
+    Declared {
+        token: SyntaxToken,
+        receiver: Option<(NodeId, AccessExpressionId)>,
+    },
+    Value {
+        environment: AccessExpressionId,
+        input: FunctionInput,
+    },
+}
+
+impl Callee {
+    fn direct(
+        target: AccessCodeId,
+        token: SyntaxToken,
+        receiver: Option<(NodeId, AccessExpressionId)>,
+    ) -> Self {
+        Self {
+            witness: FunctionWitness {
+                origin: ValueFunctionOrigin::Declaration(target),
+                invocation: ValueInvocation::Read,
+            },
+            source: CalleeSource::Declared { token, receiver },
+        }
+    }
 }
 impl Checker<'_, '_> {
     fn declared_function(
@@ -192,40 +219,126 @@ impl Checker<'_, '_> {
         self.emit(node, value_type(data, Mode::Own), kind)
     }
     fn callee(&mut self, node: NodeId, reachable: bool) -> Result<Callee, Failure> {
-        if let Some(selected) = self.qualified_selection(node)? {
-            if selected.members.is_empty()
-                && self
+        let callee = self.unwrap(node)?;
+        if self.kind(callee)? == NodeKind::PostfixExpression
+            && let [base, suffix] = self.children(callee).as_slice()
+            && self.kind(*suffix)? == NodeKind::MemberSuffix
+        {
+            let token = self.member_token(*suffix)?;
+            if token.kind() == TokenKind::Identifier
+                && let Some(owner) = self.constructor_owner(*base)?
+            {
+                let Some(member) = self.context.type_member(owner, self.text(token)?) else {
+                    return self.reject(Rule::InvalidCall, token);
+                };
+                return self.type_member_callee(member, token, None);
+            }
+            if let Some(mut selected) = self.qualified_selection(callee)? {
+                if selected.members.pop().is_some() {
+                    let receiver = self.qualified_value(*base, &selected)?;
+                    return self.member_callee(callee, *base, receiver, token);
+                }
+                if self
                     .program()
                     .codes()
                     .get(selected.code)
                     .is_some_and(|code| code.kind().is_callable())
-            {
-                return Ok(Callee {
-                    witness: FunctionWitness {
-                        origin: ValueFunctionOrigin::Declaration(selected.code),
-                        invocation: ValueInvocation::Read,
-                    },
-                    environment: None,
-                    declaration_token: Some(selected.token),
-                    completes: true,
-                });
+                {
+                    return Ok(Callee::direct(selected.code, selected.token, None));
+                }
+                let value = self.qualified_value(callee, &selected)?;
+                return self.value_callee(callee, value);
             }
-            let value = self.qualified_value(node, &selected)?;
-            return self.value_callee(node, value);
+            let receiver = self.expression(*base, None, reachable)?;
+            return self.member_callee(callee, *base, receiver, token);
         }
         if let Some((target, token)) = self.declared_function(node)? {
-            return Ok(Callee {
-                witness: FunctionWitness {
-                    origin: ValueFunctionOrigin::Declaration(target),
-                    invocation: ValueInvocation::Read,
-                },
-                environment: None,
-                declaration_token: Some(token),
-                completes: true,
-            });
+            return Ok(Callee::direct(target, token, None));
         }
         let value = self.expression(node, None, reachable)?;
         self.value_callee(node, value)
+    }
+    fn type_member_callee(
+        &self,
+        member: TypeMember,
+        token: SyntaxToken,
+        receiver: Option<(NodeId, AccessExpressionId)>,
+    ) -> Result<Callee, Failure> {
+        if !member.accessible {
+            return self.reject(Rule::InaccessibleName, token);
+        }
+        let mismatch = match (member.kind, receiver.is_some()) {
+            (TypeMemberKind::Method, false) => {
+                Some("a method must be called on a value of its owning type")
+            }
+            (TypeMemberKind::Construction, true) => {
+                Some("a construction function must be called on its owning type")
+            }
+            _ => None,
+        };
+        if let Some(message) = mismatch {
+            return self.reject_message(Rule::InvalidCall, token, message.into(), Vec::new());
+        }
+        self.require_declaration(member.code.into(), token)?;
+        Ok(Callee::direct(member.code, token, receiver))
+    }
+    fn member_callee(
+        &mut self,
+        node: NodeId,
+        base: NodeId,
+        receiver: AccessExpressionId,
+        token: SyntaxToken,
+    ) -> Result<Callee, Failure> {
+        if let Some(owner) = self
+            .ty(receiver)
+            .access()
+            .and_then(|access| self.program().record_identity(access.data()))
+            && let Some(member) = self.context.type_member(owner, self.text(token)?)
+        {
+            let selected = self.type_member_callee(member, token, Some((base, receiver)))?;
+            if self.unprepared_outcome_receiver(base)? {
+                let input = self
+                    .program()
+                    .function_contract(selected.witness)
+                    .and_then(|contract| contract.inputs.first().copied())
+                    .ok_or(Failure::InconsistentSyntax)?;
+                if input.operation != nocter_model::ValueInputOperation::Take {
+                    return self.reject_message(
+                        Rule::InvalidCall,
+                        base,
+                        "this receiver needs contextual outcome access; bind a read or edit alias to the payload first".into(),
+                        Vec::new(),
+                    );
+                }
+            }
+            return Ok(selected);
+        }
+        let value = self.component_value(node, receiver, &[token])?;
+        self.value_callee(node, value)
+    }
+
+    // An outcome on a place can select the retained payload at a scoped input boundary.
+    // Until the receiver selects that boundary before preparation, never lend a copied payload.
+    fn unprepared_outcome_receiver(&self, mut node: NodeId) -> Result<bool, Failure> {
+        let mut outcome = false;
+        loop {
+            node = self.unwrap(node)?;
+            match self.kind(node)? {
+                NodeKind::ReferenceExpression => return Ok(outcome),
+                NodeKind::OutcomeExpression | NodeKind::RecoveryExpression => outcome = true,
+                NodeKind::PostfixExpression => {
+                    let children = self.children(node);
+                    let [_, suffix] = children.as_slice() else {
+                        return Err(Failure::InconsistentSyntax);
+                    };
+                    if self.kind(*suffix)? == NodeKind::CallSuffix {
+                        return Ok(false);
+                    }
+                }
+                _ => return Ok(false),
+            }
+            node = self.first_child(node)?;
+        }
     }
     fn value_callee(&self, node: NodeId, value: AccessExpressionId) -> Result<Callee, Failure> {
         let Some(access) = self.ty(value).access() else {
@@ -237,15 +350,13 @@ impl Checker<'_, '_> {
         };
         Ok(Callee {
             witness,
-            declaration_token: None,
-            completes: self.ty(value).may_complete(),
-            environment: Some((
-                value,
-                FunctionInput {
+            source: CalleeSource::Value {
+                environment: value,
+                input: FunctionInput {
                     data: access.data(),
                     operation: witness.invocation.operation(),
                 },
-            )),
+            },
         })
     }
     pub fn call(&mut self, node: NodeId, reachable: bool) -> Result<AccessExpressionId, Failure> {
@@ -265,6 +376,22 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let selected = self.value_callee(node, value)?;
         self.selected_call(node, suffix, &selected, reachable)
+    }
+    pub(super) fn call_member_value(
+        &mut self,
+        call: NodeId,
+        arguments: NodeId,
+        selection: NodeId,
+        receiver: AccessExpressionId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let children = self.children(selection);
+        let [base, member] = children.as_slice() else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        let token = self.member_token(*member)?;
+        let selected = self.member_callee(selection, *base, receiver, token)?;
+        self.selected_call(call, arguments, &selected, reachable)
     }
     fn local_future_argument(&self, input: FunctionInput, plan: &Argument) -> bool {
         use nocter_model::ValueInputOperation;
@@ -299,20 +426,34 @@ impl Checker<'_, '_> {
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
         let arguments = self.children(suffix);
-        if arguments.len() != contract.inputs.len() {
+        let (receiver, inputs) = match selected.source {
+            CalleeSource::Declared {
+                receiver: Some(receiver),
+                ..
+            } => {
+                let (input, inputs) = contract
+                    .inputs
+                    .split_first()
+                    .ok_or(Failure::InconsistentSyntax)?;
+                (Some((receiver, *input)), inputs)
+            }
+            _ => (None, contract.inputs.as_ref()),
+        };
+        if arguments.len() != inputs.len() {
             return self.reject(Rule::InvalidCall, node);
         }
         let mut plans = Vec::new();
-        let mut continues = selected.completes;
-        let kind = if selected.environment.is_some() {
-            CallKind::Value
-        } else {
-            CallKind::Direct
-        };
-        if let Some((value, expected)) = selected.environment {
-            plans.push(self.input_plan(self.first_child(node)?, value, expected, None)?);
-        }
-        for (syntax, expected) in arguments.into_iter().zip(contract.inputs.iter().copied()) {
+        let (kind, mut continues) =
+            if let CalleeSource::Value { environment, input } = selected.source {
+                plans.push(self.input_plan(self.first_child(node)?, environment, input, None)?);
+                (CallKind::Value, self.ty(environment).may_complete())
+            } else if let Some(((syntax, value), input)) = receiver {
+                plans.push(self.prepare_input(syntax, value, input)?);
+                (CallKind::Direct, self.ty(value).may_complete())
+            } else {
+                (CallKind::Direct, true)
+            };
+        for (syntax, expected) in arguments.into_iter().zip(inputs.iter().copied()) {
             let value = self.input_expression(syntax, expected, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
@@ -373,7 +514,7 @@ impl Checker<'_, '_> {
                 arguments: plans.into_boxed_slice(),
             },
         )?;
-        if let Some(token) = selected.declaration_token {
+        if let CalleeSource::Declared { token, .. } = selected.source {
             let site = self.site(SyntaxOrigin::Token(token))?;
             self.origins.named_calls.insert(call, site);
         }

@@ -18,9 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bring adopted non-generic `impl` constructors and receiver methods through ordinary v2 source.
-Bind members to the exact nominal owner and pair complete public and implementation signatures.
-Use the existing access/call and native paths for `Self`, read, edit, and explicit retirement.
+Resolve receiver operations before checking source-derived outcome and recovery projections.
+Share the ordinary input preparation path and preserve the original payload and its evaluation order.
 
 ## Remaining Contextual Representation Qualification
 
@@ -662,6 +661,13 @@ not a language restriction derived from the current realization boundary.
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
+- [x] Admit non-generic struct construction functions and receiver methods on direct places and
+  produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
+  named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.
+- [ ] Select the receiver's operation before preparing contextual outcome and recovery projections.
+  Reuse the ordinary input boundary so a method can read or edit the original payload once,
+  including through field/index suffixes. Qualify fallback access, a conflicting access and
+  retained source retirement separately from calls on already produced values.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

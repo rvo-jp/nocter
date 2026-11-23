@@ -190,6 +190,109 @@ fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs() {
+    let tree = TempTree::new("type-members");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/type-members"),
+        &package,
+    );
+    let source = package.join("main.nct");
+    let buffer = package.join("buffer");
+    let contract = fs::read_to_string(buffer.join("index.nct")).unwrap();
+    let implementation = fs::read_to_string(buffer.join("body.nct")).unwrap();
+    let program = fs::read_to_string(&source).unwrap();
+    let execute =
+        |arguments| execute_invocation(invocation(arguments, &package, &home, "arm64-darwin"));
+    let executed = execute(vec!["run", "--offline"]).unwrap_or_else(|error| {
+        if let InvocationErrorKind::Run(run) = error.kind()
+            && let nocter_command::RunCommandExecutionError::Analysis(failure) = run.as_ref()
+            && let nocter_command::CommandAnalysisError::Compilation(compilation) = failure.error()
+            && compilation.primary().source_diagnostics().is_empty()
+        {
+            panic!("{:?}", compilation.primary());
+        }
+        panic!(
+            "{}",
+            error
+                .render_source_diagnostics()
+                .unwrap()
+                .unwrap_or_else(|| error.to_string())
+        )
+    });
+    let InvocationOutcome::Run(executed) = executed else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let expect_rejection = |code| {
+        let failure = execute(vec!["check", "--offline", "--format", "json"]).unwrap_err();
+        assert_eq!(failure.exit_code(), 1);
+        let report = failure.render_json_diagnostics().unwrap().unwrap();
+        assert!(report.contains(&format!("\"code\":\"{code}\"")), "{report}");
+    };
+    for (old, new, code) in [
+        ("value^.finish()", "value.finish()", "E0371"),
+        (
+            "value^.finish()",
+            "let _ = value^.finish()\nvalue.count()",
+            "E0378",
+        ),
+        ("var value", "let value", "E0387"),
+        ("value^.finish()", "buffer.Buffer.count()", "E0390"),
+        ("value^.finish()", "value.create(0).count()", "E0390"),
+    ] {
+        fs::write(&source, program.replace(old, new)).unwrap();
+        expect_rejection(code);
+    }
+    let projected_update = program
+        .replace(
+            "    method take self.count",
+            "    method edit self.increase(): void { self.value = self.value + 1 }\n    method take self.count",
+        )
+        .replace(
+            "    value^.finish()",
+            "    var retained: Buffer? = local\n    (retained!).increase()\n    value^.finish()",
+        );
+    fs::write(&source, projected_update).unwrap();
+    expect_rejection("E0390");
+    fs::write(&source, &program).unwrap();
+    fs::write(
+        buffer.join("body.nct"),
+        implementation.replace("const method self.count", "const method edit self.count"),
+    )
+    .unwrap();
+    expect_rejection("E0251");
+    for (path, text) in [
+        ("index.nct", contract.as_str()),
+        ("body.nct", implementation.as_str()),
+    ] {
+        fs::write(buffer.join(path), text.replace(": Self", ": i32")).unwrap();
+    }
+    expect_rejection("E0370");
+    fs::write(buffer.join("body.nct"), &implementation).unwrap();
+    fs::write(
+        buffer.join("index.nct"),
+        contract.replace("struct Buffer", "#visibility: \"/\"\nstruct Buffer"),
+    )
+    .unwrap();
+    let checked = execute(vec!["check", "--offline"]);
+    assert!(matches!(checked, Ok(InvocationOutcome::Check(_))));
+    fs::write(
+        buffer.join("index.nct"),
+        contract.replace(
+            "method take self.finish",
+            "#visibility: \"./\"\nmethod take self.finish",
+        ),
+    )
+    .unwrap();
+    expect_rejection("E0412");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_test_runs_only_authored_cases_in_source_order() {
     let tree = TempTree::new("installed-value-tests");
     let home = tree.value_access_installation();

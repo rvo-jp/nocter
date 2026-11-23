@@ -16,6 +16,8 @@ use std::{
 };
 
 mod catalog;
+mod members;
+pub use members::{TypeMember, TypeMemberKind};
 mod normalization;
 mod primitives;
 mod record_views;
@@ -99,6 +101,8 @@ impl ModuleContext<'_> {
 pub struct ModuleSourceBinding<'syntax> {
     paired: PairedModuleSources<'syntax>,
     scopes: Box<[ScopeId]>,
+    declaration_scopes: Box<[ScopeId]>,
+    members: members::Members,
     declarations: Box<[Option<DeclarationId>]>,
     fields: Box<[Option<AccessFieldId>]>,
     catalog: catalog::Catalog,
@@ -152,23 +156,9 @@ impl<'syntax> PairedModuleSources<'syntax> {
         let inventory = &self.inventory;
         let parsed = collect_headers(&self)?;
         let mut reservations = Reservations::with_symbols(inventory.surface.symbol_handle());
-        let scopes: Box<[_]> = inventory
-            .source_entries()
-            .map(|(source, _)| {
-                if source.index() == 0 {
-                    ScopeId::ROOT
-                } else {
-                    reservations.new_scope()
-                }
-            })
-            .collect();
-        for (source, physical) in inventory.source_entries() {
-            reservations
-                .set_scope_module(scopes[source.index()], physical.module().clone())
-                .map_err(|_| integrity())?;
-        }
+        let scopes = source_scopes(inventory, &mut reservations)?;
         let mut declarations = vec![None; inventory.declarations().len()];
-        reserve_canonical(
+        let members = reserve_canonical(
             &self,
             &parsed,
             &scopes,
@@ -178,10 +168,30 @@ impl<'syntax> PairedModuleSources<'syntax> {
         for (id, _) in inventory.declaration_entries() {
             declarations[id.index()] = declarations[self.contracts.representative(id).index()];
         }
+        let declaration_scopes: Box<[_]> = inventory
+            .declaration_entries()
+            .map(|(raw, declaration)| {
+                members
+                    .get(&raw)
+                    .map_or(scopes[declaration.source().index()], |member| member.lookup)
+            })
+            .collect();
         bind_sources(&self, &scopes, &declarations, &mut reservations)?;
+        let body_scopes = parsed
+            .iter()
+            .filter_map(|(raw, header)| {
+                if let ParsedHeader::Code(header) = header
+                    && let Some(member) = members.get(raw)
+                {
+                    return header.body.map(|body| (body, member.lookup));
+                }
+                None
+            })
+            .collect();
         let (exports, lexical) = super::module_imports::ModuleExports::bind(
             &self,
             &scopes,
+            &body_scopes,
             &declarations,
             &mut reservations,
         )?;
@@ -189,7 +199,7 @@ impl<'syntax> PairedModuleSources<'syntax> {
         let catalog = catalog::Catalog::reserve(
             &self,
             parsed,
-            &scopes,
+            &declaration_scopes,
             &declarations,
             &field_positions,
             &mut reservations,
@@ -197,6 +207,8 @@ impl<'syntax> PairedModuleSources<'syntax> {
         let definitions = reservations.finish().map_err(|violations| {
             project_namespace(&self, &catalog.parsed, &declarations, violations)
         })?;
+        let members = members::Members::index(&self, members)?;
+        members.constrain_audiences(&mut self)?;
         let fields = field_positions
             .iter()
             .map(|position| {
@@ -215,6 +227,8 @@ impl<'syntax> PairedModuleSources<'syntax> {
         let binding = Arc::new(ModuleSourceBinding {
             paired: self,
             scopes,
+            declaration_scopes,
+            members,
             declarations: declarations.into(),
             fields,
             catalog,
@@ -228,6 +242,25 @@ impl<'syntax> PairedModuleSources<'syntax> {
             primitives,
         })
     }
+}
+fn source_scopes(
+    inventory: &super::ModuleSources<'_>,
+    reservations: &mut Reservations,
+) -> Result<Box<[ScopeId]>, ModuleSourcesFailure> {
+    inventory
+        .source_entries()
+        .map(|(source, physical)| {
+            let scope = if source.index() == 0 {
+                ScopeId::ROOT
+            } else {
+                reservations.new_scope()
+            };
+            reservations
+                .set_scope_module(scope, physical.module().clone())
+                .map_err(|_| integrity())?;
+            Ok(scope)
+        })
+        .collect()
 }
 impl<'syntax> ScopedModuleSources<'syntax> {
     #[must_use]
@@ -275,7 +308,11 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     /// The physical source whose scope applies to the executable root.
     #[must_use]
     pub fn source_for_code(&self, code: AccessCodeId) -> Option<SurfaceSourceId> {
-        self.binding.catalog.owners.get(&code).copied()
+        self.binding
+            .catalog
+            .owners
+            .get(&code)
+            .map(|owner| owner.source)
     }
     /// Retain source pairing without borrowing the mutable header writer.
     #[must_use]
@@ -315,6 +352,7 @@ impl<'syntax> ScopedModuleSources<'syntax> {
                 &self.binding.declarations,
                 &self.binding.fields,
                 &program,
+                &self.binding.catalog.parsed,
             )
             .map_err(ModuleSourcesFailure::Access)?;
         Ok(ModuleContext {
@@ -334,6 +372,23 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     }
 }
 impl ModuleSourceBinding<'_> {
+    pub(super) fn type_member(
+        &self,
+        caller: nocter_source::SourceId,
+        owner: NominalTypeId,
+        name: Symbol,
+    ) -> Option<TypeMember> {
+        self.members.lookup(self, caller, owner, name)
+    }
+
+    fn physical_source(&self, source: nocter_source::SourceId) -> Option<SurfaceSourceId> {
+        self.paired
+            .inventory
+            .source_entries()
+            .find(|(_, physical)| physical.syntax().source() == source)
+            .map(|(id, _)| id)
+    }
+
     /// Authored top-level root contracts only. This enumerates promises, not ready API evidence.
     pub fn exports(
         &self,
@@ -343,7 +398,7 @@ impl ModuleSourceBinding<'_> {
             .inventory
             .declaration_entries()
             .filter_map(|(raw, declaration)| {
-                if declaration.owner().is_some() {
+                if !super::module_sources::has_source_name(declaration) {
                     return None;
                 }
                 Some((
@@ -386,7 +441,7 @@ impl ModuleSourceBinding<'_> {
             let scope = super::definitions::HeaderScope {
                 syntax: syntax(&self.paired, source)
                     .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
-                lookup: self.scopes[source.index()],
+                lookup: self.declaration_scopes[raw.index()],
             };
             Ok((id, header, scope))
         })
@@ -395,16 +450,16 @@ impl ModuleSourceBinding<'_> {
         &self,
         code: AccessCodeId,
     ) -> Result<super::definitions::HeaderScope<'_>, super::SourceMismatch> {
-        let source = self
+        let owner = self
             .catalog
             .owners
             .get(&code)
             .copied()
             .ok_or(super::SourceMismatch::UnknownSource)?;
         Ok(super::definitions::HeaderScope {
-            syntax: syntax(&self.paired, source)
+            syntax: syntax(&self.paired, owner.source)
                 .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
-            lookup: self.scopes[source.index()],
+            lookup: owner.lookup,
         })
     }
     pub(super) fn syntax_for_origin(
@@ -416,11 +471,7 @@ impl ModuleSourceBinding<'_> {
             nocter_syntax::SyntaxOrigin::Token(token) => token.source(),
         };
         let physical = self
-            .paired
-            .inventory
-            .source_entries()
-            .find(|(_, entry)| entry.syntax().source() == source)
-            .map(|(id, _)| id)
+            .physical_source(source)
             .ok_or(super::SourceMismatch::UnknownSource)?;
         syntax(&self.paired, physical).map_err(|_| super::SourceMismatch::InconsistentSyntax)
     }
@@ -602,13 +653,23 @@ fn collect_headers(
         .declaration_entries()
         .filter_map(|(id, declaration)| {
             let header = match declaration.kind() {
-                SurfaceDeclarationKind::Function | SurfaceDeclarationKind::PrimitiveFunction => {
+                SurfaceDeclarationKind::Function
+                | SurfaceDeclarationKind::PrimitiveFunction
+                | SurfaceDeclarationKind::ConstructionFunction => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         headers::function(s, declaration.node())
                             .map(ParsedHeader::Code)
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
+                SurfaceDeclarationKind::InherentMethod => syntax(paired, declaration.source())
+                    .and_then(|s| {
+                        let owner = declaration.owner().ok_or_else(integrity)?;
+                        let physical = paired.inventory.declarations()[owner.index()];
+                        members::method_header(s, physical.node(), declaration.node())
+                            .map(ParsedHeader::Code)
+                            .map_err(ModuleSourcesFailure::Access)
+                    }),
                 SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         headers::initializer(s, declaration.node())
@@ -635,7 +696,9 @@ fn collect_headers(
                         })
                     })
                 }
-                SurfaceDeclarationKind::Field => return None,
+                SurfaceDeclarationKind::Field | SurfaceDeclarationKind::TypeBehavior => {
+                    return None;
+                }
                 _ => return Some(Err(integrity())),
             };
             Some(header.map(|header| (id, header)))
@@ -648,7 +711,7 @@ fn reserve_canonical(
     scopes: &[ScopeId],
     reservations: &mut Reservations,
     declarations: &mut [Option<DeclarationId>],
-) -> Result<(), ModuleSourcesFailure> {
+) -> Result<BTreeMap<SurfaceDeclarationId, members::MemberOccurrence>, ModuleSourcesFailure> {
     let mut ordered = Vec::new();
     for (id, header) in parsed {
         if paired.contracts.representative(*id) != *id {
@@ -669,31 +732,39 @@ fn reserve_canonical(
         ));
     }
     ordered.sort_unstable();
+    let first_code = ordered.partition_point(|(code, ..)| !code);
+    for &(_, _, name, id) in &ordered[..first_code] {
+        let definition = paired.contracts.representation(id).unwrap_or(id);
+        let physical = paired.inventory.declarations()[definition.index()];
+        let Some(ParsedHeader::Record(header)) = parsed.get(&definition) else {
+            return Err(integrity());
+        };
+        let record = reservations
+            .reserve_record_in(
+                scopes[physical.source().index()],
+                name.ok_or_else(integrity)?,
+                header.fields.len(),
+            )
+            .map_err(|_| integrity())?;
+        declarations[id.index()] = Some(DeclarationId::Record(record));
+    }
+    let members = members::occurrences(paired, declarations, scopes, reservations)?;
     let mut test_names = BTreeMap::new();
-    for (_, _, name, id) in ordered {
+    for &(_, _, name, id) in &ordered[first_code..] {
         let declaration = paired.inventory.declarations()[id.index()];
         let semantic = match parsed.get(&id).ok_or_else(integrity)? {
-            ParsedHeader::Code(header) => reservations
-                .reserve_in(
-                    scopes[declaration.source().index()],
-                    name.ok_or_else(integrity)?,
-                    header.parameters.len(),
-                )
-                .map(DeclarationId::Code),
-            ParsedHeader::Record(_) => {
-                let definition = paired.contracts.representation(id).unwrap_or(id);
-                let physical = paired.inventory.declarations()[definition.index()];
-                let Some(ParsedHeader::Record(header)) = parsed.get(&definition) else {
-                    return Err(integrity());
-                };
-                reservations
-                    .reserve_record_in(
-                        scopes[physical.source().index()],
-                        name.ok_or_else(integrity)?,
-                        header.fields.len(),
-                    )
-                    .map(DeclarationId::Record)
+            ParsedHeader::Code(header) => {
+                let name = name.ok_or_else(integrity)?;
+                let count = header.parameters.len();
+                match members.get(&id) {
+                    Some(member) => reservations.reserve_type_member(member.lookup, name, count),
+                    None => {
+                        reservations.reserve_in(scopes[declaration.source().index()], name, count)
+                    }
+                }
+                .map(DeclarationId::Code)
             }
+            ParsedHeader::Record(_) => return Err(integrity()),
             ParsedHeader::Test { name, .. } => {
                 let module = paired.inventory.sources()[declaration.source().index()].module();
                 let spelling = symbol(paired, declaration.source(), *name)?;
@@ -719,7 +790,7 @@ fn reserve_canonical(
         .map_err(|_| integrity())?;
         declarations[id.index()] = Some(semantic);
     }
-    Ok(())
+    Ok(members)
 }
 fn bind_sources(
     paired: &PairedModuleSources<'_>,

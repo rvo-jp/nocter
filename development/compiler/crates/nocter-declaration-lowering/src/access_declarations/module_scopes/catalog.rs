@@ -12,13 +12,18 @@ use std::collections::BTreeMap;
 pub(super) struct Catalog {
     pub parsed: BTreeMap<SurfaceDeclarationId, ParsedHeader>,
     pub sources: Sources,
-    pub owners: BTreeMap<AccessCodeId, SurfaceSourceId>,
+    pub owners: BTreeMap<AccessCodeId, CodeOwner>,
+}
+#[derive(Clone, Copy, Debug)]
+pub(super) struct CodeOwner {
+    pub source: SurfaceSourceId,
+    pub lookup: ScopeId,
 }
 impl Catalog {
     pub fn reserve(
         paired: &PairedModuleSources<'_>,
         parsed: BTreeMap<SurfaceDeclarationId, ParsedHeader>,
-        scopes: &[ScopeId],
+        declaration_scopes: &[ScopeId],
         declarations: &[Option<DeclarationId>],
         fields: &[Option<FieldPosition>],
         reservations: &mut Reservations,
@@ -30,12 +35,16 @@ impl Catalog {
         // source and physical scope, but never acquire a fabricated body.
         for (raw, header) in &parsed {
             let physical = paired.inventory.declarations()[raw.index()];
+            let owner = CodeOwner {
+                source: physical.source(),
+                lookup: declaration_scopes[raw.index()],
+            };
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             match (semantic, header) {
                 (DeclarationId::Code(code), header) => {
                     if let Some(source) = header.executable_source()
                         && (codes.insert(code, source).is_some()
-                            || owners.insert(code, physical.source()).is_some())
+                            || owners.insert(code, owner).is_some())
                     {
                         return Err(integrity());
                     }
@@ -57,6 +66,10 @@ impl Catalog {
         }
         for (raw, header) in &parsed {
             let physical = paired.inventory.declarations()[raw.index()];
+            let owner = CodeOwner {
+                source: physical.source(),
+                lookup: declaration_scopes[raw.index()],
+            };
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             let mut register = |position,
                                 lengths: Vec<nocter_syntax::NodeId>|
@@ -64,7 +77,7 @@ impl Catalog {
                 for body in lengths {
                     let id = reservations
                         .reserve_type_expression_in(
-                            scopes[physical.source().index()],
+                            owner.lookup,
                             TypeExpressionSource {
                                 declaration: semantic,
                                 position,
@@ -72,7 +85,7 @@ impl Catalog {
                         )
                         .map_err(|_| integrity())?;
                     codes.insert(id, CodeSource::expression(body));
-                    owners.insert(id, physical.source());
+                    owners.insert(id, owner);
                 }
                 Ok(())
             };

@@ -822,7 +822,9 @@ fn reserve_entity(
         SurfaceDeclarationKind::OpaqueType => Some(ReservedEntity::OpaqueType(
             program.declarations_mut().reserve_opaque_type(),
         )),
-        SurfaceDeclarationKind::Field | SurfaceDeclarationKind::PrimitiveType => None,
+        SurfaceDeclarationKind::Field
+        | SurfaceDeclarationKind::PrimitiveType
+        | SurfaceDeclarationKind::TypeBehavior => None,
     }
 }
 
@@ -882,7 +884,8 @@ fn validate_owner(
         | SurfaceDeclarationKind::Instance
         | SurfaceDeclarationKind::Drop
         | SurfaceDeclarationKind::Test
-        | SurfaceDeclarationKind::PrimitiveType => actual.is_none(),
+        | SurfaceDeclarationKind::PrimitiveType
+        | SurfaceDeclarationKind::TypeBehavior => actual.is_none(),
     };
     if valid {
         Ok(())

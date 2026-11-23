@@ -187,10 +187,7 @@ impl Program {
                 definition,
                 arguments,
             } if arguments.as_slice().is_empty()
-                && self
-                    .namespace
-                    .values()
-                    .any(|&id| id == DeclarationId::Record(*definition)) =>
+                && self.records.records.is_reserved(*definition) =>
             {
                 Some(*definition)
             }

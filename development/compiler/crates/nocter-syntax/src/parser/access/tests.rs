@@ -61,6 +61,70 @@ fn test_declaration_uses_the_value_access_block_and_fixed_head() {
 }
 
 #[test]
+fn type_behavior_preserves_factory_and_receiver_forms() {
+    use crate::{declaration_body, declaration_name_token, direct_node};
+
+    let source = concat!(
+        "impl Buffer {\n",
+        "    func create(capacity: usize): Self\n",
+        "    method self.len(): usize\n",
+        "    method edit self.append(value: u8): void\n",
+        "    method take self.finish(): Self { self^ }\n",
+        "}\n",
+    );
+    let parsed = tree(source, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let (behavior, _) = parsed
+        .nodes()
+        .find(|(_, node)| node.kind() == NodeKind::TypeBehaviorDeclaration)
+        .unwrap();
+    assert!(direct_node(&parsed, behavior, NodeKind::DeclarationTypePattern).is_some());
+    let members = parsed
+        .nodes()
+        .filter(|(_, node)| {
+            matches!(
+                node.kind(),
+                NodeKind::ConstructionFunction | NodeKind::InherentMethod
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(members.len(), 4);
+    for ((member, node), (name, mode)) in members.into_iter().zip([
+        ("create", None),
+        ("len", None),
+        ("append", Some("edit")),
+        ("finish", Some("take")),
+    ]) {
+        let spelling = |token: crate::SyntaxToken| {
+            let range = token.range();
+            &source[range.start().get() as usize..range.end().get() as usize]
+        };
+        assert_eq!(
+            spelling(declaration_name_token(&parsed, member).unwrap()),
+            name
+        );
+        let receiver = direct_node(&parsed, member, NodeKind::Receiver);
+        assert_eq!(receiver.is_some(), node.kind() == NodeKind::InherentMethod);
+        let operation =
+            receiver.and_then(|receiver| direct_node(&parsed, receiver, NodeKind::InputOperation));
+        let mode_token = operation.and_then(|node| crate::first_direct_token(&parsed, node));
+        assert_eq!(mode_token.map(spelling), mode);
+        assert_eq!(
+            declaration_body(&parsed, member).is_some(),
+            name == "finish"
+        );
+    }
+    assert!(
+        tree(
+            "impl Buffer { method &self.read(): u8 }\n",
+            ParseGoal::V2CoreUnit
+        )
+        .has_errors()
+    );
+    assert!(tree("method self.read(): u8\n", ParseGoal::V2CoreUnit).has_errors());
+}
+
+#[test]
 fn async_source_preserves_await_outcome_and_future_type_boundaries() {
     use crate::{Punctuation, TokenKind, direct_node, direct_token_iter};
     let source = tree(
