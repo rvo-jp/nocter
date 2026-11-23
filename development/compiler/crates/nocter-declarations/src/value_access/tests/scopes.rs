@@ -21,15 +21,15 @@ fn scope_local_names_and_shared_bindings_preserve_one_identity_and_type_authorit
     let mut definitions = names.finish().unwrap();
     assert_eq!(
         definitions.resolve_data_in(ScopeId::ROOT, data),
-        Ok(DataReference::Record(a_data))
+        Ok(DataReference::Nominal(a_data))
     );
     assert_eq!(
         definitions.resolve_data_in(other, data),
-        Ok(DataReference::Record(b_data))
+        Ok(DataReference::Nominal(b_data))
     );
     assert_eq!(
         definitions.resolve_data_in(ScopeId::ROOT, other_name),
-        Ok(DataReference::Record(b_data))
+        Ok(DataReference::Nominal(b_data))
     );
     assert_eq!(
         definitions.resolve_data_in(empty, data),
@@ -41,7 +41,7 @@ fn scope_local_names_and_shared_bindings_preserve_one_identity_and_type_authorit
                 code,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 Vec::new(),
-                DataReference::Record(data),
+                DataReference::Nominal(data),
             )
             .unwrap();
         definitions.define_record(data, true, Vec::new()).unwrap();
@@ -81,7 +81,7 @@ fn scope_local_names_and_shared_bindings_preserve_one_identity_and_type_authorit
     assert_eq!(complete.type_named_in(empty, "Data"), None);
     assert_eq!(complete.codes().get(a).unwrap().result(), first);
     assert_eq!(complete.codes().get(b).unwrap().result(), second);
-    assert_eq!(complete.record_identity(second), Some(b_data));
+    assert_eq!(complete.nominal_identity(second), Some(b_data));
 }
 
 #[test]
@@ -114,7 +114,7 @@ fn bindings_into_one_scope_reject_distinct_identities_before_missing_type_defini
             errors[0].rule,
             match first {
                 DeclarationId::Code(first) => DeclarationRule::DuplicateValue { first },
-                DeclarationId::Record(first) => DeclarationRule::DuplicateRecord { first },
+                DeclarationId::Nominal(first) => DeclarationRule::DuplicateRecord { first },
                 first @ DeclarationId::Alias(_) => DeclarationRule::DuplicateTypeName { first },
             }
         );
@@ -487,7 +487,7 @@ fn namespace_paths_preserve_the_original_caller_and_never_create_a_value_or_type
         Err(QualifiedNameError::UnknownNamespace { position: 0 })
     );
     assert!(!program.header_ready(data));
-    assert_eq!(program.records().len(), 0);
+    assert_eq!(program.nominals().len(), 0);
 }
 
 #[test]

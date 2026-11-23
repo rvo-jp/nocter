@@ -532,7 +532,7 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
     let mut pending = vec![data];
     let mut seen = std::collections::BTreeSet::new();
     while let Some(data) = pending.pop() {
-        if !seen.insert(data) || program.record_identity(data).is_some() {
+        if !seen.insert(data) || program.nominal_identity(data).is_some() {
             continue;
         }
         match program.data_schema(data) {
@@ -560,7 +560,7 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
 // A named signature can retain a reserved nominal identity without demanding its payload.
 // Actual parameter values, invocation and ABI geometry require their independent readiness.
 fn signature_data(program: &Program, data: TypeId) -> bool {
-    program.record_identity(data).is_some() || ordinary_data(program, data)
+    program.nominal_identity(data).is_some() || ordinary_data(program, data)
 }
 
 fn ordinary_data(program: &Program, data: TypeId) -> bool {

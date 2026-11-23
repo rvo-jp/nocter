@@ -101,7 +101,7 @@ struct Shape {
 fn children(program: &Program, data: TypeId) -> Option<Vec<TypeId>> {
     // Header records cannot contain lexical input formals. Identity alone suffices here;
     // a zero array must not require its unstored nominal element's payload header.
-    if program.record_identity(data).is_some() {
+    if program.nominal_identity(data).is_some() {
         return Some(vec![]);
     }
     Some(match program.data_schema(data)? {

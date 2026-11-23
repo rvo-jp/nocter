@@ -1,7 +1,7 @@
 //! One owner for independent type/value names, closed before type normalization.
 use super::{
     BehaviorOwner, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
-    Reservation, records,
+    Reservation, nominals,
 };
 use nocter_model::{
     AccessCodeId, ArenaBuilder, BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable,
@@ -210,7 +210,7 @@ impl Names {
 pub(super) fn close(
     symbols: &SymbolTable,
     codes: &ArenaBuilder<AccessCodeId, Reservation>,
-    records: &records::Builder,
+    nominals: &nominals::Builder,
     aliases: &ArenaBuilder<TypeAliasId, super::aliases::Slot>,
     scopes: Scopes,
     violations: &mut Vec<DeclarationViolation>,
@@ -231,12 +231,12 @@ pub(super) fn close(
                 )
             })
         })
-        .chain(records.names().map(|(id, scope, name)| {
+        .chain(nominals.names().map(|(id, scope, name)| {
             (
                 scope,
                 name,
                 Binding {
-                    declaration: DeclarationId::Record(id),
+                    declaration: DeclarationId::Nominal(id),
                     canonical: true,
                     audience: None,
                 },
@@ -258,7 +258,7 @@ pub(super) fn close(
         let declaration = binding.declaration;
         let kind = match declaration {
             DeclarationId::Code(_) => Namespace::Value,
-            DeclarationId::Record(_) | DeclarationId::Alias(_) => Namespace::Type,
+            DeclarationId::Nominal(_) | DeclarationId::Alias(_) => Namespace::Type,
         };
         let rule = match symbols.spelling(name) {
             None => Some(DeclarationRule::UnknownSymbol),
@@ -284,10 +284,10 @@ pub(super) fn close(
                         (DeclarationId::Code(_), DeclarationId::Code(first)) => {
                             DeclarationRule::DuplicateValue { first }
                         }
-                        (DeclarationId::Record(_), DeclarationId::Record(first)) => {
+                        (DeclarationId::Nominal(_), DeclarationId::Nominal(first)) => {
                             DeclarationRule::DuplicateRecord { first }
                         }
-                        (DeclarationId::Alias(_) | DeclarationId::Record(_), first) => {
+                        (DeclarationId::Alias(_) | DeclarationId::Nominal(_), first) => {
                             DeclarationRule::DuplicateTypeName { first }
                         }
                         _ => unreachable!("namespace key matches its declaration role"),

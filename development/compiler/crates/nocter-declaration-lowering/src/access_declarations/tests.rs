@@ -211,7 +211,7 @@ fn field_and_formal_input_reservations_are_independent_of_source_definition_orde
     let b = Query::prepare(bound(&sources_b, &tree_b)).unwrap();
     assert_eq!(a.program().codes(), b.program().codes());
     assert_eq!(a.program().parameters(), b.program().parameters());
-    assert_eq!(a.program().records(), b.program().records());
+    assert_eq!(a.program().nominals(), b.program().nominals());
     assert_eq!(a.program().fields(), b.program().fields());
     let program = a.program();
     let apply = program

@@ -24,7 +24,7 @@ fn nominal_fields_and_tuple_positions_cannot_substitute_for_each_other() {
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    let record = program.records().get(record).unwrap();
+    let record = program.record(record).unwrap();
     let key = ValueField::Record(record.fields()[0]);
     let tuple = program.component(record.data(), key).unwrap().data;
     assert!(
@@ -55,14 +55,14 @@ fn nominal_containment_and_copy_validation_follow_leaves_inside_tuples() {
                 copy,
                 [FieldDefinition {
                     name: symbols.get("value").unwrap(),
-                    data: pair(DataReference::Record(item), BuiltinType::I32.into()),
+                    data: pair(DataReference::Nominal(item), BuiltinType::I32.into()),
                 }],
             )
             .unwrap();
         let fields = if recursive {
             vec![FieldDefinition {
                 name: symbols.get("value").unwrap(),
-                data: pair(BuiltinType::Bool.into(), DataReference::Record(owner)),
+                data: pair(BuiltinType::Bool.into(), DataReference::Nominal(owner)),
             }]
         } else {
             vec![]

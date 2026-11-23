@@ -426,7 +426,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         let code = |request| match request {
             Request::Body(id) | Request::Value(id) => Some(id.source_owner()),
             Request::Header(DeclarationId::Code(id)) => Some(id),
-            Request::Header(DeclarationId::Record(_) | DeclarationId::Alias(_)) => None,
+            Request::Header(DeclarationId::Nominal(_) | DeclarationId::Alias(_)) => None,
         };
         let root = code(*path.first().ok_or(INVALID)?)
             .or_else(|| {

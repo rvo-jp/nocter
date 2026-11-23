@@ -28,10 +28,9 @@ pub(super) fn steps(query: &flow::Query) -> Vec<Step> {
 pub(super) fn record_field(unit: &Unit, record: &str, name: &str) -> nocter_model::ValueField {
     let symbols = unit.program().symbols();
     unit.program()
-        .records()
-        .get(
+        .record(
             unit.program()
-                .resolve_record(symbols.get(record).unwrap())
+                .resolve_nominal(symbols.get(record).unwrap())
                 .unwrap(),
         )
         .unwrap()

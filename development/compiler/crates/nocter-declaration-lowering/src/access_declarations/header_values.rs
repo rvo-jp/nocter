@@ -27,7 +27,7 @@ impl Context<'_> {
                     (DeclarationId::Code(id), ParsedHeader::Code(header)) => {
                         self.verify_code_header(id, header.clone(), scope, &mut values)?;
                     }
-                    (DeclarationId::Record(id), ParsedHeader::Record(header)) => {
+                    (DeclarationId::Nominal(id), ParsedHeader::Record(header)) => {
                         self.verify_record_header(id, header, scope, &mut values)?;
                     }
                     (DeclarationId::Alias(id), ParsedHeader::Alias(header)) => {
@@ -76,7 +76,7 @@ impl Context<'_> {
         }
         for header in records {
             let id = name(header.source.name)
-                .and_then(|name| self.program().resolve_record_in(scope.lookup, name))
+                .and_then(|name| self.program().resolve_nominal_in(scope.lookup, name))
                 .ok_or(SourceMismatch::InconsistentSyntax)?;
             self.verify_record_header(id, &header, scope, &mut values)?;
         }
@@ -122,8 +122,7 @@ impl Context<'_> {
         )?;
         let record = self
             .program()
-            .records()
-            .get(id)
+            .record(id)
             .ok_or(SourceMismatch::InconsistentSyntax)?;
         if record.copyable() != actual.copy {
             return Err(SourceMismatch::InconsistentSyntax);

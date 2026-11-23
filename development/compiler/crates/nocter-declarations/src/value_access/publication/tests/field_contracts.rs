@@ -44,7 +44,7 @@ fn field_contracts_keep_equal_signatures_distinct_and_nested_contracts_canonical
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    let fields = program.records().get(record).unwrap().fields();
+    let fields = program.record(record).unwrap().fields();
     let keys = fields
         .iter()
         .map(|&id| witness(&program, program.fields().get(id).unwrap().data()))
@@ -79,7 +79,7 @@ fn field_contracts_keep_equal_signatures_distinct_and_nested_contracts_canonical
             ordinal: 1
         })
     );
-    let data = program.records().get(record).unwrap().data();
+    let data = program.record(record).unwrap().data();
     assert_eq!(program.data_copyable(data), Some(false));
     assert!(program.instantiate_closed_data(data).is_err());
     assert!(program.parameters().is_empty());
@@ -96,18 +96,18 @@ fn callable_signatures_do_not_create_record_payload_cycles() {
             false,
             [FieldDefinition {
                 name: symbols.get("next").unwrap(),
-                data: callback(DataReference::Record(record)),
+                data: callback(DataReference::Nominal(record)),
             }],
         )
         .unwrap();
     let mut publication = builder.into_publication();
     assert_eq!(publication.advance(record).unwrap(), HeaderStep::Ready);
     let program = publication.snapshot();
-    let field = program.records().get(record).unwrap().fields()[0];
+    let field = program.record(record).unwrap().fields()[0];
     let selected = witness(&program, program.fields().get(field).unwrap().data());
     assert_eq!(
         program.function_contract(selected).unwrap().result,
-        program.records().get(record).unwrap().data()
+        program.record(record).unwrap().data()
     );
     assert!(program.concrete_witness(selected).is_err());
 }
@@ -136,20 +136,13 @@ fn function_fields_reject_copy_before_publishing_any_field_type_or_contract() {
         let before = publication.snapshot();
         if zero {
             publication.publish(record).unwrap();
-            assert!(
-                publication
-                    .snapshot()
-                    .records()
-                    .get(record)
-                    .unwrap()
-                    .copyable()
-            );
+            assert!(publication.snapshot().record(record).unwrap().copyable());
         } else {
             assert!(
                 matches!(publication.publish(record), Err(HeaderFailure::Rejected(rules)) if rules.iter().any(|rule| rule.rule == DeclarationRule::NonCopyField))
             );
             let after = publication.snapshot();
-            assert!(after.records().get(record).is_none());
+            assert!(after.record(record).is_none());
             assert!(after.fields().is_empty());
             assert!(after.callable_contracts.is_empty());
             assert_eq!(
@@ -205,7 +198,7 @@ fn field_contracts_survive_body_replay_without_overriding_the_field_owner() {
         .unwrap()
         .finish();
     assert!(canonical.preserves_headers(&headers));
-    let field = headers.records().get(record).unwrap().fields()[0];
+    let field = headers.record(record).unwrap().fields()[0];
     let selected = witness(&headers, headers.fields().get(field).unwrap().data());
     assert_eq!(
         canonical.function_contract(selected),

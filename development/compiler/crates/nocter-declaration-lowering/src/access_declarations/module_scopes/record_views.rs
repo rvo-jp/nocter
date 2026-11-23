@@ -23,7 +23,7 @@ impl ModuleSourceBinding<'_> {
             .contracts
             .structural_grants()
             .any(|(raw, grant)| {
-                self.declarations[raw.index()] == Some(DeclarationId::Record(record))
+                self.declarations[raw.index()] == Some(DeclarationId::Nominal(record))
                     && inventory
                         .audience(grant)
                         .is_some_and(|audience| audience.contains(caller))
@@ -48,7 +48,7 @@ impl ModuleSourceBinding<'_> {
                 && declaration
                     .owner()
                     .and_then(|owner| self.declarations[owner.index()])
-                    == Some(DeclarationId::Record(record))
+                    == Some(DeclarationId::Nominal(record))
                 && inventory
                     .audience(raw)
                     .is_some_and(|audience| audience.contains(caller))

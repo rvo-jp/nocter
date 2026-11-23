@@ -58,7 +58,7 @@ fn wrong_slot_counts_leave_both_definition_kinds_retryable_without_resizing() {
     );
     let program = builder.finish().unwrap();
     assert_eq!(program.codes().get(run).unwrap().parameters(), inputs);
-    assert_eq!(program.records().get(record).unwrap().fields(), fields);
+    assert_eq!(program.record(record).unwrap().fields(), fields);
     assert_eq!(
         program.data_kind(program.parameters().get(inputs[0]).unwrap().data()),
         Some(BuiltinType::I32)
@@ -79,7 +79,7 @@ fn untyped_slot_reservations_do_not_publish_incomplete_declarations() {
     assert_eq!(builder.field_ids(record).unwrap().len(), 3);
     assert_eq!(builder.parameter_ids(run).unwrap().len(), 2);
     let mut headers = builder.into_publication();
-    for id in [DeclarationId::Code(run), DeclarationId::Record(record)] {
+    for id in [DeclarationId::Code(run), DeclarationId::Nominal(record)] {
         assert_eq!(headers.is_defined(id), Some(false));
         assert_eq!(
             headers.publish(id),
@@ -119,7 +119,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
             kind,
             [ParameterDefinition {
                 binding: crate::value_access::ParameterBinding::Name(symbol("item")),
-                data: DataReference::Record(record).into(),
+                data: DataReference::Nominal(record).into(),
                 operation: ValueInputOperation::Edit,
             }],
             BuiltinType::Void,
@@ -170,7 +170,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
         program.codes().get(beta).unwrap().parameters(),
         &[beta_input]
     );
-    assert_eq!(program.records().get(record).unwrap().fields(), fields);
+    assert_eq!(program.record(record).unwrap().fields(), fields);
     for (position, &id) in inputs.iter().enumerate() {
         let parameter = program.parameters().get(id).unwrap();
         assert_eq!((parameter.owner(), parameter.position()), (alpha, position));
@@ -179,11 +179,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
         let field = program.fields().get(id).unwrap();
         assert_eq!((field.owner(), field.position()), (record, position));
         assert_eq!(
-            program
-                .records()
-                .get(record)
-                .unwrap()
-                .resolve_field(field.name()),
+            program.record(record).unwrap().resolve_field(field.name()),
             Some(id)
         );
     }
@@ -209,7 +205,7 @@ fn one_closed_namespace_preserves_declaration_roles_before_and_after_type_public
     // A forward record reference needs no invented TypeId or complete record definition.
     assert_eq!(
         builder.resolve_data(item_name),
-        Ok(DataReference::Record(item))
+        Ok(DataReference::Nominal(item))
     );
     assert_eq!(
         builder.resolve_data(run_name),
@@ -221,13 +217,13 @@ fn one_closed_namespace_preserves_declaration_roles_before_and_after_type_public
             run,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
-            DataReference::Record(item),
+            DataReference::Nominal(item),
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    assert_eq!(program.resolve_record(item_name), Some(item));
+    assert_eq!(program.resolve_nominal(item_name), Some(item));
     assert_eq!(program.resolve(run_name), Some(run));
-    assert_eq!(program.resolve_record(run_name), None);
+    assert_eq!(program.resolve_nominal(run_name), None);
     assert_eq!(program.resolve_code(item_name), None);
     assert_eq!(program.type_named("run"), None);
     assert_eq!(
@@ -277,7 +273,7 @@ fn equal_type_and_value_spellings_retain_distinct_unready_identities() {
     let builder = reservations.finish().unwrap();
     assert_eq!(
         builder.resolve_data(name),
-        Ok(DataReference::Record(record))
+        Ok(DataReference::Nominal(record))
     );
     let headers = builder.into_publication();
     let program = headers.snapshot();
@@ -291,7 +287,7 @@ fn equal_type_and_value_spellings_retain_distinct_unready_identities() {
     );
     assert!(!program.header_ready(record));
     assert!(!program.header_ready(code));
-    assert_eq!(program.resolve_record(name), Some(record));
+    assert_eq!(program.resolve_nominal(name), Some(record));
     assert_eq!(program.resolve_code(name), Some(code));
     assert_eq!(program.resolve(name), None);
     assert_eq!(program.type_named("Shared"), None);

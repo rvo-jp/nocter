@@ -316,7 +316,7 @@ fn equally_shaped_nominal_records_remain_distinct_inside_type_contracts() {
     let contract = |record| FunctionConstraint {
         invocation: ValueInvocation::Read,
         inputs: Box::new([FunctionInput {
-            data: headers.record_type_identity(record).unwrap(),
+            data: headers.nominal_type_identity(record).unwrap(),
             operation: ValueInputOperation::Read,
         }]),
         result: void,

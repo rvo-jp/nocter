@@ -1262,7 +1262,7 @@ fn selected_call_results_keep_every_candidate_and_the_original_receiving_definit
             ) && expression
                 .ty
                 .access()
-                .is_some_and(|access| program.record_identity(access.data()).is_some()))
+                .is_some_and(|access| program.nominal_identity(access.data()).is_some()))
             .then_some(id)
         })
         .unwrap();

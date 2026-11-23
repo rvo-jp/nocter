@@ -73,9 +73,9 @@ fn unready_records_are_requested_by_construction_annotations_and_closure_inputs(
         let early = headers.context(run).unwrap();
         let record = early
             .program()
-            .resolve_record(early.program().symbols().get("Data").unwrap())
+            .resolve_nominal(early.program().symbols().get("Data").unwrap())
             .unwrap();
-        assert!(early.program().records().is_empty());
+        assert!(early.program().nominals().is_empty());
         assert!(
             matches!(TypedQuery::prepare(&early, run), Err(BodyFailure::RequiredHeader { declaration, .. }) if declaration == record.into())
         );
@@ -307,9 +307,9 @@ fn callable_signature_identity_does_not_cycle_through_an_unused_record_payload()
     let accepted = SourceUnit::prepare(fixture.syntax()).unwrap();
     let program = accepted.unit().program();
     let record = program
-        .resolve_record(program.symbols().get("Data").unwrap())
+        .resolve_nominal(program.symbols().get("Data").unwrap())
         .unwrap();
-    let field = program.records().get(record).unwrap().fields()[0];
+    let field = program.record(record).unwrap().fields()[0];
     let data = program.fields().get(field).unwrap().data();
     let Some(nocter_declarations::value_access::PayloadSchema::Array(array)) =
         program.data_schema(data)
@@ -349,7 +349,7 @@ fn published_nominal_signatures_request_payloads_when_their_bodies_are_checked()
         let early = headers.context(code).unwrap();
         let record = early
             .program()
-            .resolve_record(early.program().symbols().get("Data").unwrap())
+            .resolve_nominal(early.program().symbols().get("Data").unwrap())
             .unwrap();
         assert!(early.program().header_ready(code));
         assert!(!early.program().header_ready(record));

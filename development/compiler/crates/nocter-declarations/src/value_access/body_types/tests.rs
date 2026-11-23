@@ -113,7 +113,7 @@ fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     let tuple = body.tuple(&[integer, boolean]).unwrap();
     let body = body.finish();
     let later = headers.finish().unwrap();
-    let field = later.records().get(record).unwrap().fields()[0];
+    let field = later.record(record).unwrap().fields()[0];
     assert_eq!(
         tuple,
         later.fields().get(field).unwrap().data(),

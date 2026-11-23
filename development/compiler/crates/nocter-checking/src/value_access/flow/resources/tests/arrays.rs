@@ -35,7 +35,7 @@ impl Fixture {
                     name: symbols.get("items").unwrap(),
                     data: DataReference::Array {
                         element: std::sync::Arc::new(if compound {
-                            DataReference::Record(leaf)
+                            DataReference::Nominal(leaf)
                         } else {
                             BuiltinType::Error.into()
                         }),
@@ -47,12 +47,11 @@ impl Fixture {
         let program = builder.finish().unwrap();
         let data = program
             .fields()
-            .get(program.records().get(record).unwrap().fields()[0])
+            .get(program.record(record).unwrap().fields()[0])
             .unwrap()
             .data();
-        let fields = std::array::from_fn(|index| {
-            program.records().get(leaf).unwrap().fields()[index].into()
-        });
+        let fields =
+            std::array::from_fn(|index| program.record(leaf).unwrap().fields()[index].into());
         let mut locals = ArenaBuilder::<AccessLocalId, ()>::new();
         let locals = std::array::from_fn(|_| Holder::Local(locals.insert(())));
         Self {
@@ -290,7 +289,7 @@ fn zero_sized_elements_keep_separate_logical_availability() {
     let program = builder.finish().unwrap();
     let data = program
         .fields()
-        .get(program.records().get(owner).unwrap().fields()[0])
+        .get(program.record(owner).unwrap().fields()[0])
         .unwrap()
         .data();
     let mut locals = ArenaBuilder::<AccessLocalId, ()>::new();
@@ -338,10 +337,9 @@ fn array_cleanup_below_a_record_field_retains_each_container_boundary() {
     let fixture = Fixture::new(3, false);
     let program = &fixture.program;
     let record = program
-        .records()
-        .get(
+        .record(
             program
-                .resolve_record(program.symbols().get("Data").unwrap())
+                .resolve_nominal(program.symbols().get("Data").unwrap())
                 .unwrap(),
         )
         .unwrap();

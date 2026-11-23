@@ -42,7 +42,8 @@ fn callable_record_field_headers_supply_contracts_without_concrete_payload_evide
         .unwrap()
         .into_unit();
     let program = unit.program();
-    let (_, record) = program.records().iter().next().unwrap();
+    let (id, _) = program.nominals().iter().next().unwrap();
+    let record = program.record(id).unwrap();
     let field = record.fields()[0];
     let data = program.fields().get(field).unwrap().data();
     let Some(nocter_declarations::value_access::PayloadSchema::Function(selected)) =

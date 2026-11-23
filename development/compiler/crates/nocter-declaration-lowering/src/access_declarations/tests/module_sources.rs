@@ -182,7 +182,7 @@ fn exact_dependency_resolutions_preserve_module_boundaries_and_use_identity() {
         program.symbols().get("codec").unwrap()
     ));
     assert_eq!(program.codes().len(), 0);
-    assert_eq!(program.records().len(), 0);
+    assert_eq!(program.nominals().len(), 0);
     let see = tree(&mut sources, "/app/index.nct", "see ./codec/index.nct");
     let input = CompileUnitInput::for_goal(
         ParseGoal::V2CoreUnit,

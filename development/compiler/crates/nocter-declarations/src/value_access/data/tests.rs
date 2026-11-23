@@ -87,12 +87,12 @@ fn zero_array_breaks_self_containment_without_granting_copy_to_its_element() {
                 copy,
                 [FieldDefinition {
                     name: symbols.get("next").unwrap(),
-                    data: array(DataReference::Record(node), 0),
+                    data: array(DataReference::Nominal(node), 0),
                 }],
             )
             .unwrap();
         let program = builder.finish().unwrap();
-        let record = program.records().get(node).unwrap();
+        let record = program.record(node).unwrap();
         let data = program.fields().get(record.fields()[0]).unwrap().data();
         let Some(PayloadSchema::Array(schema)) = program.data_schema(data) else {
             panic!("array schema");
@@ -140,7 +140,7 @@ fn concrete_array_paths_validate_bounds_without_host_ordinals_or_count_expansion
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    let record = program.records().get(record).unwrap();
+    let record = program.record(record).unwrap();
     let root = record.data();
     let values = program
         .component(root, record.fields()[0].into())
@@ -194,7 +194,7 @@ fn positive_counts_retain_containment_edges_and_failed_cycles_publish_no_fields(
                 [FieldDefinition {
                     name: symbols.get("value").unwrap(),
                     data: DataReference::Tuple(TupleData::new(
-                        array(DataReference::Record(b), length),
+                        array(DataReference::Nominal(b), length),
                         BuiltinType::Void.into(),
                         [],
                     )),
@@ -207,7 +207,7 @@ fn positive_counts_retain_containment_edges_and_failed_cycles_publish_no_fields(
                 false,
                 [FieldDefinition {
                     name: symbols.get("value").unwrap(),
-                    data: array(DataReference::Record(a), 1),
+                    data: array(DataReference::Nominal(a), 1),
                 }],
             )
             .unwrap();
@@ -233,7 +233,7 @@ fn positive_counts_retain_containment_edges_and_failed_cycles_publish_no_fields(
             );
             let after = headers.snapshot();
             assert!(after.fields().is_empty());
-            assert!(after.records().is_empty());
+            assert!(after.nominals().is_empty());
             assert_eq!(
                 after.types.store().type_count(),
                 before.types.store().type_count()
@@ -277,7 +277,7 @@ fn empty_count_does_not_validate_a_bad_element_or_an_invalid_independent_declara
             true,
             [FieldDefinition {
                 name: symbols.get("value").unwrap(),
-                data: array(DataReference::Record(bad), 0),
+                data: array(DataReference::Nominal(bad), 0),
             }],
         )
         .unwrap();
@@ -308,9 +308,9 @@ fn array_identity_and_copy_use_one_element_descriptor_even_at_maximum_cardinalit
     let mut builder = reservations.finish().unwrap();
     builder.define_record(item, false, []).unwrap();
     for (id, data) in ids.into_iter().zip([
-        array(DataReference::Record(item), 0),
-        array(DataReference::Record(item), 0),
-        array(DataReference::Record(item), 1),
+        array(DataReference::Nominal(item), 0),
+        array(DataReference::Nominal(item), 0),
+        array(DataReference::Nominal(item), 1),
         array(BuiltinType::I32.into(), u64::MAX),
         array(array(BuiltinType::Error.into(), 0), u64::MAX),
         DataReference::Tuple(TupleData::new(
@@ -387,7 +387,7 @@ fn copy_records_consume_the_array_payload_policy_before_publishing_any_parent_fi
                 true,
                 [FieldDefinition {
                     name: symbols.get("value").unwrap(),
-                    data: array(DataReference::Record(item), length),
+                    data: array(DataReference::Nominal(item), length),
                 }],
             )
             .unwrap();
@@ -396,8 +396,8 @@ fn copy_records_consume_the_array_payload_policy_before_publishing_any_parent_fi
             headers.publish(holder).unwrap();
             assert!(!headers.snapshot().header_ready(item));
             let program = headers.finish().unwrap();
-            assert!(!program.records().get(item).unwrap().copyable());
-            assert!(program.records().get(holder).unwrap().copyable());
+            assert!(!program.record(item).unwrap().copyable());
+            assert!(program.record(holder).unwrap().copyable());
         } else {
             let crate::value_access::HeaderFailure::Rejected(failures) =
                 headers.publish(holder).unwrap_err()
@@ -435,7 +435,7 @@ fn zero_count_does_not_hide_an_unknown_nominal_identity() {
             false,
             [FieldDefinition {
                 name: symbols.get("value").unwrap(),
-                data: array(DataReference::Record(missing), 0),
+                data: array(DataReference::Nominal(missing), 0),
             }],
         )
         .unwrap();
@@ -462,11 +462,11 @@ fn cycle_diagnostics_choose_the_positive_field_after_an_empty_array_of_the_same_
             [
                 FieldDefinition {
                     name: symbols.get("empty").unwrap(),
-                    data: array(DataReference::Record(b), 0),
+                    data: array(DataReference::Nominal(b), 0),
                 },
                 FieldDefinition {
                     name: symbols.get("payload").unwrap(),
-                    data: array(DataReference::Record(b), 1),
+                    data: array(DataReference::Nominal(b), 1),
                 },
             ],
         )
@@ -477,7 +477,7 @@ fn cycle_diagnostics_choose_the_positive_field_after_an_empty_array_of_the_same_
             false,
             [FieldDefinition {
                 name: symbols.get("payload").unwrap(),
-                data: DataReference::Record(a),
+                data: DataReference::Nominal(a),
             }],
         )
         .unwrap();
@@ -600,7 +600,7 @@ fn fallible_components_use_one_error_payload_and_cannot_acquire_copy() {
             continue;
         }
         let program = result.unwrap();
-        let holder = program.records().get(holder).unwrap();
+        let holder = program.record(holder).unwrap();
         let data = program.fields().get(holder.fields()[0]).unwrap().data();
         if let Some(PayloadSchema::Fallible(payload)) = program.data_schema(data) {
             assert_eq!(program.data_copyable(data), Some(false));
@@ -686,11 +686,11 @@ fn existing_reference_lookup_never_interns_missing_shapes_or_grants_nominal_payl
     let mut headers = reservations.finish().unwrap().into_publication();
     let early = headers.snapshot();
     let nominal = early
-        .existing_data_reference(&DataReference::Record(node))
+        .existing_data_reference(&DataReference::Nominal(node))
         .unwrap();
     assert_eq!(early.data_schema(nominal), None);
     assert_eq!(early.data_copyable(nominal), None);
-    let reference = array(DataReference::Record(node), 0);
+    let reference = array(DataReference::Nominal(node), 0);
     let before = early.types.store().type_count();
     assert_eq!(early.existing_data_reference(&reference), None);
     assert_eq!(early.types.store().type_count(), before);
@@ -706,13 +706,13 @@ fn existing_reference_lookup_never_interns_missing_shapes_or_grants_nominal_payl
         .unwrap();
     headers.publish(node).unwrap();
     let ready = headers.snapshot();
-    let field = ready.records().get(node).unwrap().fields()[0];
+    let field = ready.record(node).unwrap().fields()[0];
     assert_eq!(
         ready.existing_data_reference(&reference),
         Some(ready.fields().get(field).unwrap().data())
     );
     assert_eq!(
-        ready.existing_data_reference(&array(DataReference::Record(node), 1)),
+        ready.existing_data_reference(&array(DataReference::Nominal(node), 1)),
         None
     );
     assert_eq!(early.existing_data_reference(&reference), None);

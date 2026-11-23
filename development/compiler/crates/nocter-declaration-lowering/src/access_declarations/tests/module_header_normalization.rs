@@ -311,7 +311,7 @@ fn selected_public_field_counts_map_to_complete_representation_slots() {
             .unwrap(),
         HeaderProgress::Ready
     );
-    let DeclarationId::Record(id) = record else {
+    let DeclarationId::Nominal(id) = record else {
         panic!("record")
     };
     let slots = scoped.field_ids(id).unwrap();
@@ -437,7 +437,7 @@ fn visible_nominal_fields_compare_resolved_identities_at_their_complete_slots() 
                 error.rule(),
                 DeclarationContractRule::MismatchedRepresentation
             );
-            assert!(scoped.program().records().is_empty() && scoped.program().fields().is_empty());
+            assert!(scoped.program().nominals().is_empty() && scoped.program().fields().is_empty());
         }
     }
 }

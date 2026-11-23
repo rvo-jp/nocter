@@ -208,8 +208,8 @@ impl Comparison<'_> {
         path: Path,
     ) -> Result<(), FunctionPatternMismatch> {
         let mismatch = || self.error(path, FunctionMismatch::Data { actual, expected });
-        if self.program.record_identity(actual).is_some()
-            || self.program.record_identity(expected).is_some()
+        if self.program.nominal_identity(actual).is_some()
+            || self.program.nominal_identity(expected).is_some()
         {
             return if actual == expected {
                 Ok(())

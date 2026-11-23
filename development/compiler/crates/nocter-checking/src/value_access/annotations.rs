@@ -68,7 +68,7 @@ impl Checker<'_, '_> {
             .ok_or(Failure::InconsistentSyntax)?;
         if !metadata_only
             && matches!(declaration, DeclarationId::Alias(_))
-            && let Some(record) = self.program().record_identity(data)
+            && let Some(record) = self.program().nominal_identity(data)
         {
             self.require_declaration(record.into(), token)?;
         }

@@ -347,7 +347,7 @@ impl Checker<'_, '_> {
         if operation.is_comparison()
             && let Some(record) = left_data
                 .or(right_data)
-                .and_then(|data| self.program().record_identity(data))
+                .and_then(|data| self.program().nominal_identity(data))
         {
             if matches!((left_data, right_data), (Some(left), Some(right)) if left != right) {
                 return self.reject(Rule::TypeMismatch, *right_node);

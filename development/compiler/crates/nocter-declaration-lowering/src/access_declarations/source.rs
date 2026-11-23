@@ -496,10 +496,10 @@ pub(super) fn header_origin(
                     source.parameter_origin(input, Some(leaf))?
                 }
                 HeaderPosition::Result => SyntaxOrigin::Node(s.result),
-                HeaderPosition::Field(_) => return None,
+                HeaderPosition::Field(_) | HeaderPosition::Variant(_) => return None,
             }
         }
-        DeclarationId::Record(id) => {
+        DeclarationId::Nominal(id) => {
             let s = records.get(&id)?;
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(s.name),

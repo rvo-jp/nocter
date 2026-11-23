@@ -125,7 +125,7 @@ fn public_fields_share_complete_representation_slots_without_payload_readiness()
     ], &[(0, 0, 1), (1, 0, 0)], false).pair().unwrap().reserve_names().unwrap();
     let contract = declaration(&scoped, "/app/index.nct", Kind::Struct, "Item");
     let representation = declaration(&scoped, "/app/body.nct", Kind::Struct, "Item");
-    let Some(DeclarationId::Record(record)) = scoped.declaration(contract) else {
+    let Some(DeclarationId::Nominal(record)) = scoped.declaration(contract) else {
         panic!("record")
     };
     assert_eq!(scoped.declaration(representation), Some(record.into()));
@@ -144,9 +144,9 @@ fn public_fields_share_complete_representation_slots_without_payload_readiness()
         );
     }
     let program = scoped.program();
-    assert!(program.records().is_empty());
+    assert!(program.nominals().is_empty());
     assert!(program.fields().is_empty());
-    assert!(program.records().get(record).is_none());
+    assert!(program.record(record).is_none());
     assert!(
         fields
             .iter()

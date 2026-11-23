@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify nongeneric scalar enum schemas and payloadless variant construction. Keep the declared
-nominal and variant identities through source lookup, compile-time evaluation and native
-representation. Extend the same schema to payloads and branch patterns in subsequent units.
+Bind nongeneric scalar enum declarations from the physical module sources. Pair opaque roots
+with one complete definition, retain original variant identities and visibility, and use that same
+schema for payloadless construction and compile-time/native representation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -706,6 +706,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify input patterns in structural callable types. Verify alias-normalized shape and
   duplicate-name diagnostics in headers and local annotations, named and unnamed type
   equivalence, and absence of annotation-driven binding or cleanup.
+- [x] Reserve and publish record and scalar enum schemas in one nominal authority. Verify
+  define-once identities, declaration-order variants, atomic invalid-schema rejection and the
+  selected Copy contract for a scalar enum inside a containing record.
 - [ ] Qualify nongeneric scalar enum schemas and payloadless variant construction through
   ordinary source. Preserve original variant order and audiences, reject incomplete or
   conflicting schemas, and carry one selected tag through required and native execution.

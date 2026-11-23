@@ -40,7 +40,7 @@ fn layouts(environment: &RuntimeEnvironment) -> Result<MachineLayoutPlan, Machin
 fn record(instances: &InstanceProgram, name: &str) -> TypeId {
     let program = instances.unit().program();
     program
-        .records()
+        .nominals()
         .iter()
         .find(|(_, record)| program.symbols().spelling(record.name()) == Some(name))
         .unwrap()
@@ -241,13 +241,8 @@ fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
     let layouts = layouts(&environment).unwrap();
     let program = instances.unit().program();
     let data = record(&instances, "Data");
-    let fields = program
-        .records()
-        .iter()
-        .find(|(_, r)| r.data() == data)
-        .unwrap()
-        .1
-        .fields();
+    let identity = program.nominal_identity(data).unwrap();
+    let fields = program.record(identity).unwrap().fields();
     let offsets: Vec<_> = fields
         .iter()
         .map(|&field| {

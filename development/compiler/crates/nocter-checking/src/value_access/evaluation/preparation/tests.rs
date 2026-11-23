@@ -62,8 +62,8 @@ fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call
         dependencies::value(&requests, answer).unwrap().frozen,
         state::Value::integer(42).freeze()
     );
-    assert_eq!(preparation.context.program().records().len(), DEPTH + 1);
-    for (id, _) in preparation.context.program().records().iter() {
+    assert_eq!(preparation.context.program().nominals().len(), DEPTH + 1);
+    for (id, _) in preparation.context.program().nominals().iter() {
         assert!(
             matches!(
                 requests.completed(&Request::Header(id.into())),
@@ -160,7 +160,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     assert_eq!(computed_value.frozen, state::Value::integer(42).freeze());
     assert_eq!(preparation.context.program().codes().len(), 2);
     assert!(preparation.context.program().codes().get(unused).is_none());
-    assert!(preparation.context.program().records().is_empty());
+    assert!(preparation.context.program().nominals().is_empty());
     assert!(!preparation.context.program().headers_complete());
     let original_body = dependencies::body(&requests, helper)
         .unwrap()
@@ -177,12 +177,12 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
         &original_body,
         &dependencies::body(&requests, helper).unwrap().program
     ));
-    assert!(preparation.context.program().records().is_empty());
+    assert!(preparation.context.program().nominals().is_empty());
     let output = preparation.finish(requests).unwrap();
     let complete = headers.finish().unwrap();
     let context = complete.bind(syntax).unwrap();
     assert!(context.program().headers_complete());
-    assert_eq!(context.program().records().len(), 1);
+    assert_eq!(context.program().nominals().len(), 1);
     let unit = accepted::Unit::close_evaluation(&context, output).unwrap();
     assert_eq!(unit.constant_value(answer), Some(&computed_value.frozen));
     assert_eq!(unit.bodies().count(), ids.len());
@@ -205,7 +205,7 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
         .require_header(&mut requests, ids[0].into())
         .unwrap();
     assert_eq!(preparation.context.program().codes().len(), 1);
-    assert!(preparation.context.program().records().is_empty());
+    assert!(preparation.context.program().nominals().is_empty());
     assert!(matches!(
         accepted::Unit::prepare(&preparation.context),
         Err(Failure::Integrity(_))
@@ -291,7 +291,7 @@ fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_u
             .resolve_code(program.symbols().get("ANSWER").unwrap())
             .unwrap();
         let invalid = program
-            .resolve_record(program.symbols().get(name).unwrap())
+            .resolve_nominal(program.symbols().get(name).unwrap())
             .unwrap();
         let mut requests = Dependencies::default();
         requests
@@ -299,7 +299,7 @@ fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_u
             .unwrap();
         let completed = dependencies::value(&requests, answer).unwrap();
         assert_eq!(completed.frozen, state::Value::integer(42).freeze());
-        assert!(preparation.context.program().records().is_empty());
+        assert!(preparation.context.program().nominals().is_empty());
         let failure = preparation
             .require_header(&mut requests, invalid.into())
             .unwrap_err();
@@ -327,7 +327,7 @@ fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_u
                 .completed(&Request::Header(invalid.into()))
                 .is_none()
         );
-        assert!(preparation.context.program().records().is_empty());
+        assert!(preparation.context.program().nominals().is_empty());
         assert!(preparation.context.program().fields().is_empty());
         assert!(
             dependencies::value(&requests, answer).is_some(),
@@ -371,7 +371,7 @@ fn record_rejections_keep_field_ownership_through_body_and_value_requests() {
         let diagnostic = &diagnostics[0];
         assert!(matches!(
             diagnostic.violation().declaration,
-            DeclarationId::Record(_)
+            DeclarationId::Nominal(_)
         ));
         assert_eq!(
             syntax.text_at(diagnostic.source().primary().span().range()),
@@ -477,12 +477,12 @@ fn header_data(
     use nocter_declarations::value_access::HeaderPosition;
     match position {
         HeaderPosition::Field(index) => {
-            let DeclarationId::Record(id) = owner else {
+            let DeclarationId::Nominal(id) = owner else {
                 panic!("record");
             };
             program
                 .fields()
-                .get(program.records().get(id).unwrap().fields()[index])
+                .get(program.record(id).unwrap().fields()[index])
                 .unwrap()
                 .data()
         }
@@ -502,7 +502,9 @@ fn header_data(
             };
             program.codes().get(id).unwrap().result()
         }
-        HeaderPosition::Name | HeaderPosition::ParameterName { .. } => unreachable!(),
+        HeaderPosition::Name
+        | HeaderPosition::ParameterName { .. }
+        | HeaderPosition::Variant(_) => unreachable!(),
     }
 }
 

@@ -28,7 +28,7 @@ impl ModuleAudiences {
             .filter_map(|(index, _)| {
                 let raw = SurfaceDeclarationId::from_index(index);
                 let audience = self.declaration(raw)?;
-                let declaration @ (DeclarationId::Record(_) | DeclarationId::Alias(_)) =
+                let declaration @ (DeclarationId::Nominal(_) | DeclarationId::Alias(_)) =
                     declarations[index]?
                 else {
                     return None;
@@ -73,7 +73,7 @@ impl ModuleAudiences {
                         .ok_or(Failure::InconsistentSyntax)?;
                     checking.check(audience, syntax, scopes[index], ty, field.data())?;
                 }
-                Some(DeclarationId::Record(_)) => {}
+                Some(DeclarationId::Nominal(_)) => {}
                 Some(DeclarationId::Alias(id)) => {
                     let Some(ParsedHeader::Alias(header)) = headers.get(&raw) else {
                         return Err(Failure::InconsistentSyntax);
@@ -153,7 +153,7 @@ impl Signatures<'_, '_> {
             if !seen.insert(data) {
                 continue;
             }
-            if let Some(record) = self.program.record_identity(data) {
+            if let Some(record) = self.program.nominal_identity(data) {
                 if !self.visible_to(audience, record.into()) {
                     return self.reject(syntax, SyntaxOrigin::Node(primary), record.into());
                 }

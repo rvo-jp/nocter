@@ -174,7 +174,7 @@ fn related(
             .ok_or(Failure::InconsistentSyntax);
         }
         R::DuplicateField { first } => {
-            let DeclarationId::Record(id) = violation.declaration else {
+            let DeclarationId::Nominal(id) = violation.declaration else {
                 return Err(Failure::InconsistentSyntax);
             };
             records
@@ -207,6 +207,11 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
             "parameter pattern does not match the declared tuple data",
         ),
         R::DuplicateField { .. } => (DiagnosticCode::E0241, "duplicate field name"),
+        R::DuplicateVariant { .. } => (DiagnosticCode::E0241, "duplicate enum variant name"),
+        R::EmptyEnumeration => (
+            DiagnosticCode::E0200,
+            "enum must declare at least one variant",
+        ),
         R::ParameterShadowsNamespace { .. } => (
             DiagnosticCode::E0341,
             "parameter shadows an authored namespace binding",

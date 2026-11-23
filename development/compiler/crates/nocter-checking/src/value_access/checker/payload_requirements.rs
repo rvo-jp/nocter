@@ -111,7 +111,7 @@ fn unready<Origin: Copy>(
         if !seen.insert(data) {
             continue;
         }
-        if let Some(record) = program.record_identity(data) {
+        if let Some(record) = program.nominal_identity(data) {
             if !program.header_ready(record) {
                 return Ok(Some((record, origin)));
             }

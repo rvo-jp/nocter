@@ -2,7 +2,7 @@
 use super::{
     Builder, Code, CodeKind, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
     FunctionConstraint, Parameter, ParameterDefinition, Program, ValueDefinition, functions,
-    records, validate_definition,
+    nominals, validate_definition,
 };
 use nocter_dependency_query::{
     DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
@@ -39,7 +39,7 @@ pub struct HeaderPublication {
     codes: SparseArenaBuilder<AccessCodeId, Code>,
     parameters: SparseArenaBuilder<AccessParameterId, Parameter>,
     types: TypeAuthority,
-    records: records::Publication,
+    nominals: nominals::Publication,
     aliases: SparseArenaBuilder<nocter_model::TypeAliasId, super::TypeAlias>,
 }
 impl HeaderPublication {
@@ -55,14 +55,14 @@ impl HeaderPublication {
     }
     pub(super) fn new(definitions: Builder) -> Self {
         let mut types = TypeAuthority::new();
-        let records = records::Publication::new(&definitions.records, &mut types);
+        let nominals = nominals::Publication::new(&definitions.nominals, &mut types);
         Self {
             codes: SparseArenaBuilder::new(definitions.codes.len()),
             parameters: SparseArenaBuilder::new(definitions.parameters.len()),
             aliases: SparseArenaBuilder::new(definitions.aliases.len()),
             definitions,
             types,
-            records,
+            nominals,
         }
     }
     /// Compare closed names and reserved slot assignments against a complete retained program.
@@ -88,15 +88,15 @@ impl HeaderPublication {
             })
             && self
                 .definitions
-                .records
-                .has_same_reserved_layout(&retained.records)
+                .nominals
+                .has_same_reserved_layout(&retained.nominals)
     }
     /// Whether this reserved definition has been loaded; no typed readiness is implied.
     #[must_use]
     pub fn is_defined(&self, id: impl Into<DeclarationId>) -> Option<bool> {
         match id.into() {
             DeclarationId::Code(id) => Some(self.definitions.codes.get(id)?.definition.is_some()),
-            DeclarationId::Record(id) => self.definitions.records.is_defined(id),
+            DeclarationId::Nominal(id) => self.definitions.nominals.is_defined(id),
             DeclarationId::Alias(id) => {
                 Some(self.definitions.aliases.get(id)?.definition.is_some())
             }
@@ -158,6 +158,17 @@ impl HeaderPublication {
     ) -> Result<(), crate::DefinitionError> {
         self.definitions.define_record(id, copy, fields)
     }
+    /// Load one define-once scalar enumeration into the fixed variant domain.
+    /// # Errors
+    /// Rejects foreign IDs, mismatched arity or an already-defined schema.
+    pub fn define_enum(
+        &mut self,
+        id: NominalTypeId,
+        copyable: bool,
+        variants: impl Into<Box<[nocter_model::Symbol]>>,
+    ) -> Result<(), crate::DefinitionError> {
+        self.definitions.define_enum(id, copyable, variants)
+    }
     /// Load one alias target, preserving the original closed name and data domains.
     /// # Errors
     /// Rejects foreign or already-defined aliases.
@@ -200,15 +211,15 @@ impl HeaderPublication {
                 rule: DeclarationRule::RecursiveAlias,
             }]);
         }
-        let records = path
+        let nominals = path
             .iter()
             .map(|id| match id {
-                DeclarationId::Record(id) => Some(*id),
+                DeclarationId::Nominal(id) => Some(*id),
                 DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
             })
             .collect::<Option<Vec<_>>>();
-        records
-            .and_then(|path| self.definitions.records.cycle_violation(&path))
+        nominals
+            .and_then(|path| self.definitions.nominals.cycle_violation(&path))
             .map_or(HeaderFailure::Inconsistent, |violation| {
                 HeaderFailure::Rejected(vec![violation])
             })
@@ -227,30 +238,30 @@ impl HeaderPublication {
                         .aliases
                         .get(id)
                         .ok_or(HeaderFailure::UnknownId)?;
-                    let target = alias.publish(id, &self.definitions.records, &mut self.types)?;
+                    let target = alias.publish(id, &self.definitions.nominals, &mut self.types)?;
                     self.aliases
                         .insert(id, target)
                         .map_err(|_| HeaderFailure::Inconsistent)?;
                 }
             }
-            DeclarationId::Record(id) => {
-                if self.records.get(id).is_some() {
+            DeclarationId::Nominal(id) => {
+                if self.nominals.get(id).is_some() {
                     return Ok(HeaderStep::Ready);
                 }
                 self.definitions
-                    .records
+                    .nominals
                     .validate(id, &self.definitions.symbols)?;
-                let dependencies = self.records.dependencies(&self.definitions.records, id);
+                let dependencies = self.nominals.dependencies(&self.definitions.nominals, id);
                 if !dependencies.is_empty() {
                     return Ok(HeaderStep::Require(
                         dependencies
                             .into_iter()
-                            .map(DeclarationId::Record)
+                            .map(DeclarationId::Nominal)
                             .collect(),
                     ));
                 }
-                self.records
-                    .publish_ready(&self.definitions.records, id, &mut self.types)
+                self.nominals
+                    .publish_ready(&self.definitions.nominals, id, &mut self.types)
                     .map_err(HeaderFailure::Rejected)?;
             }
             DeclarationId::Code(id) => {
@@ -268,7 +279,7 @@ impl HeaderPublication {
                     &self.definitions.namespace,
                     id,
                     reservation,
-                    &self.definitions.records,
+                    &self.definitions.nominals,
                     &mut violations,
                 );
                 if !violations.is_empty() {
@@ -385,7 +396,7 @@ impl HeaderPublication {
             codes: self.codes.snapshot(),
             parameters: self.parameters.snapshot(),
             namespace: self.definitions.namespace.clone(),
-            records: self.records.snapshot(),
+            nominals: self.nominals.snapshot(),
             aliases: self.aliases.snapshot(),
         }
     }
@@ -397,13 +408,13 @@ impl HeaderPublication {
         for id in aliases {
             self.publish(id)?;
         }
-        let records: Vec<_> = self
+        let nominals: Vec<_> = self
             .definitions
-            .records
+            .nominals
             .names()
             .map(|(id, _, _)| id)
             .collect();
-        for id in records {
+        for id in nominals {
             self.publish(id)?;
         }
         let ids: Vec<_> = self.definitions.codes.iter().map(|(id, _)| id).collect();

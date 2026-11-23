@@ -99,7 +99,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
             parent,
             true,
             [field(DataReference::Tuple(TupleData::new(
-                DataReference::Record(child),
+                DataReference::Nominal(child),
                 BuiltinType::Bool.into(),
                 [],
             )))],
@@ -124,7 +124,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
         "unreferenced records are part of unit closure"
     );
     assert_eq!(
-        early.resolve_record(symbols.get("Parent").unwrap()),
+        early.resolve_nominal(symbols.get("Parent").unwrap()),
         Some(parent)
     );
     let key = early
@@ -136,7 +136,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
         })
         .unwrap();
     assert_eq!(early.data_schema(key), None);
-    assert_eq!(early.record_identity(key), Some(parent));
+    assert_eq!(early.nominal_identity(key), Some(parent));
     assert_eq!(
         early.declaration_label(parent.into()).as_deref(),
         Some("Parent")
@@ -153,7 +153,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
         HeaderStep::Require(Box::new([child.into()]))
     );
     let waiting = headers.snapshot();
-    assert!(waiting.records().is_empty());
+    assert!(waiting.nominals().is_empty());
     assert!(waiting.fields().is_empty());
     assert_eq!(waiting.types.store().type_count(), type_count);
     assert_eq!(headers.advance(child).unwrap(), HeaderStep::Ready);
@@ -164,10 +164,10 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     assert!(!later.header_ready(unused));
     assert!(later.preserves_headers(&early));
     assert!(!early.preserves_headers(&later));
-    assert_eq!(later.records().len(), 2);
+    assert_eq!(later.nominals().len(), 2);
     assert_eq!(later.fields().len(), 2);
-    assert!(later.records().get(child).is_some());
-    assert!(later.records().get(unused).is_none());
+    assert!(later.record(child).is_some());
+    assert!(later.record(unused).is_none());
     assert_eq!(later.type_named("Parent"), Some(key));
     assert_eq!(later.data_copyable(key), Some(true));
     assert!(!later.headers_complete());
@@ -179,7 +179,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     let complete = headers.finish().unwrap();
     assert!(complete.headers_complete());
     assert!(complete.preserves_headers(&later));
-    assert!(early.records().is_empty(), "an old view stays immutable");
+    assert!(early.nominals().is_empty(), "an old view stays immutable");
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn unknown_header_steps_preserve_every_ready_contract() {
     let after = headers.snapshot();
     assert!(after.headers_complete());
     assert!(after.preserves_headers(&before));
-    assert_eq!(after.records(), before.records());
+    assert_eq!(after.nominals(), before.nominals());
     assert_eq!(
         after.types.store().type_count(),
         before.types.store().type_count()
@@ -225,10 +225,10 @@ fn callable_headers_keep_record_identity_without_requiring_signature_payloads() 
         invocation: ValueInvocation::Read,
         inputs: Box::new([(
             nocter_model::ValueInputOperation::Read,
-            DataReference::Record(record),
+            DataReference::Nominal(record),
         )]),
         result: DataReference::Tuple(TupleData::new(
-            DataReference::Record(record),
+            DataReference::Nominal(record),
             BuiltinType::Bool.into(),
             [],
         )),
@@ -261,7 +261,7 @@ fn callable_headers_keep_record_identity_without_requiring_signature_payloads() 
         .contract()
         .unwrap();
     assert_eq!(
-        program.record_identity(callback.inputs[0].data),
+        program.nominal_identity(callback.inputs[0].data),
         Some(record)
     );
     assert!(program.data_schema(callback.inputs[0].data).is_none());
@@ -325,7 +325,7 @@ fn missing_definitions_can_be_loaded_without_changing_slots_or_established_contr
         }]))
     );
     assert!(headers.snapshot().preserves_headers(&early));
-    assert!(headers.snapshot().records().is_empty());
+    assert!(headers.snapshot().nominals().is_empty());
     assert_eq!(
         headers.define_record(leaf, true, []),
         Err(crate::DefinitionError::WrongArity {
@@ -352,12 +352,9 @@ fn missing_definitions_can_be_loaded_without_changing_slots_or_established_contr
     let complete = headers.finish().unwrap();
     assert!(complete.preserves_headers(&early));
     assert!(complete.headers_complete());
-    assert_eq!(complete.records().get(leaf).unwrap().fields(), leaf_fields);
-    assert_eq!(
-        complete.records().get(parent).unwrap().fields(),
-        parent_fields
-    );
-    assert!(complete.records().get(parent).unwrap().copyable());
+    assert_eq!(complete.record(leaf).unwrap().fields(), leaf_fields);
+    assert_eq!(complete.record(parent).unwrap().fields(), parent_fields);
+    assert!(complete.record(parent).unwrap().copyable());
 }
 
 mod field_contracts;

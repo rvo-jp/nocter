@@ -108,7 +108,7 @@ impl ExportTarget {
     fn namespace(self) -> ExportNamespace {
         match self {
             Self::Declaration(DeclarationId::Code(_)) => ExportNamespace::Value,
-            Self::Declaration(DeclarationId::Record(_) | DeclarationId::Alias(_)) => {
+            Self::Declaration(DeclarationId::Nominal(_) | DeclarationId::Alias(_)) => {
                 ExportNamespace::Type
             }
             Self::Namespace(_) => ExportNamespace::Qualifier,

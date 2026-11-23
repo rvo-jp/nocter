@@ -58,7 +58,7 @@ impl Catalog {
                         return Err(integrity());
                     }
                 }
-                (DeclarationId::Record(record), ParsedHeader::Record(header)) => {
+                (DeclarationId::Nominal(record), ParsedHeader::Record(header)) => {
                     let contract = paired.contracts.representative(*raw);
                     if paired
                         .contracts

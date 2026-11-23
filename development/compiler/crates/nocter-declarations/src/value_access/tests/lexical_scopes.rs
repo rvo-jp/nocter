@@ -35,7 +35,7 @@ fn lexical_ancestry_keeps_siblings_independent_and_preserves_nearest_typed_ident
     let program = reservations.finish().unwrap().into_publication().snapshot();
     assert_eq!(program.resolve_code_in(nested, name("item")), Some(nearest));
     assert_eq!(program.resolve_code_in(sibling, name("item")), Some(root));
-    assert_eq!(program.resolve_record_in(nested, name("item")), Some(data));
+    assert_eq!(program.resolve_nominal_in(nested, name("item")), Some(data));
     assert_eq!(program.resolve_code_in(nested, name("local")), Some(local));
     for scope in [sibling, independent, ScopeId::ROOT] {
         assert_eq!(program.resolve_code_in(scope, name("local")), None);

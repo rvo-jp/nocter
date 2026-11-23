@@ -169,7 +169,7 @@ impl Checker<'_, '_> {
         };
         let nominal = self
             .program()
-            .record_identity(data)
+            .nominal_identity(data)
             .ok_or(Failure::InconsistentSyntax)?;
         if !self.context.record_construction_allowed(nominal) {
             return self.reject(Rule::InaccessibleRepresentation, name);

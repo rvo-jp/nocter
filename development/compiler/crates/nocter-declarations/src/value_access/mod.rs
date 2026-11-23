@@ -40,15 +40,15 @@ mod namespace;
 pub use namespace::{Namespace, QualifiedNameError, ScopeBindingError, ScopeId};
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
-mod records;
+mod nominals;
 use data::supported;
 pub use data::{ArraySchema, Component, DataReference, PayloadSchema, TupleData};
-pub use records::{Field, FieldDefinition, Record};
+pub use nominals::{Enumeration, Field, FieldDefinition, NominalSchema, Record, Variant};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeclarationId {
     Code(AccessCodeId),
-    Record(NominalTypeId),
+    Nominal(NominalTypeId),
     Alias(nocter_model::TypeAliasId),
 }
 impl From<AccessCodeId> for DeclarationId {
@@ -58,7 +58,7 @@ impl From<AccessCodeId> for DeclarationId {
 }
 impl From<NominalTypeId> for DeclarationId {
     fn from(id: NominalTypeId) -> Self {
-        Self::Record(id)
+        Self::Nominal(id)
     }
 }
 impl From<nocter_model::TypeAliasId> for DeclarationId {
@@ -70,7 +70,7 @@ impl From<nocter_model::TypeAliasId> for DeclarationId {
 /// The data identity of a type-owned behavior scope.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum BehaviorOwner {
-    Record(NominalTypeId),
+    Nominal(NominalTypeId),
     Builtin(BuiltinType),
 }
 
@@ -94,6 +94,7 @@ pub enum HeaderPosition {
     ParameterName { input: usize, leaf: usize },
     Result,
     Field(usize),
+    Variant(usize),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -115,6 +116,8 @@ pub enum DeclarationRule {
     DuplicateRecord { first: NominalTypeId },
     DuplicateTypeName { first: DeclarationId },
     DuplicateField { first: usize },
+    DuplicateVariant { first: usize },
+    EmptyEnumeration,
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
     UnreadyAlias { alias: nocter_model::TypeAliasId },
@@ -279,7 +282,7 @@ pub struct Program {
     codes: SparseArena<AccessCodeId, Code>,
     parameters: SparseArena<AccessParameterId, Parameter>,
     namespace: std::sync::Arc<namespace::Names>,
-    records: records::Schemas,
+    nominals: nominals::Schemas,
     aliases: SparseArena<nocter_model::TypeAliasId, TypeAlias>,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
     closure_parameters: BTreeMap<nocter_model::ValueParameter, FunctionConstraint>,
@@ -359,8 +362,9 @@ impl Program {
     pub const fn headers_complete(&self) -> bool {
         self.codes.is_complete()
             && self.parameters.is_complete()
-            && self.records.records.is_complete()
-            && self.records.fields.is_complete()
+            && self.nominals.types.is_complete()
+            && self.nominals.fields.is_complete()
+            && self.nominals.variants.is_complete()
             && self.aliases.is_complete()
     }
     /// A complete published contract, including its established transitive record schemas.
@@ -368,7 +372,7 @@ impl Program {
     pub fn header_ready(&self, declaration: impl Into<DeclarationId>) -> bool {
         match declaration.into() {
             DeclarationId::Code(id) => self.codes.get(id).is_some(),
-            DeclarationId::Record(id) => self.records.records.get(id).is_some(),
+            DeclarationId::Nominal(id) => self.nominals.types.get(id).is_some(),
             DeclarationId::Alias(id) => self.aliases.get(id).is_some(),
         }
     }
@@ -376,8 +380,9 @@ impl Program {
     #[must_use]
     pub fn preserves_headers(&self, older: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.namespace, &older.namespace)
-            && self.records.records.preserves(&older.records.records)
-            && self.records.fields.preserves(&older.records.fields)
+            && self.nominals.types.preserves(&older.nominals.types)
+            && self.nominals.fields.preserves(&older.nominals.fields)
+            && self.nominals.variants.preserves(&older.nominals.variants)
             && self.codes.preserves(&older.codes)
             && self.parameters.preserves(&older.parameters)
             && self.aliases.preserves(&older.aliases)
@@ -388,12 +393,30 @@ impl Program {
         &self.symbols
     }
     #[must_use]
-    pub fn records(&self) -> &SparseArena<NominalTypeId, Record> {
-        &self.records.records
+    pub fn nominals(&self) -> &SparseArena<NominalTypeId, NominalSchema> {
+        &self.nominals.types
+    }
+    #[must_use]
+    pub fn record(&self, id: NominalTypeId) -> Option<&Record> {
+        match self.nominals().get(id)? {
+            NominalSchema::Record(record) => Some(record),
+            NominalSchema::Enumeration(_) => None,
+        }
+    }
+    #[must_use]
+    pub fn enumeration(&self, id: NominalTypeId) -> Option<&Enumeration> {
+        match self.nominals().get(id)? {
+            NominalSchema::Record(_) => None,
+            NominalSchema::Enumeration(schema) => Some(schema),
+        }
+    }
+    #[must_use]
+    pub fn variants(&self) -> &SparseArena<nocter_model::VariantId, Variant> {
+        &self.nominals.variants
     }
     #[must_use]
     pub fn fields(&self) -> &SparseArena<nocter_model::AccessFieldId, Field> {
-        &self.records.fields
+        &self.nominals.fields
     }
     /// Closed name identity, independently of whether its typed contract is ready.
     #[must_use]
@@ -480,13 +503,13 @@ impl Program {
         self.namespace.contains_scope(scope)
     }
     #[must_use]
-    pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
-        self.resolve_record_in(ScopeId::ROOT, name)
+    pub fn resolve_nominal(&self, name: Symbol) -> Option<NominalTypeId> {
+        self.resolve_nominal_in(ScopeId::ROOT, name)
     }
     #[must_use]
-    pub fn resolve_record_in(&self, scope: ScopeId, name: Symbol) -> Option<NominalTypeId> {
+    pub fn resolve_nominal_in(&self, scope: ScopeId, name: Symbol) -> Option<NominalTypeId> {
         match self.declaration_in(scope, Namespace::Type, name)? {
-            DeclarationId::Record(id) => Some(id),
+            DeclarationId::Nominal(id) => Some(id),
             DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
         }
     }
@@ -516,7 +539,7 @@ impl Program {
     pub fn resolve_code_in(&self, scope: ScopeId, name: Symbol) -> Option<AccessCodeId> {
         match self.declaration_in(scope, Namespace::Value, name)? {
             DeclarationId::Code(id) => Some(id),
-            DeclarationId::Record(_) | DeclarationId::Alias(_) => None,
+            DeclarationId::Nominal(_) | DeclarationId::Alias(_) => None,
         }
     }
     #[must_use]
@@ -551,10 +574,10 @@ impl Program {
     pub fn declaration_label(&self, declaration: DeclarationId) -> Option<String> {
         match declaration {
             DeclarationId::Code(id) if self.codes.get(id).is_some() => return self.code_label(id),
-            DeclarationId::Record(id) if self.records.records.get(id).is_some() => {
+            DeclarationId::Nominal(id) if self.nominals().get(id).is_some() => {
                 return self
                     .symbols
-                    .spelling(self.records.records.get(id)?.name())
+                    .spelling(self.nominals().get(id)?.name())
                     .map(str::to_owned);
             }
             _ => {}
@@ -634,7 +657,7 @@ pub struct Reservations {
     scopes: namespace::Scopes,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
-    records: records::Builder,
+    nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
 }
 
@@ -651,7 +674,7 @@ impl Reservations {
             scopes: namespace::Scopes::default(),
             codes: ArenaBuilder::new(),
             parameters: ArenaBuilder::new(),
-            records: records::Builder::default(),
+            nominals: nominals::Builder::default(),
             aliases: ArenaBuilder::new(),
         }
     }
@@ -680,7 +703,7 @@ impl Reservations {
         owner: BehaviorOwner,
     ) -> Result<ScopeId, DefinitionError> {
         let known = match owner {
-            BehaviorOwner::Record(record) => self.records.scope(record).is_some(),
+            BehaviorOwner::Nominal(record) => self.nominals.scope(record).is_some(),
             BehaviorOwner::Builtin(builtin) => supported(builtin),
         };
         if !known {
@@ -718,7 +741,7 @@ impl Reservations {
                 .get(id)
                 .and_then(Reservation::source_name)
                 .is_some(),
-            DeclarationId::Record(id) => self.records.field_ids(id).is_some(),
+            DeclarationId::Nominal(id) => self.nominals.contains(id),
             DeclarationId::Alias(id) => self.aliases.get(id).is_some(),
         };
         if !self.scopes.contains(scope) || !known {
@@ -850,8 +873,8 @@ impl Reservations {
     ) -> Result<AccessCodeId, DefinitionError> {
         let scope = match source.declaration {
             DeclarationId::Code(id) => self.codes.get(id).ok_or(DefinitionError::UnknownId)?.scope,
-            DeclarationId::Record(id) => {
-                self.records.scope(id).ok_or(DefinitionError::UnknownId)?
+            DeclarationId::Nominal(id) => {
+                self.nominals.scope(id).ok_or(DefinitionError::UnknownId)?
             }
             DeclarationId::Alias(id) => {
                 self.aliases
@@ -883,7 +906,7 @@ impl Reservations {
                     _ => false,
                 }
             }),
-            DeclarationId::Record(id) => self.records.field_ids(id).is_some_and(|fields| {
+            DeclarationId::Nominal(id) => self.nominals.field_ids(id).is_some_and(|fields| {
                 matches!(source.position, HeaderPosition::Field(index) if index < fields.len())
             }),
             DeclarationId::Alias(id) => self.aliases.get(id).is_some()
@@ -907,7 +930,7 @@ impl Reservations {
 
     /// Reserve records in canonical namespace order, independently of definition order.
     pub fn reserve_record(&mut self, name: Symbol, field_count: usize) -> NominalTypeId {
-        self.records.reserve(ScopeId::ROOT, name, field_count)
+        self.nominals.reserve(ScopeId::ROOT, name, field_count)
     }
     /// Reserve a nominal identity and its fields in one known scope.
     /// # Errors
@@ -921,7 +944,22 @@ impl Reservations {
         if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
-        Ok(self.records.reserve(scope, name, field_count))
+        Ok(self.nominals.reserve(scope, name, field_count))
+    }
+
+    /// Reserve a nominal identity and the declaration-order identities of its variants.
+    /// # Errors
+    /// Rejects an unknown scope before reserving slots.
+    pub fn reserve_enum_in(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        variant_count: usize,
+    ) -> Result<NominalTypeId, DefinitionError> {
+        if !self.scopes.contains(scope) {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.nominals.reserve_enum(scope, name, variant_count))
     }
 
     /// Reserve a type name that will resolve to an existing data identity.
@@ -946,7 +984,7 @@ impl Reservations {
         let namespace = namespace::close(
             &self.symbols,
             &self.codes,
-            &self.records,
+            &self.nominals,
             &self.aliases,
             self.scopes,
             &mut violations,
@@ -958,7 +996,7 @@ impl Reservations {
             symbols: self.symbols,
             codes: self.codes,
             parameters: self.parameters.finish(),
-            records: self.records,
+            nominals: self.nominals,
             aliases: self.aliases,
             namespace: namespace.into(),
         })
@@ -973,7 +1011,7 @@ pub struct Builder {
     symbols: Arc<SymbolTable>,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
-    records: records::Builder,
+    nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
     namespace: Arc<namespace::Names>,
 }
@@ -990,7 +1028,7 @@ impl Builder {
     /// Reserved field identities in authored order; this grants no payload or Copy evidence.
     #[must_use]
     pub fn field_ids(&self, id: NominalTypeId) -> Option<&[nocter_model::AccessFieldId]> {
-        self.records.field_ids(id)
+        self.nominals.field_ids(id)
     }
 
     /// Defines an ordinary or explicitly Copy record. Every field stores a value, not an access.
@@ -1004,7 +1042,19 @@ impl Builder {
         copy: bool,
         fields: impl Into<Box<[FieldDefinition]>>,
     ) -> Result<(), DefinitionError> {
-        self.records.define(id, copy, fields.into())
+        self.nominals.define(id, copy, fields.into())
+    }
+
+    /// Define the variants of a reserved scalar enum in declaration order.
+    /// # Errors
+    /// Rejects a wrong reservation kind, arity mismatch or a second definition.
+    pub fn define_enum(
+        &mut self,
+        id: NominalTypeId,
+        copyable: bool,
+        variants: impl Into<Box<[Symbol]>>,
+    ) -> Result<(), DefinitionError> {
+        self.nominals.define_enum(id, copyable, variants.into())
     }
 
     /// Resolve a header type through the single construction namespace, after all reservations.
@@ -1084,7 +1134,7 @@ fn validate_definition(
     namespace: &namespace::Names,
     id: AccessCodeId,
     reservation: &Reservation,
-    records: &records::Builder,
+    nominals: &nominals::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     let Some(definition) = &reservation.definition else {
@@ -1141,14 +1191,14 @@ fn validate_definition(
                 rule: DeclarationRule::ParameterPatternMismatch,
             });
         }
-        validate_value(id, position, &parameter.data, true, records, violations);
+        validate_value(id, position, &parameter.data, true, nominals, violations);
     }
     validate_value(
         id,
         HeaderPosition::Result,
         &definition.result_data,
         definition.kind.is_callable(),
-        records,
+        nominals,
         violations,
     );
 }
@@ -1191,7 +1241,7 @@ fn validate_parameter_names<'binding>(
                                 DeclarationId::Code(declaration) => {
                                     DeclarationRule::ParameterShadowsValue { declaration }
                                 }
-                                DeclarationId::Record(_) | DeclarationId::Alias(_) => {
+                                DeclarationId::Nominal(_) | DeclarationId::Alias(_) => {
                                     unreachable!("value namespace")
                                 }
                             })
@@ -1214,7 +1264,7 @@ fn validate_value(
     position: HeaderPosition,
     value: &ValueDefinition,
     allow_components: bool,
-    records: &records::Builder,
+    nominals: &nominals::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     if value.has_repeated_failure() {
@@ -1231,7 +1281,7 @@ fn validate_value(
         {
             return;
         }
-        validate_data(callable, position, data, records, violations);
+        validate_data(callable, position, data, nominals, violations);
     });
 }
 
@@ -1239,10 +1289,10 @@ fn validate_data(
     callable: AccessCodeId,
     position: HeaderPosition,
     data: &DataReference,
-    records: &records::Builder,
+    nominals: &nominals::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
-    if let Some(rule) = data_rule(data, records) {
+    if let Some(rule) = data_rule(data, nominals) {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Code(callable),
             position,
@@ -1252,13 +1302,13 @@ fn validate_data(
 }
 
 /// One raw-leaf validity policy for callable slots and record fields, independent of readiness.
-fn data_rule(data: &DataReference, records: &records::Builder) -> Option<DeclarationRule> {
+fn data_rule(data: &DataReference, nominals: &nominals::Builder) -> Option<DeclarationRule> {
     match data {
         DataReference::Function(_) => Some(DeclarationRule::UnsupportedCallableData),
         DataReference::Builtin(data) if !supported(*data) => {
             Some(DeclarationRule::UnsupportedDataType { data: *data })
         }
-        DataReference::Record(record) if !records.contains(*record) => {
+        DataReference::Nominal(record) if !nominals.contains(*record) => {
             Some(DeclarationRule::UnknownRecordType { record: *record })
         }
         _ => None,

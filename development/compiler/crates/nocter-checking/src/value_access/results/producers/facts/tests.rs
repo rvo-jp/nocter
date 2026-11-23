@@ -154,7 +154,7 @@ fn an_unready_nominal_input_keeps_unknown_facts_without_proving_absence() {
     let mut publication = builder.into_publication();
     publication.publish(run).unwrap();
     let early = publication.snapshot();
-    let data = early.record_type_identity(record).unwrap();
+    let data = early.nominal_type_identity(record).unwrap();
     let mut store = Store::default();
     let facts = store.received(&early, data, false).unwrap();
     assert_eq!(facts, Store::unknown());
@@ -168,7 +168,7 @@ fn an_unready_nominal_input_keeps_unknown_facts_without_proving_absence() {
     let ready = publication.snapshot();
     assert!(ready.preserves_headers(&early));
     let known = store.received(&ready, data, false).unwrap();
-    let field = ready.records().get(record).unwrap().fields()[0];
+    let field = ready.record(record).unwrap().fields()[0];
     assert!(
         store.nodes[known.0]
             .children

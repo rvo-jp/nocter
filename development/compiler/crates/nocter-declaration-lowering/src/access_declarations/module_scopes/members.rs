@@ -107,7 +107,7 @@ impl Members {
                 continue;
             }
             let key = if let Some(family) = ComparisonFamily::of(declaration.kind()) {
-                if !matches!(member.owner, BehaviorOwner::Record(_)) {
+                if !matches!(member.owner, BehaviorOwner::Nominal(_)) {
                     return Err(ModuleSourcesFailure::Access(
                         super::super::source_roles::role_failure(
                             syntax(paired, declaration.source())?,
@@ -449,7 +449,7 @@ fn result_owner(result: &ValueDefinition) -> Option<BehaviorOwner> {
     let mut data = data;
     loop {
         data = match data {
-            DataReference::Record(record) => return Some(BehaviorOwner::Record(*record)),
+            DataReference::Nominal(record) => return Some(BehaviorOwner::Nominal(*record)),
             DataReference::Builtin(data) => return Some(BehaviorOwner::Builtin(*data)),
             DataReference::Optional { payload, .. } | DataReference::Fallible(payload) => payload,
             _ => return None,
@@ -476,7 +476,7 @@ pub(super) fn occurrences(
     let mut records = BTreeMap::<(SurfaceSourceId, Symbol), BTreeSet<_>>::new();
     for (raw, declaration) in inventory.declaration_entries() {
         let contract = paired.contracts.representative(raw);
-        let Some(DeclarationId::Record(record)) = declarations[contract.index()] else {
+        let Some(DeclarationId::Nominal(record)) = declarations[contract.index()] else {
             continue;
         };
         let name = declaration.name().ok_or_else(integrity)?;
@@ -484,7 +484,7 @@ pub(super) fn occurrences(
         records
             .entry((declaration.source(), name))
             .or_default()
-            .insert((BehaviorOwner::Record(record), contract));
+            .insert((BehaviorOwner::Nominal(record), contract));
     }
     let mut scopes_by_owner = BTreeMap::new();
     let mut owners = BTreeMap::new();

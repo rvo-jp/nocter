@@ -147,7 +147,7 @@ impl ScopedModuleSources<'_> {
                 definition.parameters,
                 definition.result,
             ),
-            (DeclarationId::Record(id), Definition::Record(definition)) => self
+            (DeclarationId::Nominal(id), Definition::Record(definition)) => self
                 .headers
                 .define_record(id, definition.copy, definition.fields),
             (DeclarationId::Alias(id), Definition::Alias(target)) => {
@@ -164,7 +164,7 @@ impl ScopedModuleSources<'_> {
         complete: &definitions::RecordDefinition,
         public: &definitions::RecordDefinition,
     ) -> Result<bool, ModuleSourcesFailure> {
-        let DeclarationId::Record(record) = required else {
+        let DeclarationId::Nominal(record) = required else {
             return Err(integrity());
         };
         let slots = self.headers.field_ids(record).ok_or_else(integrity)?;
@@ -253,7 +253,7 @@ impl ScopedModuleSources<'_> {
                 (Some(DeclarationId::Code(id)), ParsedHeader::Code(header)) => {
                     codes.insert(id, CodeSource::from_header(header));
                 }
-                (Some(DeclarationId::Record(id)), ParsedHeader::Record(header)) => {
+                (Some(DeclarationId::Nominal(id)), ParsedHeader::Record(header)) => {
                     records.insert(id, header.source.clone());
                 }
                 (Some(DeclarationId::Alias(_)), ParsedHeader::Alias(_)) => {}
@@ -297,7 +297,7 @@ fn project_occurrence<'value>(
             value,
         )
         .map(|p| p.map(Definition::Code)),
-        (DeclarationId::Record(record), ParsedHeader::Record(header)) => {
+        (DeclarationId::Nominal(record), ParsedHeader::Record(header)) => {
             definitions::project_record(program, scope, record, header, sources, value)
                 .map(|p| p.map(Definition::Record))
         }

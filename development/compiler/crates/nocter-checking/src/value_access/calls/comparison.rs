@@ -93,7 +93,7 @@ impl Checker<'_, '_> {
     ) -> Result<(Callee, FunctionConstraint), Failure> {
         let Some(member) = self
             .context
-            .comparison(BehaviorOwner::Record(record), family)
+            .comparison(BehaviorOwner::Nominal(record), family)
         else {
             let entry = match family {
                 ComparisonFamily::Equality => "equality",

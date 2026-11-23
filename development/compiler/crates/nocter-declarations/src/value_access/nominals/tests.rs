@@ -10,6 +10,114 @@ fn field(symbols: &SymbolTable, name: &str, data: DataReference) -> FieldDefinit
     }
 }
 
+#[test]
+fn scalar_enums_share_nominal_reservation_and_publish_variants_in_order() {
+    let symbols = SymbolTable::from_spellings(["Container", "Status", "busy", "idle", "state"]);
+    let name = |spelling| symbols.get(spelling).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let container = reservations.reserve_record(name("Container"), 1);
+    let status = reservations
+        .reserve_enum_in(ScopeId::ROOT, name("Status"), 2)
+        .unwrap();
+    assert_ne!(container, status);
+    let mut headers = reservations.finish().unwrap().into_publication();
+    headers
+        .define_record(
+            container,
+            true,
+            [field(&symbols, "state", DataReference::Nominal(status))],
+        )
+        .unwrap();
+    headers
+        .define_enum(status, true, [name("idle"), name("busy")])
+        .unwrap();
+    let waiting = headers.snapshot();
+    assert!(waiting.enumeration(status).is_none() && waiting.variants().is_empty());
+    let status_data = waiting.nominal_type_identity(status).unwrap();
+
+    headers.publish(container).unwrap();
+    let ready = headers.snapshot();
+    assert!(ready.preserves_headers(&waiting));
+    let status_schema = ready.enumeration(status).unwrap();
+    assert_eq!(status_schema.data(), status_data);
+    assert_eq!(ready.nominal_identity(status_data), Some(status));
+    assert!(ready.record(container).unwrap().copyable());
+    assert!(ready.record(status).is_none() && ready.enumeration(container).is_none());
+    for (position, (variant, spelling)) in status_schema
+        .variants()
+        .iter()
+        .zip(["idle", "busy"])
+        .enumerate()
+    {
+        assert_eq!(
+            status_schema.resolve_variant(name(spelling)),
+            Some(*variant)
+        );
+        let entry = ready.variants().get(*variant).unwrap();
+        assert_eq!(
+            (entry.owner(), entry.name(), entry.position()),
+            (status, name(spelling), position)
+        );
+    }
+}
+
+#[test]
+fn invalid_enum_definitions_publish_no_nominal_or_variant_schema() {
+    use crate::value_access::HeaderFailure;
+    let symbols = SymbolTable::from_spellings(["Status", "idle"]);
+    let idle = symbols.get("idle").unwrap();
+    for (names, expected) in [
+        (vec![], DeclarationRule::EmptyEnumeration),
+        (
+            vec![idle, idle],
+            DeclarationRule::DuplicateVariant { first: 0 },
+        ),
+    ] {
+        let mut reservations = Reservations::new(symbols.clone());
+        let status = reservations
+            .reserve_enum_in(ScopeId::ROOT, symbols.get("Status").unwrap(), names.len())
+            .unwrap();
+        let mut headers = reservations.finish().unwrap().into_publication();
+        let before = headers.snapshot();
+        headers.define_enum(status, true, names).unwrap();
+        let HeaderFailure::Rejected(violations) = headers.publish(status).unwrap_err() else {
+            panic!("invalid enum schema");
+        };
+        assert_eq!(violations[0].rule, expected);
+        let after = headers.snapshot();
+        assert!(after.preserves_headers(&before));
+        assert!(after.nominals().is_empty() && after.variants().is_empty());
+    }
+}
+
+#[test]
+fn opaque_scalar_enum_does_not_give_copy_to_a_containing_record() {
+    use super::super::HeaderFailure;
+    let symbols = SymbolTable::from_spellings(["Container", "Status", "idle", "state"]);
+    let name = |spelling| symbols.get(spelling).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let status = reservations
+        .reserve_enum_in(ScopeId::ROOT, name("Status"), 1)
+        .unwrap();
+    let container = reservations.reserve_record(name("Container"), 1);
+    let mut headers = reservations.finish().unwrap().into_publication();
+    headers.define_enum(status, false, [name("idle")]).unwrap();
+    headers
+        .define_record(
+            container,
+            true,
+            [field(&symbols, "state", DataReference::Nominal(status))],
+        )
+        .unwrap();
+    let HeaderFailure::Rejected(violations) = headers.publish(container).unwrap_err() else {
+        panic!("enum without Copy cannot populate a Copy record");
+    };
+    assert_eq!(violations[0].rule, DeclarationRule::NonCopyField);
+    let program = headers.snapshot();
+    assert!(!program.enumeration(status).unwrap().copyable());
+    assert!(program.record(container).is_none());
+}
+
 fn nested(reverse: bool) -> super::super::Program {
     let symbols = SymbolTable::from_spellings([
         "Inner", "Outer", "Ordinary", "Empty", "f", "input", "left", "right", "value",
@@ -40,8 +148,8 @@ fn nested(reverse: bool) -> super::super::Program {
             (
                 true,
                 vec![
-                    field(&symbols, "left", DataReference::Record(inner)),
-                    field(&symbols, "right", DataReference::Record(inner)),
+                    field(&symbols, "left", DataReference::Nominal(inner)),
+                    field(&symbols, "right", DataReference::Nominal(inner)),
                 ],
             )
         } else {
@@ -68,12 +176,14 @@ fn nested(reverse: bool) -> super::super::Program {
 fn records_share_the_program_authority_and_preserve_canonical_ids() {
     let a = nested(false);
     let b = nested(true);
-    assert_eq!(a.records(), b.records());
+    assert_eq!(a.nominals(), b.nominals());
     assert_eq!(a.fields(), b.fields());
     assert_eq!(a.codes(), b.codes());
     assert_eq!(a.parameters(), b.parameters());
-    let outer = a.resolve_record(a.symbols().get("Outer").unwrap()).unwrap();
-    let record = a.records().get(outer).unwrap();
+    let outer = a
+        .resolve_nominal(a.symbols().get("Outer").unwrap())
+        .unwrap();
+    let record = a.record(outer).unwrap();
     assert_eq!(
         a.data_schema(record.data()),
         Some(PayloadSchema::Aggregate(
@@ -116,12 +226,12 @@ fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
         .unwrap();
     let program = builder.finish().unwrap();
     for (id, expected) in [(empty, false), (copy_empty, true), (plain, false)] {
-        let data = program.records().get(id).unwrap().data();
+        let data = program.record(id).unwrap().data();
         assert_eq!(program.data_copyable(data), Some(expected));
     }
     assert_ne!(
-        program.records().get(empty).unwrap().data(),
-        program.records().get(copy_empty).unwrap().data()
+        program.record(empty).unwrap().data(),
+        program.record(copy_empty).unwrap().data()
     );
 }
 
@@ -138,8 +248,8 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
             a,
             true,
             [
-                field(&symbols, "first", DataReference::Record(b)),
-                field(&symbols, "second", DataReference::Record(plain)),
+                field(&symbols, "first", DataReference::Nominal(b)),
+                field(&symbols, "second", DataReference::Nominal(plain)),
             ],
         )
         .unwrap();
@@ -158,14 +268,14 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
     let mut headers = builder.into_publication();
     let before = headers.snapshot();
     let expected = super::super::HeaderFailure::Rejected(vec![DeclarationViolation {
-        declaration: DeclarationId::Record(b),
+        declaration: DeclarationId::Nominal(b),
         position: HeaderPosition::Field(0),
         rule: DeclarationRule::NonCopyField,
     }]);
     // The invalid child cannot publish as non-Copy, or make A produce a secondary Copy failure.
     assert_eq!(headers.publish(a), Err(expected));
     let after = headers.snapshot();
-    assert!(after.records().is_empty());
+    assert!(after.nominals().is_empty());
     assert!(after.fields().is_empty());
     assert_eq!(
         after.types.store().type_count(),
@@ -174,7 +284,7 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
     assert!(after.preserves_headers(&before));
     // An independent ordinary non-Copy record remains a valid dependency after the failure.
     headers.publish(plain).unwrap();
-    assert!(!headers.snapshot().records().get(plain).unwrap().copyable());
+    assert!(!headers.snapshot().record(plain).unwrap().copyable());
     assert!(matches!(
         headers.finish(),
         Err(super::super::HeaderFailure::Rejected(_))
@@ -195,7 +305,7 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
             .define_record(
                 id,
                 false,
-                [field(&symbols, "value", DataReference::Record(child))],
+                [field(&symbols, "value", DataReference::Nominal(child))],
             )
             .unwrap();
     }
@@ -210,13 +320,13 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
             headers.publish(request),
             Err(super::super::HeaderFailure::Rejected(vec![
                 DeclarationViolation {
-                    declaration: DeclarationId::Record(owner),
+                    declaration: DeclarationId::Nominal(owner),
                     position: HeaderPosition::Field(0),
                     rule: DeclarationRule::RecursivePayload { through },
                 }
             ]))
         );
-        assert!(headers.snapshot().records().is_empty());
+        assert!(headers.snapshot().nominals().is_empty());
         assert!(headers.snapshot().fields().is_empty());
     }
     // Final whole-unit closure still rejects unused invalid declarations.
@@ -239,7 +349,7 @@ fn missing_or_second_definitions_never_replace_a_valid_schema() {
     assert_eq!(
         violations,
         [DeclarationViolation {
-            declaration: DeclarationId::Record(b),
+            declaration: DeclarationId::Nominal(b),
             position: HeaderPosition::Name,
             rule: DeclarationRule::MissingDefinition
         }]
@@ -263,13 +373,13 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
         .define_record(
             a,
             false,
-            [field(&symbols, "value", DataReference::Record(absent))],
+            [field(&symbols, "value", DataReference::Nominal(absent))],
         )
         .unwrap();
     assert_eq!(
         builder.finish().unwrap_err(),
         [DeclarationViolation {
-            declaration: DeclarationId::Record(a),
+            declaration: DeclarationId::Nominal(a),
             position: HeaderPosition::Field(0),
             rule: DeclarationRule::UnknownRecordType { record: absent }
         }]
@@ -289,12 +399,12 @@ fn duplicate_records_fail_independently_of_the_value_namespace() {
         reservations.finish().unwrap_err(),
         [
             DeclarationViolation {
-                declaration: DeclarationId::Record(duplicate),
+                declaration: DeclarationId::Nominal(duplicate),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::DuplicateRecord { first: a }
             },
             DeclarationViolation {
-                declaration: DeclarationId::Record(repeated_collision),
+                declaration: DeclarationId::Nominal(repeated_collision),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::DuplicateRecord { first: collision }
             },
@@ -315,7 +425,7 @@ fn duplicate_field_names_fail_after_valid_reservations() {
     assert_eq!(
         builder.finish().unwrap_err(),
         [DeclarationViolation {
-            declaration: DeclarationId::Record(a),
+            declaration: DeclarationId::Nominal(a),
             position: HeaderPosition::Field(1),
             rule: DeclarationRule::DuplicateField { first: 0 }
         }]
@@ -334,12 +444,12 @@ fn reserved_and_unknown_record_names_fail_without_requesting_a_schema() {
         reservations.finish().unwrap_err(),
         [
             DeclarationViolation {
-                declaration: DeclarationId::Record(builtin),
+                declaration: DeclarationId::Nominal(builtin),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::ReservedBuiltinName,
             },
             DeclarationViolation {
-                declaration: DeclarationId::Record(absent),
+                declaration: DeclarationId::Nominal(absent),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::UnknownSymbol,
             },
@@ -369,12 +479,12 @@ fn unsupported_field_data_and_unknown_field_names_cannot_enter_frozen_schemas() 
         builder.finish().unwrap_err(),
         [
             DeclarationViolation {
-                declaration: DeclarationId::Record(a),
+                declaration: DeclarationId::Nominal(a),
                 position: HeaderPosition::Field(0),
                 rule: DeclarationRule::UnknownSymbol,
             },
             DeclarationViolation {
-                declaration: DeclarationId::Record(a),
+                declaration: DeclarationId::Nominal(a),
                 position: HeaderPosition::Field(0),
                 rule: DeclarationRule::UnsupportedDataType {
                     data: BuiltinType::F64
@@ -399,8 +509,8 @@ fn field_names_are_local_and_type_names_do_not_change_field_identity() {
     builder.define_record(a, true, fields.clone()).unwrap();
     builder.define_record(b, true, fields).unwrap();
     let program = builder.finish().unwrap();
-    let a = program.records().get(a).unwrap();
-    let b = program.records().get(b).unwrap();
+    let a = program.record(a).unwrap();
+    let b = program.record(b).unwrap();
     assert_ne!(a.data(), b.data());
     assert_ne!(a.fields()[0], b.fields()[0]);
     assert_eq!(
@@ -433,26 +543,26 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
                 pair[1],
                 true,
                 [
-                    field(&symbols, "left", DataReference::Record(pair[0])),
-                    field(&symbols, "right", DataReference::Record(pair[0])),
+                    field(&symbols, "left", DataReference::Nominal(pair[0])),
+                    field(&symbols, "right", DataReference::Nominal(pair[0])),
                 ],
             )
             .unwrap();
     }
     let mut headers = builder.into_publication();
     let early = headers.snapshot();
-    assert!(early.records().is_empty());
+    assert!(early.nominals().is_empty());
     assert!(early.fields().is_empty());
     assert!(!early.headers_complete());
     headers.publish(*ids.last().unwrap()).unwrap();
     let program = headers.snapshot();
     assert!(program.headers_complete());
     assert!(program.preserves_headers(&early));
-    assert_eq!(program.records().len(), COUNT);
+    assert_eq!(program.nominals().len(), COUNT);
     assert_eq!(program.fields().len(), 2 * (COUNT - 1));
     for &id in &ids {
         assert_eq!(
-            program.data_copyable(program.records().get(id).unwrap().data()),
+            program.data_copyable(program.record(id).unwrap().data()),
             Some(true)
         );
     }
@@ -480,13 +590,13 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
         .define_record(
             wrapper,
             false,
-            [field(&symbols, "value", DataReference::Record(failure))],
+            [field(&symbols, "value", DataReference::Nominal(failure))],
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    let wrapper = program.records().get(wrapper).unwrap();
+    let wrapper = program.record(wrapper).unwrap();
     let failure_data = program.fields().get(wrapper.fields()[0]).unwrap().data();
-    let failure = program.records().get(failure).unwrap();
+    let failure = program.record(failure).unwrap();
     assert_eq!(failure_data, failure.data());
     assert_eq!(program.data_copyable(wrapper.data()), Some(false));
     let error_data = program.fields().get(failure.fields()[0]).unwrap().data();
@@ -518,7 +628,7 @@ fn callable_parameters_do_not_collide_with_the_type_namespace() {
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    assert_eq!(program.resolve_record(symbols.get("A").unwrap()), Some(a));
+    assert_eq!(program.resolve_nominal(symbols.get("A").unwrap()), Some(a));
     assert_eq!(program.resolve(symbols.get("f").unwrap()), Some(f));
 }
 
@@ -540,7 +650,7 @@ fn rejected_copy_fields_publish_neither_tuple_types_nor_partial_schemas() {
                     &symbols,
                     "first",
                     DataReference::Tuple(TupleData::new(
-                        DataReference::Record(plain),
+                        DataReference::Nominal(plain),
                         BuiltinType::Bool.into(),
                         [],
                     )),
@@ -555,7 +665,7 @@ fn rejected_copy_fields_publish_neither_tuple_types_nor_partial_schemas() {
     let failure = HeaderFailure::Rejected(
         (0..2)
             .map(|position| DeclarationViolation {
-                declaration: DeclarationId::Record(invalid),
+                declaration: DeclarationId::Nominal(invalid),
                 position: HeaderPosition::Field(position),
                 rule: DeclarationRule::NonCopyField,
             })
@@ -567,7 +677,7 @@ fn rejected_copy_fields_publish_neither_tuple_types_nor_partial_schemas() {
         Err(HeaderFailure::Rejected(_))
     ));
     let after = headers.snapshot();
-    assert_eq!(after.records().len(), 1);
+    assert_eq!(after.nominals().len(), 1);
     assert!(after.fields().is_empty());
     assert!(!after.header_ready(invalid));
     assert_eq!(after.type_named("Invalid"), None);

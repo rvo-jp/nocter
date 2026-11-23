@@ -588,7 +588,7 @@ fn project_namespace(
             (Some(DeclarationId::Code(id)), ParsedHeader::Code(header)) => {
                 codes.insert(id, CodeSource::from_header(header));
             }
-            (Some(DeclarationId::Record(id)), ParsedHeader::Record(header)) => {
+            (Some(DeclarationId::Nominal(id)), ParsedHeader::Record(header)) => {
                 records.insert(id, Arc::clone(&header.source));
             }
             (Some(DeclarationId::Alias(id)), ParsedHeader::Alias(header)) => {
@@ -614,7 +614,7 @@ fn field_positions(
     let inventory = &paired.inventory;
     let mut fields = vec![None; inventory.declarations().len()];
     for (contract, declaration) in inventory.declaration_entries() {
-        let Some(DeclarationId::Record(record)) = declarations[contract.index()] else {
+        let Some(DeclarationId::Nominal(record)) = declarations[contract.index()] else {
             continue;
         };
         if paired.contracts.representative(contract) != contract
@@ -793,7 +793,7 @@ fn reserve_canonical(
                 header.fields.len(),
             )
             .map_err(|_| integrity())?;
-        declarations[id.index()] = Some(DeclarationId::Record(record));
+        declarations[id.index()] = Some(DeclarationId::Nominal(record));
     }
     let members = members::occurrences(paired, declarations, scopes, reservations)?;
     let mut test_names = BTreeMap::new();

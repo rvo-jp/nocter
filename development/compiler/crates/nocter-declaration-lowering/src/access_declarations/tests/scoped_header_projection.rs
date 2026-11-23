@@ -121,14 +121,14 @@ fn repeated_headers_resolve_in_their_own_physical_scopes_without_publication() {
             let expected = program
                 .resolve_data_in(scope, program.symbols().get("Data").unwrap())
                 .unwrap();
-            assert!(matches!(expected, DataReference::Record(_)));
+            assert!(matches!(expected, DataReference::Nominal(_)));
             assert_eq!(
                 definition.parameters[0].data,
                 ValueDefinition::Data(expected.clone())
             );
             assert_eq!(definition.result, ValueDefinition::Data(expected));
             assert!(!program.header_ready(scoped.declaration(raw).unwrap()));
-            assert!(program.codes().is_empty() && program.records().is_empty());
+            assert!(program.codes().is_empty() && program.nominals().is_empty());
         }
     }
 }
@@ -234,7 +234,7 @@ fn complete_representation_fields_use_the_definition_scope_and_keep_field_order(
     .reserve_names()
     .unwrap();
     let (raw, syntax, lookup) = occurrence(&scoped, "/app/body.nct", Kind::Struct, "Boxed");
-    let Some(DeclarationId::Record(record)) = scoped.declaration(raw) else {
+    let Some(DeclarationId::Nominal(record)) = scoped.declaration(raw) else {
         panic!("record")
     };
     let header = headers::record(
@@ -276,7 +276,7 @@ fn complete_representation_fields_use_the_definition_scope_and_keep_field_order(
             .resolve_data_in(root_lookup, program.symbols().get("Data").unwrap())
             .is_err()
     );
-    assert!(program.records().is_empty() && program.fields().is_empty());
+    assert!(program.nominals().is_empty() && program.fields().is_empty());
     assert!(!program.header_ready(record));
 }
 
@@ -299,7 +299,7 @@ fn empty_representation_still_requires_its_actual_syntax_source() {
     .reserve_names()
     .unwrap();
     let (raw, syntax, lookup) = occurrence(&scoped, "/app/body.nct", Kind::Struct, "Empty");
-    let Some(DeclarationId::Record(record)) = scoped.declaration(raw) else {
+    let Some(DeclarationId::Nominal(record)) = scoped.declaration(raw) else {
         panic!("record")
     };
     let header = headers::record(

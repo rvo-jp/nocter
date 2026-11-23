@@ -38,7 +38,7 @@ fn complete(mut headers: HeaderPublication) -> Program {
     let name = |text| headers.symbols().get(text).unwrap();
     let data_names = [name("One"), name("Two")];
     for name in data_names {
-        let record = headers.snapshot().resolve_record(name).unwrap();
+        let record = headers.snapshot().resolve_nominal(name).unwrap();
         let fields = headers
             .field_ids(record)
             .unwrap()

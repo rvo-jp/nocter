@@ -409,7 +409,7 @@ impl<'a, 's> Checker<'a, 's> {
         let Some(schema) = self.program().data_schema(data) else {
             return self
                 .program()
-                .record_identity(data)
+                .nominal_identity(data)
                 .and_then(|id| self.program().declaration_label(id.into()))
                 .expect("declared data authority");
         };
@@ -563,7 +563,7 @@ impl<'a, 's> Checker<'a, 's> {
             if let Some(alias) = self.program().type_alias_named_in(scope, spelling) {
                 self.require_declaration(alias.into(), token)?;
             }
-            if let Some(BehaviorOwner::Record(record)) =
+            if let Some(BehaviorOwner::Nominal(record)) =
                 self.program().type_owner_named_in(scope, spelling)
             {
                 return self.require_declaration(record.into(), token);

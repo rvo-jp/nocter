@@ -297,7 +297,7 @@ impl Types {
                 continue;
             }
             let Some(schema) = program.data_schema(data.data()) else {
-                if !metadata_only || program.record_identity(data.data()).is_none() {
+                if !metadata_only || program.nominal_identity(data.data()).is_none() {
                     return Err(INVALID);
                 }
                 // This identity came from a validated empty-array schema. Its declaration can

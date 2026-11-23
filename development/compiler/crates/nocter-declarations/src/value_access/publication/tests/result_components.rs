@@ -171,7 +171,7 @@ fn result_path_lookup_terminates_through_recursive_empty_nominal_schemas() {
             [FieldDefinition {
                 name: symbols.get("next").unwrap(),
                 data: DataReference::Array {
-                    element: std::sync::Arc::new(DataReference::Record(node)),
+                    element: std::sync::Arc::new(DataReference::Nominal(node)),
                     length: 0,
                 },
             }],
@@ -184,7 +184,7 @@ fn result_path_lookup_terminates_through_recursive_empty_nominal_schemas() {
             [],
             DataReference::Tuple(TupleData::new(
                 callable(BuiltinType::I32),
-                DataReference::Record(node),
+                DataReference::Nominal(node),
                 [],
             )),
         )

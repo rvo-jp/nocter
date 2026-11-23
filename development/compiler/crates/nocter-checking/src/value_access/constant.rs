@@ -409,7 +409,7 @@ mod tests {
             let program = builder.finish().unwrap();
             let data = program.codes().get(code).unwrap().result();
             assert_eq!(program.data_copyable(data), Some(true));
-            for data in [data, program.records().get(holder).unwrap().data()] {
+            for data in [data, program.record(holder).unwrap().data()] {
                 assert_eq!(
                     flow::resources::payload(&program, data).unwrap().disposal(),
                     flow::resources::Disposal::Aggregate

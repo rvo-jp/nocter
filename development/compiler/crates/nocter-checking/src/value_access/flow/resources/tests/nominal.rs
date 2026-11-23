@@ -44,14 +44,14 @@ impl Fixture {
                 false,
                 [
                     field("head", DataReference::Builtin(BuiltinType::Error)),
-                    field("left", DataReference::Record(leaf)),
-                    field("right", DataReference::Record(leaf)),
+                    field("left", DataReference::Nominal(leaf)),
+                    field("right", DataReference::Nominal(leaf)),
                     field("tail", DataReference::Builtin(BuiltinType::Error)),
                 ],
             )
             .unwrap();
         let program = builder.finish().unwrap();
-        let record = program.records().get(outer).unwrap();
+        let record = program.record(outer).unwrap();
         let data = record.data();
         let [head, left, right, tail] = ["head", "left", "right", "tail"].map(|s| {
             record
@@ -59,7 +59,7 @@ impl Fixture {
                 .unwrap()
                 .into()
         });
-        let record = program.records().get(leaf).unwrap();
+        let record = program.record(leaf).unwrap();
         let leaf = record.data();
         let [a, b] = ["a", "b"].map(|s| {
             record
@@ -574,11 +574,11 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
                 [
                     FieldDefinition {
                         name: symbols.get("left").unwrap(),
-                        data: DataReference::Record(pair[0]),
+                        data: DataReference::Nominal(pair[0]),
                     },
                     FieldDefinition {
                         name: symbols.get("right").unwrap(),
-                        data: DataReference::Record(pair[0]),
+                        data: DataReference::Nominal(pair[0]),
                     },
                 ],
             )
@@ -592,8 +592,7 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
     for &id in ids[1..].iter().rev() {
         source = source.project(
             program
-                .records()
-                .get(id)
+                .record(id)
                 .unwrap()
                 .resolve_field(symbols.get("left").unwrap())
                 .unwrap()
@@ -606,7 +605,7 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
             root,
             payload(
                 &program,
-                program.records().get(*ids.last().unwrap()).unwrap().data(),
+                program.record(*ids.last().unwrap()).unwrap().data(),
             )
             .unwrap(),
             &mut Vec::new(),

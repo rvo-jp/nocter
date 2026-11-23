@@ -156,7 +156,7 @@ fn primitive_roles_select_the_value_namespace_without_reserving_a_type_spelling(
         Query::prepare_with_primitive_authority(bound(&sources, &tree), &authority).unwrap();
     let context = query.bind(bound(&sources, &tree)).unwrap();
     let symbol = context.program().symbols().get("new_error").unwrap();
-    assert!(context.program().resolve_record(symbol).is_some());
+    assert!(context.program().resolve_nominal(symbol).is_some());
     let code = context.program().resolve_code(symbol).unwrap();
     assert_eq!(
         context.primitives().role(code),

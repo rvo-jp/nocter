@@ -112,7 +112,7 @@ pub(super) fn define<'v>(
             }
             Ok(projected.progress)
         }
-        DeclarationId::Record(id) => {
+        DeclarationId::Nominal(id) => {
             let projected = project_record(
                 &program,
                 scope,
@@ -393,7 +393,7 @@ impl Definitions<'_, '_, '_> {
             .map(|(index, data)| {
                 let Some(data) = self.data_type(
                     data,
-                    DeclarationId::Record(id),
+                    DeclarationId::Nominal(id),
                     HeaderPosition::Field(index),
                 )?
                 else {

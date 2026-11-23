@@ -218,7 +218,7 @@ fn fallible_program(data: nocter_declarations::value_access::DataReference) -> (
     let program = builder.finish().unwrap();
     let outcome = program
         .fields()
-        .get(program.records().get(holder).unwrap().fields()[0])
+        .get(program.record(holder).unwrap().fields()[0])
         .unwrap()
         .data();
     (program, outcome)

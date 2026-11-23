@@ -100,7 +100,7 @@ impl Checker<'_, '_> {
             if !seen.insert(data) {
                 continue;
             }
-            if let Some(record) = self.program().record_identity(data)
+            if let Some(record) = self.program().nominal_identity(data)
                 && !self.program().header_ready(record)
             {
                 return Err(Failure::RequiredHeader {

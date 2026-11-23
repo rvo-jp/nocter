@@ -31,7 +31,7 @@ pub struct Component {
 #[derive(Clone, Debug)]
 pub enum DataReference {
     Builtin(BuiltinType),
-    Record(NominalTypeId),
+    Nominal(NominalTypeId),
     /// A callable constraint inside an input descriptor, never an erased function pointer.
     Function(Box<super::FunctionDefinition>),
     Fallible(Arc<DataReference>),
@@ -61,7 +61,7 @@ impl PartialEq for DataReference {
             }
             match (left, right) {
                 (Self::Builtin(a), Self::Builtin(b)) if a == b => {}
-                (Self::Record(a), Self::Record(b)) if a == b => {}
+                (Self::Nominal(a), Self::Nominal(b)) if a == b => {}
                 (Self::Fallible(a), Self::Fallible(b)) | (Self::Future(a), Self::Future(b)) => {
                     pending.push((a, b));
                 }
@@ -156,7 +156,7 @@ impl DataReference {
             | Self::Array {
                 element: payload, ..
             } => Arc::strong_count(payload) > 1,
-            Self::Builtin(_) | Self::Record(_) | Self::Function(_) => false,
+            Self::Builtin(_) | Self::Nominal(_) | Self::Function(_) => false,
         }
     }
 
@@ -275,22 +275,20 @@ impl Program {
     }
     /// Existing nominal `TypeId`, independently of payload readiness; never interns a new type.
     #[must_use]
-    pub fn record_type_identity(&self, record: NominalTypeId) -> Option<TypeId> {
+    pub fn nominal_type_identity(&self, nominal: NominalTypeId) -> Option<TypeId> {
         self.types
             .store()
-            .identity(&super::records::nominal_key(record))
+            .identity(&super::nominals::nominal_key(nominal))
     }
-    /// The named record identity, including before its payload schema is ready.
-    /// This grants no field, containment, Copy or payload-readiness evidence.
+    /// The named nominal identity, including before its schema is ready.
+    /// This grants no member, containment, Copy or payload-readiness evidence.
     #[must_use]
-    pub fn record_identity(&self, data: TypeId) -> Option<NominalTypeId> {
+    pub fn nominal_identity(&self, data: TypeId) -> Option<NominalTypeId> {
         match self.types.store().get(data)? {
             TypeKind::Nominal {
                 definition,
                 arguments,
-            } if arguments.as_slice().is_empty()
-                && self.records.records.is_reserved(*definition) =>
-            {
+            } if arguments.as_slice().is_empty() && self.nominals().is_reserved(*definition) => {
                 Some(*definition)
             }
             _ => None,
@@ -315,7 +313,7 @@ impl Program {
     pub fn type_identity_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
         match data_reference(&self.symbols, &self.namespace, scope, spelling) {
             Some(DataReference::Builtin(data)) => self.data_type(data),
-            Some(DataReference::Record(id)) => self.record_type_identity(id),
+            Some(DataReference::Nominal(id)) => self.nominal_type_identity(id),
             _ => self
                 .alias(self.type_alias_named_in(scope, spelling)?)
                 .map(super::TypeAlias::data),
@@ -349,7 +347,7 @@ impl Program {
     pub fn behavior_owner(&self, data: TypeId) -> Option<BehaviorOwner> {
         self.data_kind(data)
             .map(BehaviorOwner::Builtin)
-            .or_else(|| self.record_identity(data).map(BehaviorOwner::Record))
+            .or_else(|| self.nominal_identity(data).map(BehaviorOwner::Nominal))
     }
     /// Resolve a closed header name without requiring payload or function readiness.
     /// # Errors
@@ -372,7 +370,7 @@ impl Program {
     #[must_use]
     pub fn type_declaration_identity(&self, declaration: DeclarationId) -> Option<TypeId> {
         match declaration {
-            DeclarationId::Record(record) => self.record_type_identity(record),
+            DeclarationId::Nominal(record) => self.nominal_type_identity(record),
             DeclarationId::Alias(alias) => self.alias(alias).map(super::TypeAlias::data),
             DeclarationId::Code(_) => None,
         }
@@ -385,7 +383,7 @@ impl Program {
         declaration: DeclarationId,
     ) -> Result<Option<DataReference>, super::DeclarationRule> {
         match declaration {
-            DeclarationId::Record(record) => Ok(Some(DataReference::Record(record))),
+            DeclarationId::Nominal(record) => Ok(Some(DataReference::Nominal(record))),
             DeclarationId::Alias(alias) => self
                 .alias(alias)
                 .map(|target| Some(target.reference().clone()))
@@ -531,11 +529,9 @@ impl Program {
             TypeKind::Nominal {
                 definition,
                 arguments,
-            } if arguments.as_slice().is_empty() => {
-                self.records.records.get(*definition).map(|record| {
-                    PayloadSchema::Aggregate(super::AggregateSchema::record(record, self.fields()))
-                })
-            }
+            } if arguments.as_slice().is_empty() => self.record(*definition).map(|record| {
+                PayloadSchema::Aggregate(super::AggregateSchema::record(record, self.fields()))
+            }),
             TypeKind::FixedArray { element, length } => Some(PayloadSchema::Array(ArraySchema {
                 element: *element,
                 length: length.closed_value()?,
@@ -710,11 +706,11 @@ pub(super) fn data_reference(
     if spelling == "Self" {
         return namespace.behavior_owner(scope).map(|owner| match owner {
             BehaviorOwner::Builtin(data) => DataReference::Builtin(data),
-            BehaviorOwner::Record(record) => DataReference::Record(record),
+            BehaviorOwner::Nominal(record) => DataReference::Nominal(record),
         });
     }
     match namespace.get(scope, super::Namespace::Type, symbols.get(spelling)?)? {
-        DeclarationId::Record(id) => Some(DataReference::Record(id)),
+        DeclarationId::Nominal(id) => Some(DataReference::Nominal(id)),
         DeclarationId::Code(_) | DeclarationId::Alias(_) => None,
     }
 }
@@ -777,8 +773,8 @@ fn resolve_reference_scoped(
             DataReference::Builtin(data) => {
                 construct(ReferenceNode::Data(TypeKind::Builtin(*data)))?
             }
-            DataReference::Record(id) => {
-                construct(ReferenceNode::Data(super::records::nominal_key(*id)))?
+            DataReference::Nominal(id) => {
+                construct(ReferenceNode::Data(super::nominals::nominal_key(*id)))?
             }
             DataReference::Function(contract) => {
                 if entered_with.is_none() {

@@ -47,7 +47,7 @@ fn body_arrays_share_header_identity_and_keep_cardinality_out_of_metadata() {
     let header = headers.finish().unwrap();
     let integer = header.data_type(BuiltinType::I32).unwrap();
     let error = header.data_type(BuiltinType::Error).unwrap();
-    let field = header.records().get(record).unwrap().fields()[0];
+    let field = header.record(record).unwrap().fields()[0];
     let mut body = header.body_types(first).unwrap();
     let same = body.array(integer, 4).unwrap();
     assert_eq!(same, header.fields().get(field).unwrap().data());
@@ -90,7 +90,7 @@ fn array_replay_remaps_nested_elements_after_late_headers_and_sibling_suffixes()
     let b = b.finish();
     assert_eq!(inner, different, "sibling raw positions must collide");
     let late = headers.finish().unwrap();
-    let field = late.records().get(record).unwrap().fields()[0];
+    let field = late.record(record).unwrap().fields()[0];
     let header_array = late.fields().get(field).unwrap().data();
     assert_eq!(
         inner, header_array,

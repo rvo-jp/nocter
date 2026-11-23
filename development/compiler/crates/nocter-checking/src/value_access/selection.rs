@@ -115,7 +115,7 @@ impl Checker<'_, '_> {
         )
     }
     pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<ValueField, Failure> {
-        if let Some(record) = self.program().record_identity(data)
+        if let Some(record) = self.program().nominal_identity(data)
             && !self.program().header_ready(record)
         {
             return Err(Failure::RequiredHeader {
@@ -149,7 +149,7 @@ impl Checker<'_, '_> {
             if let ValueField::Record(id) = field {
                 let record = self
                     .program()
-                    .record_identity(data)
+                    .nominal_identity(data)
                     .ok_or(Failure::InconsistentSyntax)?;
                 if !self.context.record_field_visible(record, id) {
                     return self.reject(Rule::InaccessibleField, token);

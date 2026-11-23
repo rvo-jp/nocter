@@ -5,10 +5,9 @@ use nocter_diagnostics::SourceDiagnostic;
 fn array(unit: &Unit, record: &str, position: usize) -> ArraySchema {
     let program = unit.program();
     let record = program
-        .records()
-        .get(
+        .record(
             program
-                .resolve_record(program.symbols().get(record).unwrap())
+                .resolve_nominal(program.symbols().get(record).unwrap())
                 .unwrap(),
         )
         .unwrap();

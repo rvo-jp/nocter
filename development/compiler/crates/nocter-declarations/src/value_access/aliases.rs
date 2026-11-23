@@ -1,7 +1,7 @@
 //! Transparent naming metadata projected from the canonical data authority.
 use super::{
     DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderFailure,
-    HeaderPosition, ScopeId, data, records,
+    HeaderPosition, ScopeId, data, nominals,
 };
 use nocter_model::{Symbol, TypeAliasId, TypeAuthority, TypeId};
 
@@ -41,7 +41,7 @@ impl Slot {
     pub fn publish(
         &self,
         alias: TypeAliasId,
-        records: &records::Builder,
+        nominals: &nominals::Builder,
         types: &mut TypeAuthority,
     ) -> Result<TypeAlias, HeaderFailure> {
         let violation = |rule| DeclarationViolation {
@@ -60,7 +60,7 @@ impl Slot {
             let rule = if matches!(part, DataReference::Function(_) | DataReference::Future(_)) {
                 Some(DeclarationRule::UnsupportedAliasTarget)
             } else {
-                super::data_rule(part, records)
+                super::data_rule(part, nominals)
             };
             if let Some(rule) = rule {
                 violations.push(violation(rule));

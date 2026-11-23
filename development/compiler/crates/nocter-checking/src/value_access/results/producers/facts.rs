@@ -256,7 +256,7 @@ impl Store {
             }
             let schema = match program.data_schema(data) {
                 Some(schema) => schema,
-                None if program.record_identity(data).is_some() => {
+                None if program.nominal_identity(data).is_some() => {
                     // A reserved nominal signature says nothing about its hidden fields. This
                     // is unknown producer/tag information, never proof of an empty value.
                     done.insert(data, Facts::UNKNOWN);

@@ -167,7 +167,7 @@ impl Program {
     /// Signature identity does not require a reserved nominal payload to be complete.
     /// This proves neither an input value nor its ABI layout or invocation availability.
     pub(super) fn signature_data_known(&self, data: TypeId) -> bool {
-        self.data_schema(data).is_some() || self.record_identity(data).is_some()
+        self.data_schema(data).is_some() || self.nominal_identity(data).is_some()
     }
 
     /// The result template selected at this call. It constrains a result, never proves a producer.

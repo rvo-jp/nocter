@@ -131,9 +131,9 @@ fn header_sources_cover_record_fields_and_callable_slots_before_type_publication
     let preparation = Preparation::prepare(syntax).unwrap();
     let early = preparation.current();
     let program = early.program();
-    let buffer = DeclarationId::Record(
+    let buffer = DeclarationId::Nominal(
         program
-            .resolve_record(program.symbols().get("Buffer").unwrap())
+            .resolve_nominal(program.symbols().get("Buffer").unwrap())
             .unwrap(),
     );
     let function = DeclarationId::Code(code(&early, "size"));
@@ -199,10 +199,10 @@ fn an_unresolved_record_type_root_is_source_evidence_without_header_admission() 
     let syntax = bound(&sources, &tree);
     let mut preparation = Preparation::prepare(syntax).unwrap();
     let early = preparation.current();
-    let owner = DeclarationId::Record(
+    let owner = DeclarationId::Nominal(
         early
             .program()
-            .resolve_record(early.program().symbols().get("Bad").unwrap())
+            .resolve_nominal(early.program().symbols().get("Bad").unwrap())
             .unwrap(),
     );
     let source = early
