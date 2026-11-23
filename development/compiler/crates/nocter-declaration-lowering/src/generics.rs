@@ -416,34 +416,62 @@ fn explicit_binders(
     tree: &nocter_syntax::SyntaxTree,
     parameters: NodeId,
 ) -> Result<Vec<BinderToken>, GenericError> {
+    explicit_parameter_syntax(tree, parameters)
+        .map_err(|_| GenericError::InconsistentBinder(id))?
+        .into_iter()
+        .map(|parameter| {
+            let domain = if let Some(ty) = parameter.annotation {
+                let identifiers = descendant_identifiers(tree, ty);
+                if identifiers.len() != 1 || token_spelling(headers, id, identifiers[0])? != "usize"
+                {
+                    return Err(GenericViolation::unsupported_constant_parameter_type(
+                        parameter.origin,
+                    )
+                    .into());
+                }
+                GenericParameterDomain::UsizeConstant
+            } else {
+                GenericParameterDomain::Type
+            };
+            Ok(BinderToken {
+                token: parameter.name,
+                domain,
+            })
+        })
+        .collect()
+}
+
+/// One authored generic parameter with its original annotation, before type resolution.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ExplicitParameterSyntax {
+    pub(crate) origin: NodeId,
+    pub(crate) name: SyntaxToken,
+    pub(crate) annotation: Option<NodeId>,
+}
+
+pub(crate) fn explicit_parameter_syntax(
+    tree: &nocter_syntax::SyntaxTree,
+    parameters: NodeId,
+) -> Result<Vec<ExplicitParameterSyntax>, NodeId> {
     let mut binders = Vec::new();
     for element in tree.children(parameters) {
         let SyntaxElement::Node(parameter) = element else {
             continue;
         };
-        let kind = tree
-            .node(*parameter)
-            .ok_or(GenericError::InconsistentBinder(id))?
-            .kind();
-        let domain = match kind {
-            NodeKind::TypeGenericParameter => GenericParameterDomain::Type,
+        let kind = tree.node(*parameter).ok_or(*parameter)?.kind();
+        let annotation = match kind {
+            NodeKind::TypeGenericParameter => None,
             NodeKind::ConstantGenericParameter => {
-                let ty = direct_node(tree, *parameter, NodeKind::Type)
-                    .ok_or(GenericError::InconsistentBinder(id))?;
-                let identifiers = descendant_identifiers(tree, ty);
-                if identifiers.len() != 1 || token_spelling(headers, id, identifiers[0])? != "usize"
-                {
-                    return Err(
-                        GenericViolation::unsupported_constant_parameter_type(*parameter).into(),
-                    );
-                }
-                GenericParameterDomain::UsizeConstant
+                Some(direct_node(tree, *parameter, NodeKind::Type).ok_or(*parameter)?)
             }
             _ => continue,
         };
-        let token =
-            direct_identifier(tree, *parameter).ok_or(GenericError::InconsistentBinder(id))?;
-        binders.push(BinderToken { token, domain });
+        let name = direct_identifier(tree, *parameter).ok_or(*parameter)?;
+        binders.push(ExplicitParameterSyntax {
+            origin: *parameter,
+            name,
+            annotation,
+        });
     }
     Ok(binders)
 }

@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind the authored generic parameter list in v2 function headers. Preserve the original slot
-order, names and type/constant distinction for subsequent argument elaboration and body checking.
+Reserve ordered generic parameter identities on canonical v2 callable headers. Carry the same
+identities across contract and implementation headers for later argument elaboration and body checking.
 
 ## Remaining Contextual Representation Qualification
 
@@ -667,6 +667,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain explicit generic arguments in named and member call syntax and named type
   applications. Verify jointness, nested closing angles, constant expression shape and recovery
   from incomplete input. Reject unresolved applications at the original argument list.
+- [x] Retain the ordered lexical type and constant parameter list of named v2 functions. Diagnose
+  duplicate names across parameter kinds at the repeated name and point to the original binder.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

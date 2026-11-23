@@ -389,7 +389,6 @@ fn retired_prefix_assertions_and_type_qualifiers_have_no_fallback() {
         "func f(x: i32): void { f(&x) }",
         "func f(x: i32): void { f((^x)) }",
         "func f(x: i32): void { let y = &&x }",
-        "func f<T>(x: T): T { return x }",
         "func f(): void { let c = (^x;) { x } }",
     ] {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");

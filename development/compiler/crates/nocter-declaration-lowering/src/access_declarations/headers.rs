@@ -5,12 +5,14 @@ use super::{
     text,
 };
 use nocter_declarations::value_access::{CodeKind, ParameterBinding};
+use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
+use nocter_source_index::SourceOrigin;
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxOrigin, SyntaxToken, child_node_iter,
     declaration_name_token, direct_identifier, direct_node, direct_node_iter, first_direct_token,
 };
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
@@ -142,6 +144,9 @@ pub(super) fn parameter_binding(
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
+    if let Some(parameters) = direct_node(tree, declaration, NodeKind::GenericParameters) {
+        return Err(generic_function_failure(syntax, parameters));
+    }
     let deferred_modifier = direct_node(tree, declaration, NodeKind::AsyncModifier);
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
     let tail = direct_node(tree, declaration, NodeKind::CallableTail)
@@ -168,6 +173,44 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         result_data: project_type_syntax(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Block),
     })
+}
+
+fn generic_function_failure(syntax: BoundSyntax<'_>, parameters: NodeId) -> Failure {
+    let tree = syntax.tree();
+    let Ok(slots) = crate::generics::explicit_parameter_syntax(tree, parameters) else {
+        return Failure::InconsistentSyntax;
+    };
+    let mut names = BTreeMap::new();
+    for slot in slots {
+        if let Some(first) = names.insert(text(syntax, slot.name), slot.name) {
+            let (Ok(origin), Ok(previous)) = (
+                SourceOrigin::from_token(tree, slot.name),
+                SourceOrigin::from_token(tree, first),
+            ) else {
+                return Failure::InconsistentSyntax;
+            };
+            return Failure::Syntax(Box::new([SourceDiagnostic::new(
+                DiagnosticCode::E0241,
+                "duplicate generic parameter",
+                origin,
+                [DiagnosticNote::new(
+                    "the first parameter is declared here",
+                    previous,
+                )],
+                None::<&str>,
+            )]));
+        }
+    }
+    let Ok(origin) = SourceOrigin::from_node(tree, parameters) else {
+        return Failure::InconsistentSyntax;
+    };
+    Failure::Syntax(Box::new([SourceDiagnostic::new(
+        DiagnosticCode::E0291,
+        "this generic callable does not have a qualified specialization",
+        origin,
+        [],
+        None::<&str>,
+    )]))
 }
 
 pub(super) fn immediate_function(syntax: BoundSyntax<'_>, declaration: NodeId) -> CodeKind {

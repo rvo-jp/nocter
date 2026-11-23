@@ -82,6 +82,28 @@ fn incomplete_or_separated_angle_lists_do_not_consume_a_comparison_operand() {
 }
 
 #[test]
+fn named_generic_headers_preserve_ordered_type_and_constant_parameters() {
+    let parsed = tree(
+        "func decode<T, const N: usize>(bytes: [u8; N]): T!",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let (list, _) = parsed
+        .nodes()
+        .find(|(_, node)| node.kind() == NodeKind::GenericParameters)
+        .unwrap();
+    assert_eq!(
+        crate::child_node_iter(&parsed, list)
+            .map(|node| parsed.node(node).unwrap().kind())
+            .collect::<Vec<_>>(),
+        [
+            NodeKind::TypeGenericParameter,
+            NodeKind::ConstantGenericParameter
+        ]
+    );
+}
+
+#[test]
 fn one_recursive_type_grammar_recognizes_plain_callable_contracts_in_every_annotation_position() {
     for text in [
         "const CALLBACK: func(i32): i32 = named",

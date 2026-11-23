@@ -10,6 +10,27 @@ mod module_scopes;
 mod module_sources;
 mod scoped_header_projection;
 mod source_roles;
+
+#[test]
+fn generic_function_parameters_share_one_name_domain_across_kinds() {
+    for (text, code) in [
+        ("func run<T, const N: usize>(): i32 { 42 }", "E0291"),
+        ("func run<T, const T: usize>(): i32 { 42 }", "E0241"),
+    ] {
+        let (sources, tree) = input(text, ParseGoal::V2CoreUnit);
+        assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+        let Err(Failure::Syntax(diagnostics)) = Preparation::prepare(bound(&sources, &tree)) else {
+            panic!("a generic header must retain its authored parameter list");
+        };
+        let [diagnostic] = diagnostics.as_ref() else {
+            panic!("expected one generic header diagnostic");
+        };
+        assert_eq!(diagnostic.code(), code);
+        if code == "E0241" {
+            assert_eq!(diagnostic.notes().len(), 1);
+        }
+    }
+}
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources

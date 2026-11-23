@@ -19,6 +19,9 @@ suffix. The parser shares angle delimiters and the argument tree with named type
 token-boundary probe limits speculative work on comparisons and incomplete source. The current
 declaration and call checkers diagnose explicit arguments until generic declaration binding
 supplies their parameter kinds.
+Named function heads retain an ordered generic parameter list. The shared source projection
+preserves original names and constant type annotations. A repeated name is diagnosed at its
+second occurrence with the first declaration attached.
 
 An explicitly selected v2 package-root catalog now carries the adopted
 [package metadata](../../spec/language/packages.md) through the common package decoder and physical

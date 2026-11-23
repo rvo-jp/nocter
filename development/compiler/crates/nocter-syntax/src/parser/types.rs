@@ -20,6 +20,10 @@ pub(super) fn callable_result(parser: &mut Parser<'_>) {
 }
 
 pub(super) fn generic_parameters(parser: &mut Parser<'_>) {
+    generic_parameters_with(parser, type_);
+}
+
+pub(super) fn generic_parameters_with(parser: &mut Parser<'_>, annotation: fn(&mut Parser<'_>)) {
     let marker = parser.start();
     parser.bump();
     type_delimited_list(
@@ -32,7 +36,7 @@ pub(super) fn generic_parameters(parser: &mut Parser<'_>) {
                 parser.bump();
                 expect_pattern_binder(parser);
                 parser.expect_punctuation(Punctuation::Colon);
-                type_(parser);
+                annotation(parser);
                 NodeKind::ConstantGenericParameter
             } else {
                 expect_pattern_binder(parser);
@@ -595,7 +599,7 @@ fn type_delimited_list(
     parser: &mut Parser<'_>,
     expected_element: ExpectedSyntax,
     recovery: ListRecovery,
-    parse_element: fn(&mut Parser<'_>),
+    mut parse_element: impl FnMut(&mut Parser<'_>),
 ) {
     parser.eat_newlines();
     if at_type_list_end(parser) {
