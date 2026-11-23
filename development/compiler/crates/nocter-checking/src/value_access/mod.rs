@@ -262,7 +262,7 @@ enum Site {
 #[derive(Clone, Debug, Default)]
 struct Origins {
     expressions: BTreeMap<AccessExpressionId, Site>,
-    named_calls: BTreeMap<AccessExpressionId, Site>,
+    direct_calls: BTreeMap<AccessExpressionId, Site>,
     statements: BTreeMap<AccessStatementId, Site>,
     locals: BTreeMap<AccessLocalId, Site>,
     blocks: BTreeMap<AccessBlockId, Site>,
@@ -402,9 +402,9 @@ impl Query {
                 .iter()
                 .map(|(&id, &site)| Ok((id, resolve(site)?)))
                 .collect::<Result<_, Failure>>()?,
-            named_calls: self
+            direct_calls: self
                 .origins
-                .named_calls
+                .direct_calls
                 .iter()
                 .map(|(&id, &site)| Ok((id, resolve(site)?)))
                 .collect::<Result<_, Failure>>()?,
@@ -436,7 +436,7 @@ pub struct Context<'query, 'source> {
     query: &'query Query,
     syntax: BoundSyntax<'source>,
     expressions: BTreeMap<AccessExpressionId, SyntaxOrigin>,
-    named_calls: BTreeMap<AccessExpressionId, SyntaxOrigin>,
+    direct_calls: BTreeMap<AccessExpressionId, SyntaxOrigin>,
     statements: BTreeMap<AccessStatementId, SyntaxOrigin>,
     locals: BTreeMap<AccessLocalId, SyntaxOrigin>,
     blocks: BTreeMap<AccessBlockId, SyntaxOrigin>,
@@ -454,11 +454,11 @@ impl Context<'_, '_> {
     pub fn expression_origin(&self, id: AccessExpressionId) -> Option<SyntaxOrigin> {
         self.expressions.get(&id).copied()
     }
-    /// Current name tokens of calls whose declaration was selected directly by checking.
-    pub fn named_call_origins(
+    /// Current authored tokens of calls whose declaration was selected directly by checking.
+    pub fn direct_call_origins(
         &self,
     ) -> impl Iterator<Item = (AccessExpressionId, SyntaxOrigin)> + '_ {
-        self.named_calls
+        self.direct_calls
             .iter()
             .map(|(&call, &origin)| (call, origin))
     }

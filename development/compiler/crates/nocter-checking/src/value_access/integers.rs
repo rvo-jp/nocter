@@ -3,8 +3,9 @@ use super::{
     Binary, Failure,
     booleans::{self, Demand},
     checker::Checker,
+    ir::Projection,
 };
-use nocter_model::{AccessExpressionId, TypeId, ValueAccess};
+use nocter_model::{AccessExpressionId, TypeId, ValueAccess, ValueAccessMode};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, TokenKind};
 impl Checker<'_, '_> {
     pub fn binary_operands(
@@ -16,16 +17,22 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<(AccessExpressionId, AccessExpressionId, Demand), Failure> {
         let logical = matches!(operation, Binary::And | Binary::Or);
+        let projection = operation
+            .is_comparison()
+            .then_some(Projection::input(ValueAccessMode::Read));
         Ok(
             if !logical && hint.is_none() && self.integer_recipe(left_node)? {
                 // The left recipe has no names, calls or control. Obtain its constraint without
                 // changing the frozen left-to-right execution/snapshot order.
-                let right = self.expression(right_node, None, reachable)?;
+                let right =
+                    self.expression_with_type_hint(right_node, None, projection, reachable)?;
                 let data = self.integer_hint(self.ty(right).access().map(ValueAccess::data));
-                let left = self.expression_with_context(left_node, data, None, reachable)?;
+                let left =
+                    self.expression_with_type_hint(left_node, data, projection, reachable)?;
                 (left, right, Demand::Always)
             } else {
-                let left = self.expression_with_context(left_node, hint, None, reachable)?;
+                let left =
+                    self.expression_with_type_hint(left_node, hint, projection, reachable)?;
                 let demand = booleans::right_demand(operation, self.normal_boolean(left));
                 let data = if logical {
                     None
@@ -33,10 +40,10 @@ impl Checker<'_, '_> {
                     self.integer_hint(self.ty(left).access().map(ValueAccess::data))
                         .or(hint)
                 };
-                let right = self.expression_with_context(
+                let right = self.expression_with_type_hint(
                     right_node,
                     data,
-                    None,
+                    projection,
                     reachable && self.ty(left).may_complete() && demand != Demand::Never,
                 )?;
                 (left, right, demand)

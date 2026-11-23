@@ -22,8 +22,9 @@ pub(crate) fn declaration_entity_origin(
     }
     let token_kind = match kind {
         SurfaceDeclarationKind::Coercion => Some(TokenKind::Keyword(Keyword::As)),
-        SurfaceDeclarationKind::Equality => Some(TokenKind::Punctuation(Punctuation::EqualEqual)),
-        SurfaceDeclarationKind::Ordering => Some(TokenKind::Punctuation(Punctuation::Less)),
+        SurfaceDeclarationKind::Equality | SurfaceDeclarationKind::Ordering => {
+            return comparison_operator(tree, node).map(SyntaxOrigin::Token);
+        }
         SurfaceDeclarationKind::Index => Some(TokenKind::Punctuation(Punctuation::LeftBracket)),
         SurfaceDeclarationKind::Expansion => Some(TokenKind::Punctuation(Punctuation::Expansion)),
         SurfaceDeclarationKind::OpaqueType => Some(TokenKind::Identifier),
@@ -36,4 +37,13 @@ pub(crate) fn declaration_entity_origin(
         Some(token_kind) => direct_token(tree, node, token_kind).map(SyntaxOrigin::Token),
         None => Some(SyntaxOrigin::Node(node)),
     }
+}
+
+pub(crate) fn comparison_operator(tree: &SyntaxTree, declaration: NodeId) -> Option<SyntaxToken> {
+    let punctuation = match tree.node(declaration)?.kind() {
+        NodeKind::EqualityOperator => Punctuation::EqualEqual,
+        NodeKind::OrderingOperator => Punctuation::Less,
+        _ => return None,
+    };
+    direct_token(tree, declaration, TokenKind::Punctuation(punctuation))
 }

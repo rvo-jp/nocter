@@ -345,6 +345,65 @@ fn v2_named_navigation_uses_the_selected_contract_and_current_source_tokens() {
 }
 
 #[test]
+fn v2_nominal_comparison_navigation_uses_the_selected_operator_token() {
+    use nocter_analysis::SemanticCoverage;
+    use nocter_source::ByteOffset;
+
+    let temporary = TemporaryDirectory::new();
+    let root = temporary.path();
+    let fixture = nocter_test_support::repository_root()
+        .join("development/compiler/tests/fixtures/value-modules/nominal-comparisons");
+    fs::create_dir(root.join("rank")).unwrap();
+    for file in ["index.nct", "main.nct", "rank/index.nct", "rank/body.nct"] {
+        fs::copy(fixture.join(file), root.join(file)).unwrap();
+    }
+    let main = root.join("main.nct").canonicalize().unwrap();
+    let text = fs::read_to_string(&main).unwrap();
+    let (configuration, _) = value_access_configuration(root);
+    let analysis = WorkspaceAnalyses::new(configuration)
+        .analyze(DocumentWorkspace::new().open(&main, 1, &text).unwrap())
+        .unwrap();
+    let snapshot = analysis.primary().snapshot().unwrap();
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "{:?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| Path::new(source.name().as_str()) == main)
+        .unwrap();
+    for (occurrence, expected) in [("== existing", "=="), ("!= right", "=="), ("< right", "<")] {
+        let offset = ByteOffset::new(u32::try_from(text.find(occurrence).unwrap()).unwrap());
+        for (result, file) in [
+            (
+                snapshot.semantic_definition(source.id(), offset).unwrap(),
+                "rank/index.nct",
+            ),
+            (
+                snapshot
+                    .semantic_implementation(source.id(), offset)
+                    .unwrap(),
+                "rank/body.nct",
+            ),
+        ] {
+            assert_eq!(result.coverage(), &SemanticCoverage::Complete);
+            let [location] = result.values() else {
+                panic!("{result:?}");
+            };
+            let target = snapshot.sources().get(location.source()).unwrap();
+            assert_eq!(
+                Path::new(target.name().as_str()),
+                root.join(file).canonicalize().unwrap()
+            );
+            assert_eq!(target.text_at(location.range()), Some(expected));
+        }
+    }
+}
+
+#[test]
 fn incomplete_syntax_analysis_is_a_reusable_exact_current_query() {
     let temporary = TemporaryDirectory::new();
     let root = temporary.path().join("index.nct");

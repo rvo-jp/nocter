@@ -9,8 +9,8 @@ mod module_scopes;
 pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
 pub use module_scopes::{
-    ConversionSelection, ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources,
-    TypeMember, TypeMemberKind,
+    ComparisonFamily, ConversionSelection, ModuleContext, ModuleQuery, ModuleSourceBinding,
+    ScopedModuleSources, TypeMember, TypeMemberKind,
 };
 mod primitives;
 mod projection;
@@ -468,6 +468,16 @@ impl<'source> Context<'source> {
         let name = self.program().symbols().get(name)?;
         self.module?
             .type_member(self.syntax.tree().source(), owner, name)
+    }
+    /// Select the one authored entry for a nominal comparison family in this source.
+    #[must_use]
+    pub fn comparison(
+        &self,
+        owner: nocter_declarations::value_access::BehaviorOwner,
+        family: ComparisonFamily,
+    ) -> Option<TypeMember> {
+        self.module?
+            .comparison(self.syntax.tree().source(), owner, family)
     }
     /// Select a conversion through its source owner and normalized target data.
     #[must_use]

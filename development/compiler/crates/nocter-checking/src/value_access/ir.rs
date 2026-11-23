@@ -266,6 +266,18 @@ pub enum Binary {
 }
 
 impl Binary {
+    pub(super) const fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            Self::Equal
+                | Self::NotEqual
+                | Self::Less
+                | Self::LessEqual
+                | Self::Greater
+                | Self::GreaterEqual
+        )
+    }
+
     /// A selected unit comparison's result after both operands complete. Evaluation is retained.
     #[must_use]
     pub const fn fixed_boolean_result(self) -> Option<bool> {

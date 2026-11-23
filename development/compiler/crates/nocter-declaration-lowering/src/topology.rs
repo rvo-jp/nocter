@@ -1072,6 +1072,7 @@ fn collect_tree_symbols(
     spellings: &mut Vec<Box<str>>,
 ) -> Result<(), LoweringError> {
     let source = require_source(input, tree.source())?;
+    let value_access = tree.root().kind() == NodeKind::V2CoreUnit;
     let bodies = tree
         .nodes()
         .filter_map(|(declaration, _)| nocter_syntax::declaration_body(tree, declaration))
@@ -1096,6 +1097,14 @@ fn collect_tree_symbols(
                 // Header expression blocks remain part of the declaration prefix.
                 if bodies.contains(&node) {
                     continue;
+                }
+                if value_access
+                    && let Some(operator) = crate::surface_origin::comparison_operator(tree, node)
+                {
+                    let spelling = source
+                        .text_at(operator.range())
+                        .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
+                    spellings.push(spelling.into());
                 }
                 if kind == NodeKind::StringLiteral {
                     let bound = BoundSyntax::new(source, tree)

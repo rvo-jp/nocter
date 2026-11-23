@@ -27,6 +27,29 @@ pub enum TypeMemberKind {
     Construction,
     Method,
     Conversion,
+    Comparison,
+}
+
+/// The two independent comparison contracts authored by a nominal owner.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ComparisonFamily {
+    Equality,
+    Strict,
+}
+impl ComparisonFamily {
+    const fn of(kind: SurfaceDeclarationKind) -> Option<Self> {
+        match kind {
+            SurfaceDeclarationKind::Equality => Some(Self::Equality),
+            SurfaceDeclarationKind::Ordering => Some(Self::Strict),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum MemberKey {
+    Named(Symbol),
+    Comparison(ComparisonFamily),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -47,7 +70,7 @@ pub enum ConversionSelection {
 #[derive(Debug)]
 pub(super) struct Members {
     pub occurrences: BTreeMap<SurfaceDeclarationId, MemberOccurrence>,
-    names: BTreeMap<(BehaviorOwner, Symbol), SurfaceDeclarationId>,
+    entries: BTreeMap<(BehaviorOwner, MemberKey), SurfaceDeclarationId>,
     conversions: BTreeMap<BehaviorOwner, Vec<SurfaceDeclarationId>>,
 }
 
@@ -57,7 +80,7 @@ impl Members {
         occurrences: BTreeMap<SurfaceDeclarationId, MemberOccurrence>,
     ) -> Result<Self, ModuleSourcesFailure> {
         let inventory = &paired.inventory;
-        let mut names = BTreeMap::new();
+        let mut entries = BTreeMap::new();
         let mut conversions = BTreeMap::<_, Vec<_>>::new();
         for (&id, member) in &occurrences {
             let declaration = inventory.declarations()[id.index()];
@@ -83,16 +106,30 @@ impl Members {
                 conversions.entry(member.owner).or_default().push(id);
                 continue;
             }
-            let token = declaration.name().ok_or_else(integrity)?;
-            let name = symbol(paired, declaration.source(), token)?;
-            if let Some(first) = names.insert((member.owner, name), id) {
-                let first = inventory.declarations()[first.index()]
-                    .name()
-                    .ok_or_else(integrity)?;
-                let violation = crate::NamespaceViolation::name_collision(
-                    nocter_syntax::SyntaxOrigin::Token(first),
-                    nocter_syntax::SyntaxOrigin::Token(token),
-                );
+            let key = if let Some(family) = ComparisonFamily::of(declaration.kind()) {
+                if !matches!(member.owner, BehaviorOwner::Record(_)) {
+                    return Err(ModuleSourcesFailure::Access(
+                        super::super::source_roles::role_failure(
+                            syntax(paired, declaration.source())?,
+                            super::super::SourceRoleRule::ComparisonOwner,
+                            declaration.node(),
+                        ),
+                    ));
+                }
+                MemberKey::Comparison(family)
+            } else {
+                let token = declaration.name().ok_or_else(integrity)?;
+                MemberKey::Named(symbol(paired, declaration.source(), token)?)
+            };
+            if let Some(first) = entries.insert((member.owner, key), id) {
+                let first = inventory.declarations()[first.index()].entity_origin();
+                let second = declaration.entity_origin();
+                let violation = match key {
+                    MemberKey::Named(_) => crate::NamespaceViolation::name_collision(first, second),
+                    MemberKey::Comparison(_) => {
+                        crate::NamespaceViolation::duplicate_comparison(first, second)
+                    }
+                };
                 let diagnostic =
                     crate::NamespaceDiagnostic::project_surface(violation, &inventory.surface)
                         .map_err(|_| integrity())?;
@@ -103,7 +140,7 @@ impl Members {
         }
         Ok(Self {
             occurrences,
-            names,
+            entries,
             conversions,
         })
     }
@@ -163,7 +200,18 @@ impl Members {
         owner: BehaviorOwner,
         name: Symbol,
     ) -> Option<TypeMember> {
-        let &id = self.names.get(&(owner, name))?;
+        let &id = self.entries.get(&(owner, MemberKey::Named(name)))?;
+        Self::member(binding, caller, id)
+    }
+
+    pub fn comparison(
+        &self,
+        binding: &super::ModuleSourceBinding<'_>,
+        caller: nocter_source::SourceId,
+        owner: BehaviorOwner,
+        family: ComparisonFamily,
+    ) -> Option<TypeMember> {
+        let &id = self.entries.get(&(owner, MemberKey::Comparison(family)))?;
         Self::member(binding, caller, id)
     }
 
@@ -270,6 +318,9 @@ impl Members {
             SurfaceDeclarationKind::ConstructionFunction => TypeMemberKind::Construction,
             SurfaceDeclarationKind::InherentMethod => TypeMemberKind::Method,
             SurfaceDeclarationKind::Coercion => TypeMemberKind::Conversion,
+            SurfaceDeclarationKind::Equality | SurfaceDeclarationKind::Ordering => {
+                TypeMemberKind::Comparison
+            }
             _ => return None,
         };
         Some(TypeMember {
@@ -305,6 +356,32 @@ pub(super) fn method_header(
         .parameters
         .insert(0, receiver_header(syntax, owner, declaration)?);
     Ok(header)
+}
+
+pub(super) fn comparison_header(
+    syntax: BoundSyntax<'_>,
+    owner: NodeId,
+    declaration: NodeId,
+) -> Result<Header, Failure> {
+    let tree = syntax.tree();
+    let name = crate::surface_origin::comparison_operator(tree, declaration)
+        .ok_or(Failure::InconsistentSyntax)?;
+    let operand =
+        direct_node(tree, declaration, NodeKind::Parameter).ok_or(Failure::InconsistentSyntax)?;
+    let result_syntax =
+        direct_node(tree, declaration, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    Ok(Header {
+        name,
+        kind: headers::immediate_function(syntax, declaration),
+        deferred_modifier: None,
+        parameters: vec![
+            receiver_header(syntax, owner, declaration)?,
+            headers::parameter(syntax, operand)?,
+        ],
+        result_syntax,
+        result_data: super::super::project_type_syntax(syntax, result_syntax)?,
+        body: nocter_syntax::declaration_body(tree, declaration),
+    })
 }
 
 pub(super) fn conversion_header(
@@ -467,7 +544,9 @@ pub(super) fn occurrences(
             }
             SurfaceDeclarationKind::ConstructionFunction
             | SurfaceDeclarationKind::InherentMethod
-            | SurfaceDeclarationKind::Coercion => {
+            | SurfaceDeclarationKind::Coercion
+            | SurfaceDeclarationKind::Equality
+            | SurfaceDeclarationKind::Ordering => {
                 let owner = declaration
                     .owner()
                     .and_then(|id| owners.get(&id))

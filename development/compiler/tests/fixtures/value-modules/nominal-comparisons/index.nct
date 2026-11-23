@@ -1,0 +1,5 @@
+#package: { name: "comparisons", version: "2.0.0" }
+#executable: { name: "comparisons" }
+see ./main.nct
+
+func main(): i32

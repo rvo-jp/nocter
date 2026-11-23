@@ -2,14 +2,14 @@ use super::{
     Failure, Rule,
     annotations::Annotation,
     checker::Checker,
-    ir::{Binary, Boundary, ExpressionKind, Unary, ValueType, value_type},
+    ir::{Binary, Boundary, ExpressionKind, Projection, Unary, ValueType, value_type},
 };
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
     AccessBlockId, AccessExpressionId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
 };
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation as P, TokenKind, decode_integer_literal,
+    Keyword, NodeId, NodeKind, Punctuation as P, SyntaxToken, TokenKind, decode_integer_literal,
 };
 
 impl Checker<'_, '_> {
@@ -34,14 +34,22 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         // A selected contract can complete anonymous inputs/results without turning its
         // formal witness into the concrete value identity expected by ordinary boundaries.
-        let hint = self.contextual_type(input.data)?;
-        self.expression_with_projection(
+        self.expression_with_type_hint(
             node,
-            Some(&hint),
-            None,
-            Some(super::ir::Projection::input(input.operation.access_mode())),
+            Some(input.data),
+            Some(Projection::input(input.operation.access_mode())),
             reachable,
         )
+    }
+    pub(super) fn expression_with_type_hint(
+        &mut self,
+        node: NodeId,
+        hint: Option<nocter_model::TypeId>,
+        projection: Option<Projection>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let hint = hint.map(|data| self.contextual_type(data)).transpose()?;
+        self.expression_with_projection(node, hint.as_ref(), None, projection, reachable)
     }
     pub(super) fn expression_with_context(
         &mut self,
@@ -336,6 +344,21 @@ impl Checker<'_, '_> {
         let boolean = self.data(BuiltinType::Bool);
         let left_data = self.ty(left).access().map(Ty::data);
         let right_data = self.ty(right).access().map(Ty::data);
+        if operation.is_comparison()
+            && let Some(record) = left_data
+                .or(right_data)
+                .and_then(|data| self.program().record_identity(data))
+        {
+            if matches!((left_data, right_data), (Some(left), Some(right)) if left != right) {
+                return self.reject(Rule::TypeMismatch, *right_node);
+            }
+            return self.nominal_comparison(
+                node,
+                operation,
+                record,
+                [(*left_node, left), (*right_node, right)],
+            );
+        }
         let integer = self
             .integer_hint(left_data)
             .or(self.integer_hint(right_data))
@@ -380,10 +403,13 @@ impl Checker<'_, '_> {
         )
     }
 
-    pub fn binary_operation(&self, node: NodeId) -> Result<Binary, Failure> {
-        let token = nocter_syntax::direct_token_iter(self.syntax().tree(), node)
+    pub(super) fn binary_token(&self, node: NodeId) -> Result<SyntaxToken, Failure> {
+        nocter_syntax::direct_token_iter(self.syntax().tree(), node)
             .find(|token| matches!(token.kind(), TokenKind::Punctuation(_)))
-            .ok_or(Failure::InconsistentSyntax)?;
+            .ok_or(Failure::InconsistentSyntax)
+    }
+    pub fn binary_operation(&self, node: NodeId) -> Result<Binary, Failure> {
+        let token = self.binary_token(node)?;
         let TokenKind::Punctuation(punctuation) = token.kind() else {
             return Err(Failure::InconsistentSyntax);
         };

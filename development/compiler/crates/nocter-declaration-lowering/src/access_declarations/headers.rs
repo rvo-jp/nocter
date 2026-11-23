@@ -51,6 +51,17 @@ pub(super) fn alias(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Alia
     })
 }
 
+pub(super) fn parameter(syntax: BoundSyntax<'_>, node: NodeId) -> Result<ParameterHeader, Failure> {
+    let name = direct_identifier(syntax.tree(), node).ok_or(Failure::InconsistentSyntax)?;
+    let ty = direct_node(syntax.tree(), node, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    Ok(ParameterHeader {
+        name,
+        data: project_type_syntax(syntax, ty)?,
+        ty,
+        operation: super::input_operation(syntax, node)?,
+    })
+}
+
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
     let deferred_modifier = direct_node(tree, declaration, NodeKind::AsyncModifier);
@@ -60,18 +71,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     let parameters_node =
         direct_node(tree, tail, NodeKind::Parameters).ok_or(Failure::InconsistentSyntax)?;
     let parameters = direct_node_iter(tree, parameters_node, NodeKind::Parameter)
-        .map(|parameter| {
-            let name = direct_identifier(tree, parameter).ok_or(Failure::InconsistentSyntax)?;
-            let ty =
-                direct_node(tree, parameter, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            let operation = super::input_operation(syntax, parameter)?;
-            Ok(ParameterHeader {
-                name,
-                data: project_type_syntax(syntax, ty)?,
-                ty,
-                operation,
-            })
-        })
+        .map(|node| parameter(syntax, node))
         .collect::<Result<_, _>>()?;
     let result_syntax =
         direct_node(tree, tail, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;

@@ -5,13 +5,16 @@ use super::{
     ir::{Argument, ArgumentAction, CallKind, ExpressionKind, value_type},
 };
 use nocter_declaration_lowering::access_declarations::{TypeMember, TypeMemberKind};
-use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
+use nocter_declarations::value_access::{
+    FunctionConstraint, FunctionInput, FunctionWitness, Namespace, PayloadSchema,
+};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueFunctionOrigin,
     ValueInvocation,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken, TokenKind};
 
+mod comparison;
 mod conversion;
 mod receiver;
 
@@ -432,6 +435,18 @@ impl Checker<'_, '_> {
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
+        self.emit_selected_call(node, selected, &contract, kind, plans, continues)
+    }
+
+    fn emit_selected_call(
+        &mut self,
+        node: NodeId,
+        selected: &Callee,
+        contract: &FunctionConstraint,
+        kind: CallKind,
+        plans: Vec<Argument>,
+        continues: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         if super::instances::completed(&plans) {
             let callee = self.first_child(node)?;
             if matches!(
@@ -451,7 +466,7 @@ impl Checker<'_, '_> {
                 super::checker::payload_requirements::invocation(
                     self.program(),
                     self.syntax(),
-                    &contract,
+                    contract,
                     nocter_syntax::SyntaxOrigin::Node(callee),
                 )?;
             }
@@ -490,7 +505,7 @@ impl Checker<'_, '_> {
         )?;
         if let CalleeSource::Declared { token, .. } = selected.source {
             let site = self.site(SyntaxOrigin::Token(token))?;
-            self.origins.named_calls.insert(call, site);
+            self.origins.direct_calls.insert(call, site);
         }
         Ok(call)
     }

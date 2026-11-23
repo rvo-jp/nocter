@@ -1,0 +1,11 @@
+see ./body.nct
+
+struct Rank
+type Priority = Rank
+
+impl Rank {
+    const func create(value: i32): Self
+    const method self.number(): i32
+    const operator (self == other: Self): bool
+    const operator (self < other: Self): bool
+}

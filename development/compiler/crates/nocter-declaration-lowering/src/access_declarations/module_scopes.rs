@@ -17,7 +17,7 @@ use std::{
 
 mod catalog;
 mod members;
-pub use members::{ConversionSelection, TypeMember, TypeMemberKind};
+pub use members::{ComparisonFamily, ConversionSelection, TypeMember, TypeMemberKind};
 mod normalization;
 mod primitives;
 mod record_views;
@@ -45,8 +45,8 @@ impl ModuleContext<'_> {
     pub fn program(&self) -> &Program {
         &self.program
     }
-    /// The exact physical name tokens mapped to canonical code identities by source pairing.
-    pub fn named_code_origins(
+    /// The exact authored declaration tokens mapped to canonical code identities by pairing.
+    pub fn code_origins(
         &self,
     ) -> impl Iterator<
         Item = Result<
@@ -66,9 +66,11 @@ impl ModuleContext<'_> {
                     return None;
                 };
                 let source = &inventory.sources()[declaration.source().index()];
-                let name = declaration.name()?;
+                let nocter_syntax::SyntaxOrigin::Token(token) = declaration.entity_origin() else {
+                    return None;
+                };
                 Some(
-                    nocter_source_index::SourceOrigin::from_token(source.syntax(), name)
+                    nocter_source_index::SourceOrigin::from_token(source.syntax(), token)
                         .map(|origin| (code, source.kind(), origin))
                         .map_err(|_| super::SourceMismatch::InconsistentSyntax),
                 )
@@ -390,6 +392,15 @@ impl ModuleSourceBinding<'_> {
         self.members.lookup(self, caller, owner, name)
     }
 
+    pub(super) fn comparison(
+        &self,
+        caller: nocter_source::SourceId,
+        owner: BehaviorOwner,
+        family: ComparisonFamily,
+    ) -> Option<TypeMember> {
+        self.members.comparison(self, caller, owner, family)
+    }
+
     pub(super) fn conversion(
         &self,
         caller: nocter_source::SourceId,
@@ -679,20 +690,22 @@ fn collect_headers(
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
-                SurfaceDeclarationKind::InherentMethod | SurfaceDeclarationKind::Coercion => {
-                    syntax(paired, declaration.source()).and_then(|s| {
+                SurfaceDeclarationKind::InherentMethod
+                | SurfaceDeclarationKind::Coercion
+                | SurfaceDeclarationKind::Equality
+                | SurfaceDeclarationKind::Ordering => syntax(paired, declaration.source())
+                    .and_then(|s| {
                         let owner = declaration.owner().ok_or_else(integrity)?;
                         let physical = paired.inventory.declarations()[owner.index()];
-                        let project = if declaration.kind() == SurfaceDeclarationKind::Coercion {
-                            members::conversion_header
-                        } else {
-                            members::method_header
+                        let project = match declaration.kind() {
+                            SurfaceDeclarationKind::Coercion => members::conversion_header,
+                            SurfaceDeclarationKind::InherentMethod => members::method_header,
+                            _ => members::comparison_header,
                         };
                         project(s, physical.node(), declaration.node())
                             .map(ParsedHeader::Code)
                             .map_err(ModuleSourcesFailure::Access)
-                    })
-                }
+                    }),
                 SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         headers::initializer(s, declaration.node())

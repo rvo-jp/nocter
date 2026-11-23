@@ -38,7 +38,7 @@ impl Navigation {
         let current = headers.current().map_err(|_| INVALID)?;
         let checked = accepted.unit().bind(&current).map_err(|_| INVALID)?;
         let mut navigation = Self::default();
-        for occurrence in headers.named_code_origins() {
+        for occurrence in headers.code_origins() {
             let (code, role, origin) = occurrence.map_err(|_| INVALID)?;
             let site = match role {
                 ModuleSourceKind::Root => &mut navigation.targets.entry(code).or_default().contract,
@@ -60,7 +60,7 @@ impl Navigation {
         }
         for (owner, _) in accepted.unit().bodies() {
             let typed = checked.body(owner).ok_or(INVALID)?.typed();
-            for (call, origin) in typed.named_call_origins() {
+            for (call, origin) in typed.direct_call_origins() {
                 let expression = typed
                     .query()
                     .body()

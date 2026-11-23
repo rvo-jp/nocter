@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind nominal equality and strict comparison as fixed type-owned entries. Qualify direct
-`==`, `!=` and `<` through the ordered read-input lifecycle, required evaluation and ordinary
-native execution. Reversed and inclusive comparisons also need the original prepared pair
-to survive reordering and the conditional second invocation.
+Qualify reversed nominal strict comparison using the same prepared-input lifecycle as a call.
+Keep written evaluation, reservation, cancellation and cleanup order independent of the
+selected contract's formal input positions. Inclusive comparisons then need to retain that
+same pair across the conditional second invocation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -682,6 +682,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind nongeneric aliases for data through the canonical type namespace and required header
   queries. Verify exact normalized conversion targets, nominal constructor lookup, original Copy
   policy, target and alias declaration audiences, cyclic aliases, and shared shape folding.
+- [x] Bind fixed nominal equality and strict comparison entries through the owner and paired
+  source contracts. Qualify `==`, `!=` and `<` with non-Copy operands, guarded read places,
+  exact retirement and interruption, required/native evaluation and operator navigation.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

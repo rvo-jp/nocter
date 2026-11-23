@@ -15,6 +15,7 @@ pub enum SourceRoleRule {
     MissingInitializer,
     MissingRepresentation,
     TypeBehaviorOwner,
+    ComparisonOwner,
     ConstructionResult,
     IdentityConversion,
     DuplicateConversion,
@@ -99,22 +100,13 @@ pub fn validate_source_role(
                     nocter_syntax::child_node_iter(tree, declaration)
                         .rev()
                         .filter(|&node| {
-                            tree.node(node).is_some_and(|node| {
-                                matches!(
-                                    node.kind(),
-                                    NodeKind::ConstructionFunction
-                                        | NodeKind::InherentMethod
-                                        | NodeKind::CoercionDeclaration
-                                )
-                            })
+                            tree.node(node)
+                                .is_some_and(|node| attached_callable(node.kind()))
                         }),
                 );
                 None
             }
-            NodeKind::FunctionDeclaration
-            | NodeKind::ConstructionFunction
-            | NodeKind::InherentMethod
-            | NodeKind::CoercionDeclaration => {
+            kind if kind == NodeKind::FunctionDeclaration || attached_callable(kind) => {
                 let body = declaration_body(syntax.tree(), declaration);
                 match (root, body) {
                     (true, Some(body)) => Some((SourceRoleRule::BodyInContract, body)),
@@ -144,6 +136,17 @@ pub fn validate_source_role(
         }
     }
     Ok(())
+}
+
+fn attached_callable(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::ConstructionFunction
+            | NodeKind::InherentMethod
+            | NodeKind::CoercionDeclaration
+            | NodeKind::EqualityOperator
+            | NodeKind::OrderingOperator
+    )
 }
 
 fn reject(syntax: BoundSyntax<'_>, rule: SourceRoleRule, subject: NodeId) -> Result<(), Failure> {
@@ -190,6 +193,10 @@ pub(super) fn role_failure(
         SourceRoleRule::TypeBehaviorOwner => (
             DiagnosticCode::E0231,
             "impl requires a nominal declared by this module or a built-in authorized for it",
+        ),
+        SourceRoleRule::ComparisonOwner => (
+            DiagnosticCode::E0231,
+            "this comparison entry requires a nominal owner",
         ),
         SourceRoleRule::ConstructionResult => (
             DiagnosticCode::E0370,

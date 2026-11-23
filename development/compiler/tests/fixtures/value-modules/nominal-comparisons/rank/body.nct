@@ -1,0 +1,16 @@
+see ./index.nct
+
+struct Rank { value: i32 }
+
+impl Rank {
+    const func create(value: i32): Self { Rank { value: value } }
+    const method self.number(): i32 { self.value }
+
+    const operator (self == other: Self): bool {
+        self.value != 0 && self.value == other.value
+    }
+
+    const operator (self < other: Self): bool {
+        self.value < other.value
+    }
+}

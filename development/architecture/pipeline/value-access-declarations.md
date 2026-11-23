@@ -72,6 +72,15 @@ identity, including outcome and fixed-array data.
 If relevant headers remain unresolved, the ordinary dependency query can resolve one candidate
 and retry exact selection, retaining successful source evidence when an earlier candidate cycles.
 
+The two nominal [comparison entries](../../spec/language/comparisons.md#type-owned-entries)
+use the same attached declaration and call path. A pair of matching nominal operands selects
+one equality or strict entry. Direct `==`, `!=`, and `<` prepare both operands in written order
+as reads, retaining guarded places and explicit transfers until the normal invocation commit.
+The resulting call supports required evaluation and native execution. Inequality negates the
+equality answer without reevaluating either side. Definition and implementation navigation use
+the selected entry's actual operator token. Reversed and inclusive nominal comparisons still
+need their respective prepared-input transport and conditional invocation.
+
 ### Transparent Type Aliases
 
 A nongeneric alias reserves a name in the existing type namespace. Its header resolves the

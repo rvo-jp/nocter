@@ -702,6 +702,107 @@ fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
+    let tree = TempTree::new("nominal-comparisons");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/nominal-comparisons"),
+        &package,
+    );
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    let execution = execute("run").unwrap_or_else(|error| panic!("{}", render(&error)));
+    let InvocationOutcome::Run(execution) = execution else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(execution.status().code(), Some(42));
+
+    let source = package.join("main.nct");
+    let program = fs::read_to_string(&source).unwrap();
+    let reject = |expected| {
+        let error = execute("check").unwrap_err();
+        let diagnostic = render(&error);
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    };
+    for (original, replacement, expected) in [
+        ("original! == existing", "original! == 42", "E0370"),
+        (
+            "original! == existing",
+            "original! == replace(original!)",
+            "E0396",
+        ),
+        ("reserved.number()\n}", "transferred.number()\n}", "E0378"),
+    ] {
+        fs::write(&source, program.replace(original, replacement)).unwrap();
+        reject(expected);
+    }
+    fs::write(&source, &program).unwrap();
+
+    let contract = package.join("rank/index.nct");
+    let body = package.join("rank/body.nct");
+    let header = fs::read_to_string(&contract).unwrap();
+    let definition = fs::read_to_string(&body).unwrap();
+    let equal = "const operator (self == other: Self): bool";
+    fs::write(
+        &contract,
+        header.replace(equal, &format!("#visibility: \"./\"\n    {equal}")),
+    )
+    .unwrap();
+    reject("E0412");
+    fs::write(
+        &contract,
+        header.replace(equal, "operator (self == other: Self): bool"),
+    )
+    .unwrap();
+    fs::write(
+        &body,
+        definition.replace(equal, "operator (self == other: Self): bool"),
+    )
+    .unwrap();
+    reject("runtime-only function `==`");
+    fs::write(&contract, &header).unwrap();
+    fs::write(&body, definition.replace("other: Self", "different: Self")).unwrap();
+    reject("E0251");
+    fs::write(&body, &definition).unwrap();
+    fs::write(
+        &source,
+        format!(
+            "{program}\nstruct Local {{}}\n\
+             impl Local {{ operator (self == other: Self): bool {{ true }} }}\n\
+             impl Local {{ operator (self == another: Self): bool {{ false }} }}\n"
+        ),
+    )
+    .unwrap();
+    reject("this type already declares this comparison");
+    fs::write(&source, &program).unwrap();
+    for invalid in [
+        "const operator (edit self == other: Self): bool",
+        "const operator (self == take other: Self): bool",
+        "const operator (self == other: Rank): bool",
+        "operator (self == other: Self): i32",
+        "async operator (self == other: Self): bool",
+    ] {
+        fs::write(&contract, header.replace(equal, invalid)).unwrap();
+        reject("E0120");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs() {
     let tree = TempTree::new("type-members");
     let home = tree.value_access_installation();

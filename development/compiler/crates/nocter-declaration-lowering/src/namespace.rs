@@ -6,6 +6,7 @@ use nocter_syntax::SyntaxOrigin;
 pub enum NamespaceRule {
     ReservedName,
     NameCollision,
+    DuplicateComparison,
     VisibilityAbovePackageRoot,
     InvalidCompileTimeValueName,
 }
@@ -15,7 +16,7 @@ impl NamespaceRule {
     pub const fn code(self) -> DiagnosticCode {
         match self {
             Self::ReservedName => DiagnosticCode::E0240,
-            Self::NameCollision => DiagnosticCode::E0241,
+            Self::NameCollision | Self::DuplicateComparison => DiagnosticCode::E0241,
             Self::VisibilityAbovePackageRoot => DiagnosticCode::E0242,
             Self::InvalidCompileTimeValueName => DiagnosticCode::E0243,
         }
@@ -26,6 +27,7 @@ impl NamespaceRule {
         match self {
             Self::ReservedName => "name is reserved and cannot be introduced into this namespace",
             Self::NameCollision => "name is introduced more than once in the same namespace",
+            Self::DuplicateComparison => "this type already declares this comparison",
             Self::VisibilityAbovePackageRoot => "visibility boundary moves above the package root",
             Self::InvalidCompileTimeValueName => "compile-time value name is not UPPER_SNAKE_CASE",
         }
@@ -36,6 +38,7 @@ impl NamespaceRule {
         match self {
             Self::ReservedName => "choose a different declaration name or import alias",
             Self::NameCollision => "rename or remove one of the declarations or imports",
+            Self::DuplicateComparison => "keep one entry for this comparison on this type",
             Self::VisibilityAbovePackageRoot => {
                 "use fewer ../ components or use pub(/) for package visibility"
             }
@@ -49,6 +52,7 @@ impl NamespaceRule {
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
             Self::NameCollision => Some("the first introduction of this name is here"),
+            Self::DuplicateComparison => Some("the other comparison entry is here"),
             Self::ReservedName
             | Self::VisibilityAbovePackageRoot
             | Self::InvalidCompileTimeValueName => None,
@@ -78,6 +82,15 @@ impl NamespaceViolation {
     pub const fn name_collision(first: SyntaxOrigin, second: SyntaxOrigin) -> Self {
         Self {
             rule: NamespaceRule::NameCollision,
+            primary: second,
+            related: Some(first),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn duplicate_comparison(first: SyntaxOrigin, second: SyntaxOrigin) -> Self {
+        Self {
+            rule: NamespaceRule::DuplicateComparison,
             primary: second,
             related: Some(first),
         }

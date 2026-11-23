@@ -1,0 +1,43 @@
+see ./index.nct
+use ./rank
+
+const func compute(): i32 {
+    let left = rank.Priority.create(40)
+    let right = rank.Rank.create(42)
+    let unordered = rank.Rank.create(0)
+    if left < right && left != right && !(unordered == unordered) {
+        right.number()
+    } else {
+        10
+    }
+}
+
+const ANSWER: i32 = compute()
+
+func prepare(edit log: i32, digit: i32): rank.Rank {
+    log = log * 10 + digit
+    rank.Rank.create(digit)
+}
+
+func replace(edit slot: rank.Rank): rank.Rank {
+    slot = rank.Rank.create(43)
+    rank.Rank.create(43)
+}
+
+func main(): i32 {
+    var log = 0
+    if !(prepare(log, 1) < prepare(log, 2)) || log != 12 { return 1 }
+    var original: rank.Priority? = rank.Priority.create(ANSWER)
+    let existing = rank.Rank.create(42)
+    if !(original! == existing) { return 2 }
+    if (original!).number() != 42 || existing.number() != 42 { return 3 }
+    let transferred = rank.Rank.create(7)
+    if transferred^ != rank.Rank.create(7) { return 4 }
+
+    let reserved = rank.Rank.create(42)
+    loop {
+        let _ = reserved^ == if log == 12 { break } else { rank.Rank.create(7) }
+        return 5
+    }
+    reserved.number()
+}
