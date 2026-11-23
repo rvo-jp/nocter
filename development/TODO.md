@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Check exact authored enum pattern arity with the common binding-pattern traversal. Qualify cases
-whose fields are discarded, keeping one tag read and the established complete-carrier cleanup
-before take branches.
+Retain the selected enum case in evaluator address paths. Validate the active tag when following
+its field, preserve copies and writable aliases through nested tuples and arrays, and keep sparse
+ownership coordinates exact before connecting named source bindings.
 
 ## Remaining Contextual Representation Qualification
 
@@ -751,8 +751,11 @@ not a language restriction derived from the current realization boundary.
   on interrupted construction.
 - [x] Permit exact enum leaves in guarded evaluator transport of enclosing carriers. Retain each
   frozen active case and field value while rejecting substitution of a distinct nominal enum.
-- [ ] Qualify the written arity of enum payload patterns and cases whose positions are discarded.
-  Continue with scoped read/edit bindings and take decomposition of active fields.
+- [x] Qualify the written arity of enum payload patterns and cases whose positions are discarded.
+- [ ] Carry validated enum case identities in evaluator field projections and aliases. Keep active
+  tag validation and exact nested paths through reads, updates, and the ownership ledger.
+- [ ] Qualify named enum payload patterns with scoped read/edit bindings and take decomposition of
+  active fields. Preserve the prepared scrutinee, ownership ordering and cleanup on all exits.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

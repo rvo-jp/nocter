@@ -94,7 +94,7 @@ impl Checker<'_, '_> {
                 arms.fallback = Some(block);
                 continue;
             };
-            let (data, tag) = self.payloadless_variant_pattern(pattern)?;
+            let (data, tag) = self.tag_pattern(pattern)?;
             if arms.data.is_some_and(|owner| owner != data) {
                 return self.reject_message(
                     Rule::TypeMismatch,

@@ -159,13 +159,14 @@ when all fields are ready. A payloadless case in a mixed enum uses the tagged la
 payload. Native lowering materializes standalone scalar enum tags as immediates and uses the scalar
 layout for nested constant data and statics.
 
-A scalar [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
-variant through the same declaration and audience. The checker requires the scrutinee's exact
-nominal type and evaluates it once. An edit input checks update authority during tag inspection.
-A take input uses the ordinary Copy or transfer boundary and retires the received carrier after
-inspection, before either branch. The tag comparison feeds ordinary Boolean control flow.
+An [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the variant
+through the same declaration and audience. The checker requires the scrutinee's exact nominal
+type and evaluates it once. It checks written payload arity and nested tuple shape with the common
+binding traversal. A pattern that discards every payload position needs only the tag read. Read
+and edit leave the payload in place. Edit checks update authority during inspection. Take uses the
+ordinary Copy or transfer boundary and retires the received carrier before either branch.
 
-Scalar `match` checks nominal variant identity and coverage using the same source visibility.
+`match` checks nominal variant identity and coverage using the same source visibility.
 The checked graph records one tag dispatch with the sorted cases and the fallback edge.
 Required evaluation and native lowering share that case table and read the carrier once.
 The selected arm performs the same take cleanup before executing its body, including when

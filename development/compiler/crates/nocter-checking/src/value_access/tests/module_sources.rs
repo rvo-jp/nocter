@@ -208,6 +208,49 @@ fn authored_enum_construction_freezes_the_selected_typed_values() {
 }
 
 #[test]
+fn discarded_enum_fields_use_written_payload_arity_and_nested_tuple_shapes() {
+    let root = concat!(
+        "see ./body.nct\n",
+        "enum Packet { empty\ndata(pair: (i32, i32), flag: bool) }\n",
+        "func run(value: Packet): i32"
+    );
+    for (pattern, valid) in [
+        ("Packet.empty", true),
+        ("Packet.data((_, _), _)", true),
+        ("Packet.data", false),
+        ("Packet.data(_)", false),
+        ("Packet.data(_, _, _)", false),
+        ("Packet.empty(_)", false),
+        ("Packet.data(_, (_, _))", false),
+    ] {
+        let body = format!(
+            "see ./index.nct\nfunc run(value: Packet): i32 {{ if value is {pattern} {{ 1 }} else {{ 0 }} }}"
+        );
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let input = fixture.input();
+        let result = ModuleSourceUnit::prepare(&input);
+        if valid {
+            assert!(result.is_ok(), "{pattern}: {result:?}");
+        } else {
+            let Err(SourceFailure::Checking(accepted::Failure::Body {
+                failure: Failure::Rejected(error),
+                ..
+            })) = result
+            else {
+                panic!("expected a localized invalid pattern: {pattern}: {result:?}");
+            };
+            assert_eq!(error.rule(), Rule::TypeMismatch, "{pattern}");
+        }
+    }
+}
+
+#[test]
 fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
     use nocter_model::FrozenNode;
     let fixture = Fixture::new(

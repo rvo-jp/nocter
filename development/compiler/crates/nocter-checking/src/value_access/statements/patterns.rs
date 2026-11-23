@@ -8,7 +8,7 @@ use nocter_declarations::value_access::{AggregateForm, Parameter, PayloadSchema}
 use nocter_model::{FieldPath, ValueAccess, ValueAccessMode as Mode, ValueField};
 use std::collections::BTreeSet;
 
-struct Leaf {
+pub(in crate::value_access) struct Leaf {
     syntax: NodeId,
     site: Site,
     name: String,
@@ -32,7 +32,7 @@ impl Checker<'_, '_> {
         value: AccessExpressionId,
         statements: &mut Vec<AccessStatementId>,
     ) -> Result<(), Failure> {
-        let leaves = self.tuple_leaves(pattern, data)?;
+        let leaves = self.binding_leaves([(pattern, data, FieldPath::default())])?;
         if leaves.is_empty() {
             return self.reject_message(
                 Rule::AnnotatedDiscard,
@@ -100,7 +100,8 @@ impl Checker<'_, '_> {
         local: AccessLocalId,
         statements: &mut Vec<AccessStatementId>,
     ) -> Result<(), Failure> {
-        let leaves = self.tuple_leaves(pattern, self.local_ty(local).data())?;
+        let leaves =
+            self.binding_leaves([(pattern, self.local_ty(local).data(), FieldPath::default())])?;
         self.form_supplied_pattern(pattern, local, leaves, statements)
     }
 
@@ -180,8 +181,12 @@ impl Checker<'_, '_> {
         Ok(())
     }
 
-    fn tuple_leaves(&self, pattern: NodeId, data: TypeId) -> Result<Vec<Leaf>, Failure> {
-        let mut pending = vec![(pattern, data, FieldPath::default())];
+    pub(in crate::value_access) fn binding_leaves(
+        &self,
+        roots: impl IntoIterator<Item = (NodeId, TypeId, FieldPath)>,
+    ) -> Result<Vec<Leaf>, Failure> {
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
+        pending.reverse();
         let mut names = BTreeSet::new();
         let mut leaves = Vec::new();
         while let Some((syntax, data, path)) = pending.pop() {

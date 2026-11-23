@@ -6,7 +6,7 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::input_operation;
 use nocter_model::{
-    AccessExpressionId, BuiltinType, TypeId, ValueAccess, ValueAccessMode as Mode,
+    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueAccessMode as Mode,
     ValueInputOperation,
 };
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
@@ -26,7 +26,7 @@ impl Checker<'_, '_> {
             self.require_data(condition, boolean, source_node)?;
             return Ok(condition);
         };
-        let (data, tag) = self.payloadless_variant_pattern(pattern)?;
+        let (data, tag) = self.tag_pattern(pattern)?;
         let (source, operation) = self.pattern_input(node, Some(data), reachable)?;
         self.emit(
             node,
@@ -39,7 +39,7 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn payloadless_variant_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
+    fn tag_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
         let path = direct_token_iter(self.syntax().tree(), pattern)
             .filter(|token| token.kind() == TokenKind::Identifier)
             .collect::<Vec<_>>();
@@ -63,21 +63,39 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         };
-        if self
+        let components = self
             .program()
             .variant_components(data, variant)
-            .ok_or(Failure::InconsistentSyntax)?
-            .next()
-            .is_some()
+            .ok_or(Failure::InconsistentSyntax)?;
+        let arity = components.len();
+        let payload = self.direct(pattern, NodeKind::EnumPatternPayload).ok();
+        if arity == 0
+            && let Some(payload) = payload
         {
-            return self.reject(Rule::UnsupportedData, member);
-        }
-        if let Ok(payload) = self.direct(pattern, NodeKind::EnumPatternPayload) {
             return self.reject_message(
                 Rule::TypeMismatch,
                 payload,
                 "a payloadless enum pattern has no bindings".into(),
                 Vec::new(),
+            );
+        }
+        let written = payload.map_or_else(Vec::new, |node| self.children(node));
+        if written.len() != arity {
+            return self.reject_message(
+                Rule::TypeMismatch,
+                payload.unwrap_or(pattern),
+                format!("this enum pattern requires {arity} payload positions"),
+                Vec::new(),
+            );
+        }
+        let roots = written
+            .into_iter()
+            .zip(components)
+            .map(|(node, component)| (node, component.data, FieldPath::new([component.field])));
+        if !self.binding_leaves(roots)?.is_empty() {
+            return self.reject(
+                Rule::UnsupportedData,
+                payload.ok_or(Failure::InconsistentSyntax)?,
             );
         }
         Ok((data, tag))
