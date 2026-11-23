@@ -11,6 +11,8 @@ use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod enum_cases;
+
 pub(super) fn program(program: &Program) -> Result<(), Failure> {
     if !program.bodies.contains_key(&program.root) {
         return Err(Failure::InvalidBody(program.root));
@@ -100,6 +102,13 @@ impl Context<'_> {
         Ok(())
     }
     fn place(&self, place: &Place) -> Result<(), Failure> {
+        self.guarded_place(place, None)
+    }
+    fn guarded_place(
+        &self,
+        place: &Place,
+        edge: Option<enum_cases::CaseEdge<'_>>,
+    ) -> Result<(), Failure> {
         self.require(!matches!(
             self.program.runtime.types().get(place.data),
             Some(RuntimeType::Uninhabited)
@@ -112,12 +121,28 @@ impl Context<'_> {
         self.require(slot.representations.contains(&place.root))?;
         self.merge_representation(slot, place.root)?;
         let mut data = place.root;
-        for projection in &place.projections {
+        let mut used_case = false;
+        for (index, projection) in place.projections.iter().enumerate() {
             data = match projection {
-                // A layout entry supplies an offset, independently of the active-case receipt
-                // needed to read or update a payload. No enum field places are qualified yet.
-                Projection::Field(nocter_model::ValueField::EnumField { .. }) => {
-                    return Err(self.invalid());
+                Projection::Field(id @ nocter_model::ValueField::EnumField { field, .. }) => {
+                    let edge = edge.ok_or_else(|| self.invalid())?;
+                    self.require(
+                        !used_case
+                            && edge.source.slot == place.slot
+                            && edge.source.root == place.root
+                            && edge.source.data == data
+                            && *edge.source.projections == place.projections[..index]
+                            && self
+                                .program
+                                .runtime
+                                .enum_case_fields(data, edge.tag)
+                                .is_some_and(|fields| fields.iter().any(|(id, _)| id == field)),
+                    )?;
+                    used_case = true;
+                    self.program
+                        .runtime
+                        .value_field(data, *id)
+                        .ok_or_else(|| self.invalid())?
                 }
                 Projection::Field(id) => self
                     .program
@@ -147,9 +172,11 @@ impl Context<'_> {
             };
         }
         self.require(
-            self.program
-                .runtime
-                .has_same_value_representation(data, place.data),
+            used_case == edge.is_some()
+                && self
+                    .program
+                    .runtime
+                    .has_same_value_representation(data, place.data),
         )
     }
     fn snapshot(&self, id: nocter_model::MirLocalId, length: u64) -> Result<(), Failure> {
@@ -445,16 +472,21 @@ impl Context<'_> {
                 source,
             } => {
                 self.place(source)?;
-                let slot = self
-                    .body
-                    .slots
-                    .get(*destination)
-                    .ok_or_else(|| self.invalid())?;
-                self.require(
-                    slot.storage == Storage::Address && slot.representations.contains(&source.data),
-                )
+                self.address_destination(*destination, source.data)
             }
         }
+    }
+    fn address_destination(
+        &self,
+        destination: nocter_model::MirLocalId,
+        data: RuntimeDataId,
+    ) -> Result<(), Failure> {
+        let slot = self
+            .body
+            .slots
+            .get(destination)
+            .ok_or_else(|| self.invalid())?;
+        self.require(slot.storage == Storage::Address && slot.representations.contains(&data))
     }
     fn primitive(&self, data: RuntimeDataId, role: RuntimePrimitive) -> bool {
         self.program.runtime.types().get(data) == Some(&RuntimeType::Primitive(role))
@@ -478,6 +510,10 @@ impl Context<'_> {
         let boolean = RuntimePrimitive::Bool;
         match operation {
             Operation::BoundsTrap => Ok(()),
+            Operation::BindEnumAddress {
+                destination,
+                source,
+            } => self.address_destination(*destination, source.data),
             Operation::PrimaryCondition {
                 source,
                 destination,
@@ -1110,7 +1146,8 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
             )?;
         }
     }
-    validate_control(&context)
+    validate_control(&context)?;
+    enum_cases::validate(&context)
 }
 
 fn validate_control(context: &Context<'_>) -> Result<(), Failure> {

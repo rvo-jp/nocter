@@ -3,10 +3,12 @@ use super::{
     Failure, Rule,
     checker::Checker,
     ir::{Boundary, Projection},
+    statements::{BranchBindings, Leaf},
 };
 use nocter_declaration_lowering::access_declarations::input_operation;
 use nocter_model::{
-    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueInputOperation,
+    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueBindingKind,
+    ValueInputOperation,
 };
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
 
@@ -22,24 +24,41 @@ pub(super) enum IfTest {
     },
 }
 
+struct TagPattern {
+    data: TypeId,
+    tag: u64,
+    syntax: NodeId,
+    leaves: Vec<Leaf>,
+}
+
 impl Checker<'_, '_> {
-    pub(super) fn if_test(&mut self, node: NodeId, reachable: bool) -> Result<IfTest, Failure> {
+    pub(super) fn if_test(
+        &mut self,
+        node: NodeId,
+        reachable: bool,
+    ) -> Result<(IfTest, Option<BranchBindings>), Failure> {
         let Ok(pattern) = self.direct(node, NodeKind::EnumPattern) else {
             let source_node = self.direct(node, NodeKind::Expression)?;
             let condition = self.expression(source_node, None, reachable)?;
             self.require_data(condition, self.data(BuiltinType::Bool), source_node)?;
-            return Ok(IfTest::Boolean(condition));
+            return Ok((IfTest::Boolean(condition), None));
         };
-        let (data, tag) = self.tag_pattern(pattern)?;
-        let (source, operation) = self.pattern_input(node, Some(data), reachable)?;
-        Ok(IfTest::Enum {
+        let pattern = self.tag_pattern(pattern)?;
+        let (source, operation) = self.pattern_input(
+            node,
+            Some(pattern.data),
+            !pattern.leaves.is_empty(),
+            reachable,
+        )?;
+        let test = IfTest::Enum {
             source,
             operation,
-            tag,
-        })
+            tag: pattern.tag,
+        };
+        Ok((test, self.branch_bindings(pattern, source, operation)?))
     }
 
-    fn tag_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
+    fn tag_pattern(&self, pattern: NodeId) -> Result<TagPattern, Failure> {
         let path = direct_token_iter(self.syntax().tree(), pattern)
             .filter(|token| token.kind() == TokenKind::Identifier)
             .collect::<Vec<_>>();
@@ -92,19 +111,41 @@ impl Checker<'_, '_> {
             .into_iter()
             .zip(components)
             .map(|(node, component)| (node, component.data, FieldPath::new([component.field])));
-        if !self.binding_leaves(roots)?.is_empty() {
-            return self.reject(
-                Rule::UnsupportedData,
-                payload.ok_or(Failure::InconsistentSyntax)?,
-            );
+        Ok(TagPattern {
+            data,
+            tag,
+            syntax: payload.unwrap_or(pattern),
+            leaves: self.binding_leaves(roots)?,
+        })
+    }
+
+    fn branch_bindings(
+        &self,
+        pattern: TagPattern,
+        source: AccessExpressionId,
+        operation: ValueInputOperation,
+    ) -> Result<Option<BranchBindings>, Failure> {
+        if pattern.leaves.is_empty() {
+            return Ok(None);
         }
-        Ok((data, tag))
+        let kind = match operation {
+            ValueInputOperation::Read => ValueBindingKind::ReadAlias,
+            ValueInputOperation::Edit => ValueBindingKind::EditAlias,
+            ValueInputOperation::Take => return self.reject(Rule::UnsupportedData, pattern.syntax),
+        };
+        Ok(Some(BranchBindings {
+            pattern: pattern.syntax,
+            source,
+            kind,
+            leaves: pattern.leaves,
+        }))
     }
 
     fn pattern_input(
         &mut self,
         node: NodeId,
         expected: Option<TypeId>,
+        binds_payload: bool,
         reachable: bool,
     ) -> Result<(AccessExpressionId, ValueInputOperation), Failure> {
         let source_node = self.direct(node, NodeKind::Expression)?;
@@ -125,12 +166,21 @@ impl Checker<'_, '_> {
                     source = self.boundary(source_node, source, Boundary::Value(data))?;
                 }
             }
-            ValueInputOperation::Edit => {
+            ValueInputOperation::Read | ValueInputOperation::Edit => {
                 if let Some(place) = self.expression_referent(source) {
-                    self.require_writable_referent(place, source_node, Rule::InvalidUpdate)?;
+                    if operation == ValueInputOperation::Edit {
+                        self.require_writable_referent(place, source_node, Rule::InvalidUpdate)?;
+                    }
+                } else if binds_payload
+                    && let Some(data) = self.ty(source).access().map(ValueAccess::data)
+                {
+                    source = self.boundary(
+                        source_node,
+                        source,
+                        Boundary::Input(ValueAccess::new(data, operation.access_mode())),
+                    )?;
                 }
             }
-            ValueInputOperation::Read => {}
         }
         Ok((source, operation))
     }

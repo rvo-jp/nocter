@@ -176,6 +176,13 @@ the payload in place. Edit checks update authority during inspection. Take uses 
 Copy or transfer boundary. The selected arm retires the received carrier before executing its
 body, including an if-is fallback or a discard arm handling an opaque enum.
 
+Named read and edit bindings reuse the common tuple-leaf and lexical binding machinery.
+They alias the selected payload, including tuple components, and keep a fresh scrutinee's
+evaluation owner alive when needed. Access analysis tracks the full logical path and rejects
+changing the variant while a payload alias is still needed. When forming native addresses, MIR
+requires the exact case edge and checks that no intervening effect changes the inspected carrier.
+The occupied field reuses the dispatch's tag proof, so binding it emits no additional tag read.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

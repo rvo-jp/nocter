@@ -306,6 +306,11 @@ pub enum Operation {
         copy: bool,
         bounds: nocter_model::IndexBoundsCheck,
     },
+    /// Bind an address on its exact case edge, while the inspected carrier is still unchanged.
+    BindEnumAddress {
+        destination: MirLocalId,
+        source: Place,
+    },
     /// Copy the established seed into the homogeneous result; count belongs to its schema.
     Repeat {
         source: Place,

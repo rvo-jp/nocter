@@ -14,6 +14,12 @@ use nocter_syntax::{
 };
 
 mod patterns;
+pub(super) use patterns::{BranchBindings, Leaf};
+
+enum BlockEntry {
+    Statements(Vec<AccessStatementId>),
+    Case(BranchBindings),
+}
 
 impl Checker<'_, '_> {
     pub fn block(
@@ -44,7 +50,7 @@ impl Checker<'_, '_> {
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessBlockId, Failure> {
-        self.block_entries(node, expected, hint, construction, reachable, Vec::new())
+        self.block_with_case(node, expected, hint, construction, reachable, None)
     }
 
     pub(super) fn block_with_entry(
@@ -54,7 +60,30 @@ impl Checker<'_, '_> {
         hint: Option<&Annotation>,
         entry: Vec<AccessStatementId>,
     ) -> Result<AccessBlockId, Failure> {
-        self.block_entries(node, expected, hint, None, true, entry)
+        self.block_entries(
+            node,
+            expected,
+            hint,
+            None,
+            true,
+            BlockEntry::Statements(entry),
+        )
+    }
+
+    pub(super) fn block_with_case(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        construction: Option<TypeId>,
+        reachable: bool,
+        bindings: Option<BranchBindings>,
+    ) -> Result<AccessBlockId, Failure> {
+        let entry = match bindings {
+            Some(bindings) => BlockEntry::Case(bindings),
+            None => BlockEntry::Statements(Vec::new()),
+        };
+        self.block_entries(node, expected, hint, construction, reachable, entry)
     }
 
     fn block_entries(
@@ -64,7 +93,7 @@ impl Checker<'_, '_> {
         hint: Option<&Annotation>,
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
-        mut statements: Vec<AccessStatementId>,
+        entry: BlockEntry,
     ) -> Result<AccessBlockId, Failure> {
         // Construction refines supplied identities; an exact boundary cannot also select it.
         if expected.is_some() && construction.is_some() {
@@ -72,11 +101,18 @@ impl Checker<'_, '_> {
         }
         for &name in self.context.block_import_names(node)? {
             let spelling = self.text(name)?;
-            if self.lookup(spelling).is_some() || self.unavailable.contains(spelling) {
+            if self.lookup(spelling).is_some()
+                || self.unavailable.contains(spelling)
+                || matches!(&entry, BlockEntry::Case(bindings) if bindings.binds(spelling))
+            {
                 return self.reject(Rule::ShadowedName, name);
             }
         }
         self.scopes.push(std::collections::BTreeMap::new());
+        let mut statements = match entry {
+            BlockEntry::Statements(statements) => statements,
+            BlockEntry::Case(bindings) => self.form_case_bindings(bindings)?,
+        };
         let entries = if let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) {
             self.children(sequence)
         } else {

@@ -26,10 +26,30 @@ func interrupted(stop: bool): i32 {
 }
 
 const func score(value: Packet): i32 {
-    if value is Packet.pair(_, _) { 30 } else { 0 }
+    if value is Packet.pair(first, second) { first + second + 17 } else { 0 }
 }
 
 const SCORE: i32 = score(SAVED)
+
+const func adjust(seed: i32): i32 {
+    var packet = Packet.grid((seed, 8), true)
+    let result = match edit packet {
+        Packet.grid((left, right), enabled) {
+            left += right
+            if enabled { left } else { right }
+        }
+        _ { 0 }
+    }
+    if edit packet is Packet.grid((value, _), _) {
+        let captured = value
+        packet = Packet.empty
+        captured + result
+    } else {
+        0
+    }
+}
+
+const ADJUSTED: i32 = adjust(13)
 
 func main(): i32 {
     var steps = 0
@@ -38,6 +58,7 @@ func main(): i32 {
     let discarded = match take packet^ {
         Packet.empty { 1 }
         Packet.pair(_, _) { 0 }
+        Packet.grid((_, _), _) { 1 }
         Packet.failed(_) { 1 }
         Packet.staged(_, _) { 1 }
     }
@@ -48,8 +69,15 @@ func main(): i32 {
         return 98
     }
     drop failure
-    if score(ARCHIVE) != SCORE || score(Packet.empty) != 0 || interrupted(true) != 5 {
+    if SCORE != 28 || score(ARCHIVE) != SCORE || score(Packet.empty) != 0 || interrupted(true) != 5 {
         return 99
+    }
+    if ADJUSTED != 42 || adjust(13) != ADJUSTED || adjust(0) != 16 {
+        return 97
+    }
+    let created = if Packet.pair(17, 25) is Packet.pair(first, second) { first + second } else { 0 }
+    if created != 42 {
+        return 96
     }
     selected + steps + discarded
 }

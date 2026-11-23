@@ -251,6 +251,79 @@ fn discarded_enum_fields_use_written_payload_arity_and_nested_tuple_shapes() {
 }
 
 #[test]
+fn named_enum_leaves_are_scoped_to_the_selected_case() {
+    let root = concat!(
+        "see ./body.nct\n",
+        "enum Packet { empty\ndata(pair: (i32, i32), flag: bool) }\n",
+        "func run(): i32"
+    );
+    let prepare = |branch| {
+        let body = format!(
+            "see ./index.nct\nfunc run(): i32 {{\nvar packet = Packet.data((19, 23), true)\n{branch}\n}}"
+        );
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        ModuleSourceUnit::prepare(&fixture.input()).map(drop)
+    };
+    for (body, expected) in [
+        (
+            "if Packet.data((19, 23), true) is Packet.data((a, b), _) { a + b } else { 0 }",
+            None,
+        ),
+        (
+            "if edit Packet.data((19, 23), true) is Packet.data((a, b), _) { a += b\na } else { 0 }",
+            None,
+        ),
+        (
+            "if packet is Packet.data((a, _), _) { a } else { a }",
+            Some(Rule::UnknownName),
+        ),
+        (
+            "if packet is Packet.data((a, _), _) { a += 1\na } else { 0 }",
+            Some(Rule::NotWritable),
+        ),
+        (
+            "match edit packet {\n Packet.data((a, b), _) { a += b\na }\n Packet.empty { 0 }\n }",
+            None,
+        ),
+        (
+            "if edit packet is Packet.data((a, _), _) {\n let observed = a\n packet = Packet.empty\n observed } else { 0 }",
+            None,
+        ),
+    ] {
+        let result = prepare(body);
+        match expected {
+            None => assert!(result.is_ok(), "{body}: {result:?}"),
+            Some(rule) => {
+                let Err(SourceFailure::Checking(accepted::Failure::Body {
+                    failure: Failure::Rejected(error),
+                    ..
+                })) = result
+                else {
+                    panic!("expected localized {rule:?}: {result:?}");
+                };
+                assert_eq!(error.rule(), rule, "{body}");
+            }
+        }
+    }
+    let result =
+        prepare("if packet is Packet.data((a, _), _) { packet = Packet.empty\na } else { 0 }");
+    let Err(SourceFailure::Checking(accepted::Failure::Flow { diagnostics, .. })) = result else {
+        panic!("expected a still-live payload access to prohibit replacement: {result:?}");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0397")
+    );
+}
+
+#[test]
 fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
     use nocter_model::FrozenNode;
     let fixture = Fixture::new(

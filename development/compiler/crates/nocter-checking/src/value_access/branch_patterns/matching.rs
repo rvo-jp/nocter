@@ -1,5 +1,5 @@
 //! Check enum coverage and construct one multiway branch over the selected carrier.
-use super::{Checker, Failure, Rule};
+use super::{Checker, Failure, Rule, TagPattern};
 use crate::value_access::{
     annotations::Annotation,
     ir::{Boundary, ExpressionKind, ValueType},
@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 struct Arms {
     data: Option<TypeId>,
-    cases: Vec<(u64, NodeId)>,
+    cases: Vec<(TagPattern, NodeId)>,
     fallback: Option<NodeId>,
 }
 
@@ -24,7 +24,11 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let arms = self.enum_arms(node)?;
-        let (source, operation) = self.pattern_input(node, arms.data, reachable)?;
+        let binds_payload = arms
+            .cases
+            .iter()
+            .any(|(pattern, _)| !pattern.leaves.is_empty());
+        let (source, operation) = self.pattern_input(node, arms.data, binds_payload, reachable)?;
         let source_ty = self.ty(source);
         let data = source_ty.access().map(ValueAccess::data).or(arms.data);
         self.require_enum_coverage(node, data, &arms)?;
@@ -33,21 +37,29 @@ impl Checker<'_, '_> {
             expected.filter(|boundary| boundary.ty().mode() == ValueAccessMode::Own);
         let branch_boundary = owning_boundary.filter(|_| source_ty.may_complete());
         let construction = if expected.is_none() { data_hint } else { None };
-        let mut check = |block| {
-            self.block_with_construction(
+        let check = |this: &mut Self, block, bindings| {
+            this.block_with_case(
                 block,
                 branch_boundary,
                 hint,
                 construction,
                 branch_reachable,
+                bindings,
             )
         };
         let mut cases: Vec<_> = arms
             .cases
             .into_iter()
-            .map(|(tag, block)| Ok((tag, check(block)?)))
+            .map(|(pattern, block)| {
+                let tag = pattern.tag;
+                let bindings = self.branch_bindings(pattern, source, operation)?;
+                Ok((tag, check(self, block, bindings)?))
+            })
             .collect::<Result<_, Failure>>()?;
-        let fallback = arms.fallback.map(check).transpose()?;
+        let fallback = arms
+            .fallback
+            .map(|block| check(self, block, None))
+            .transpose()?;
         let blocks = || cases.iter().map(|&(_, block)| block).chain(fallback);
         let ty = self.enum_match_type(node, source_ty, blocks())?;
         if construction.is_some()
@@ -94,8 +106,8 @@ impl Checker<'_, '_> {
                 arms.fallback = Some(block);
                 continue;
             };
-            let (data, tag) = self.tag_pattern(pattern)?;
-            if arms.data.is_some_and(|owner| owner != data) {
+            let selected = self.tag_pattern(pattern)?;
+            if arms.data.is_some_and(|owner| owner != selected.data) {
                 return self.reject_message(
                     Rule::TypeMismatch,
                     pattern,
@@ -103,7 +115,7 @@ impl Checker<'_, '_> {
                     Vec::new(),
                 );
             }
-            if !tags.insert(tag) {
+            if !tags.insert(selected.tag) {
                 return self.reject_message(
                     Rule::TypeMismatch,
                     pattern,
@@ -111,8 +123,8 @@ impl Checker<'_, '_> {
                     Vec::new(),
                 );
             }
-            arms.data = Some(data);
-            arms.cases.push((tag, block));
+            arms.data = Some(selected.data);
+            arms.cases.push((selected, block));
         }
         Ok(arms)
     }

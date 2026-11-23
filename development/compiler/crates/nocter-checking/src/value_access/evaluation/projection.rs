@@ -311,7 +311,20 @@ impl Builder<'_, '_> {
         fields
             .fields()
             .iter()
-            .map(|id| Ok(plan::Projection::Field(self.component_position(*id)?)))
+            .map(|id| match *id {
+                nocter_model::ValueField::EnumField { variant, field } => {
+                    let case = self.program.variants().get(variant).ok_or(INVALID)?;
+                    let field = self.program.fields().get(field).ok_or(INVALID)?;
+                    if field.variant() != Some(variant) {
+                        return Err(INVALID);
+                    }
+                    Ok(plan::Projection::EnumField {
+                        tag: u64::try_from(case.position()).map_err(|_| INVALID)?,
+                        field: field.position(),
+                    })
+                }
+                _ => Ok(plan::Projection::Field(self.component_position(*id)?)),
+            })
             .collect()
     }
     fn referent(&mut self, source: Referent) -> Result<plan::Place> {

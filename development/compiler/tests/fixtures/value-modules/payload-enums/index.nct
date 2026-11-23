@@ -5,6 +5,7 @@ see ./main.nct
 enum Packet {
     empty
     pair(first: i32, second: i32)
+    grid(values: (i32, i32), enabled: bool)
     failed(reason: error)
     staged(reason: error, marker: i32)
 }

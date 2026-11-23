@@ -4,6 +4,7 @@ use super::{
     branch_patterns::IfTest,
     checker::Checker,
     ir::{Binary, Boundary, ExpressionKind, Projection, Unary, ValueType, value_type},
+    statements::BranchBindings,
 };
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
@@ -12,6 +13,12 @@ use nocter_model::{
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation as P, SyntaxToken, TokenKind, decode_integer_literal,
 };
+
+struct IfBranches {
+    reachable: bool,
+    known_condition: Option<bool>,
+    bindings: Option<BranchBindings>,
+}
 
 impl Checker<'_, '_> {
     pub fn expression(
@@ -442,7 +449,8 @@ impl Checker<'_, '_> {
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let test = self.if_test(self.direct(node, NodeKind::IfCondition)?, reachable)?;
+        let (test, bindings) =
+            self.if_test(self.direct(node, NodeKind::IfCondition)?, reachable)?;
         let (source, known_condition) = match test {
             IfTest::Boolean(condition) => (condition, self.normal_boolean(condition)),
             IfTest::Enum { source, .. } => (source, None),
@@ -459,18 +467,23 @@ impl Checker<'_, '_> {
                 expected,
                 hint,
                 construction,
-                branches_reachable,
-                known_condition,
+                IfBranches {
+                    reachable: branches_reachable,
+                    known_condition,
+                    bindings,
+                },
             )?
         } else {
             // Without else the operation completes with unit, not a retained branch access.
             let unit = self.data(BuiltinType::Void);
             let boundary = Boundary::Binding(Ty::new(unit, Mode::Own));
-            let then_block = self.block_with_hint(
+            let then_block = self.block_with_case(
                 self.direct(node, NodeKind::Block)?,
                 Some(boundary),
                 Some(&Annotation::Data(unit)),
+                None,
                 branches_reachable && known_condition != Some(false),
+                bindings,
             )?;
             let value = self.unit(node)?;
             let value = self.boundary(node, value, boundary)?;
@@ -521,14 +534,25 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         hint: Option<&Annotation>,
         construction: Option<nocter_model::TypeId>,
-        reachable: bool,
-        condition: Option<bool>,
+        branches: IfBranches,
     ) -> Result<[AccessBlockId; 2], Failure> {
         let then_node = self.direct(node, NodeKind::Block)?;
         let clause = self.direct(node, NodeKind::ElseClause)?;
         let then_absent = construction.is_some() && self.absence_construction(then_node)?;
         let else_absent =
             construction.is_some() && self.absence_construction(self.first_child(clause)?)?;
+        let first_reachable = branches.reachable && branches.known_condition != Some(false);
+        let other_reachable = branches.reachable && branches.known_condition != Some(true);
+        let check_first = |this: &mut Self, construction| {
+            this.block_with_case(
+                then_node,
+                expected,
+                hint,
+                construction,
+                first_reachable,
+                branches.bindings,
+            )
+        };
         let context_from = |this: &Self, block| {
             this.block_ty(block)
                 .access()
@@ -537,42 +561,19 @@ impl Checker<'_, '_> {
                 .or(construction)
         };
         if then_absent && !else_absent {
-            let other = self.conditional_else(
-                clause,
-                expected,
-                hint,
-                construction,
-                reachable && condition != Some(true),
-            )?;
+            let other =
+                self.conditional_else(clause, expected, hint, construction, other_reachable)?;
             let selected = context_from(self, other);
-            let first = self.block_with_construction(
-                then_node,
-                expected,
-                hint,
-                selected,
-                reachable && condition != Some(false),
-            )?;
+            let first = check_first(self, selected)?;
             return Ok([first, other]);
         }
-        let first = self.block_with_construction(
-            then_node,
-            expected,
-            hint,
-            construction,
-            reachable && condition != Some(false),
-        )?;
+        let first = check_first(self, construction)?;
         let selected = if else_absent && !then_absent {
             context_from(self, first)
         } else {
             construction
         };
-        let other = self.conditional_else(
-            clause,
-            expected,
-            hint,
-            selected,
-            reachable && condition != Some(true),
-        )?;
+        let other = self.conditional_else(clause, expected, hint, selected, other_reachable)?;
         Ok([first, other])
     }
     fn conditional_else(

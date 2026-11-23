@@ -16,6 +16,18 @@ pub(in crate::value_access) struct Leaf {
     path: FieldPath,
 }
 
+pub(in crate::value_access) struct BranchBindings {
+    pub pattern: NodeId,
+    pub source: AccessExpressionId,
+    pub kind: ValueBindingKind,
+    pub leaves: Vec<Leaf>,
+}
+impl BranchBindings {
+    pub(super) fn binds(&self, spelling: &str) -> bool {
+        self.leaves.iter().any(|leaf| leaf.name == spelling)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Carrier {
     Owner(AccessLocalId),
@@ -23,6 +35,21 @@ enum Carrier {
 }
 
 impl Checker<'_, '_> {
+    pub(super) fn form_case_bindings(
+        &mut self,
+        bindings: BranchBindings,
+    ) -> Result<Vec<AccessStatementId>, Failure> {
+        let mut statements = Vec::new();
+        self.form_leaves(
+            bindings.pattern,
+            bindings.kind,
+            Carrier::Place(bindings.source),
+            bindings.leaves,
+            &mut statements,
+        )?;
+        Ok(statements)
+    }
+
     pub(super) fn tuple_binding(
         &mut self,
         statement: NodeId,

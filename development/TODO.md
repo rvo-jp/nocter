@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify scoped read and edit bindings in enum branches. Connect the prepared scrutinee and exact
-case evidence to payload aliases, preserve the ordinary lifetime and update rules, and exercise
-the same typed projections in required evaluation and native execution.
+Qualify take decomposition of selected enum payloads. Stage the named leaves before cleaning the
+received carrier, and track the exact moved fields so cleanup skips them in reverse declaration
+order. Preserve whole-carrier disposal when every named leaf can be copied.
 
 ## Remaining Contextual Representation Qualification
 
@@ -756,8 +756,10 @@ not a language restriction derived from the current realization boundary.
   tag validation and exact nested paths through reads, updates, and the ownership ledger.
 - [x] Use the same case-dispatch edges for enum if-is and match, with carrier retirement on
   the selected take path.
-- [ ] Qualify named enum payload patterns with scoped read/edit bindings and take decomposition of
-  active fields. Preserve the prepared scrutinee, ownership ordering and cleanup on all exits.
+- [x] Qualify scoped read and edit bindings of named enum payloads in if-is and match. Preserve
+  the prepared scrutinee, last-use invalidation, and the exact tag proof in lowering.
+- [ ] Qualify take decomposition of named enum payloads. Preserve ownership ordering, active-case
+  remainder cleanup, and complete initialization for user-destructible carriers.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

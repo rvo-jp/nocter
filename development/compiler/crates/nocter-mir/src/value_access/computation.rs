@@ -291,8 +291,17 @@ impl Builder<'_> {
         destination: Place,
         action: SelectionAction,
     ) -> Result<Operation, Failure> {
+        let enum_field = matches!(
+            fields.fields().first(),
+            Some(nocter_model::ValueField::EnumField { .. })
+        );
         let source = self.component(source, fields, destination.data)?;
-        Ok(if action.is_place() {
+        Ok(if enum_field && action == SelectionAction::PreparedAccess {
+            Operation::BindEnumAddress {
+                destination: destination.slot,
+                source,
+            }
+        } else if action.is_place() {
             Self::alias(source, destination.slot)
         } else {
             Operation::Copy {
