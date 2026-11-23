@@ -10,6 +10,7 @@ use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{ExecutableSelector, TestTargetSelector};
+use nocter_standard_profile::ValueAccessProfileMismatch;
 
 use crate::compiler::CommandCompiler;
 use crate::package_state::resolve_command_package_state;
@@ -64,11 +65,7 @@ impl CommandToolchain {
         mut self,
         profile: ToolchainInput,
     ) -> Result<Self, ValueAccessProfileMismatch> {
-        let standard = self.standard().identity();
-        if profile.standard_package() != standard || profile.prelude().package() != standard {
-            return Err(ValueAccessProfileMismatch);
-        }
-        self.packages.select_value_access(profile);
+        self.packages.select_value_access(profile)?;
         Ok(self)
     }
 
@@ -100,18 +97,6 @@ impl CommandToolchain {
         }
     }
 }
-
-/// The supplied v2 profile does not belong to the selected standard package.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ValueAccessProfileMismatch;
-
-impl fmt::Display for ValueAccessProfileMismatch {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("v2 standard profile does not match the selected standard package")
-    }
-}
-
-impl std::error::Error for ValueAccessProfileMismatch {}
 
 pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
     input: &ResolvedProgramInput,

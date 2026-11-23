@@ -30,8 +30,11 @@ impl WorkspaceTopology {
         documents: BTreeSet<PathBuf>,
         source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Self {
-        let mut package_roots =
-            nocter_package::PackageRootCatalogBuilder::new(source_overlay.clone());
+        let mut package_roots = nocter_package::PackageRootCatalog::for_goal(
+            source_overlay.clone(),
+            configuration.toolchain().source().goal(),
+        )
+        .into_builder();
         let selections = documents
             .into_iter()
             .map(|document| {

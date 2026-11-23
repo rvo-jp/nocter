@@ -9,7 +9,6 @@ use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
 
@@ -124,7 +123,6 @@ fn prepare_toolchain_standard(
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
-    let standard = toolchain.standard().identity().clone();
     let package = resolve_standard_package_with_root_catalog(
         toolchain.standard().clone(),
         package_roots,
@@ -135,7 +133,7 @@ fn prepare_toolchain_standard(
     Ok(DiscoveryRequest::toolchain_standard(
         toolchain.target(),
         package,
-        bundled_standard_toolchain(&standard),
+        toolchain.source().input().clone(),
     ))
 }
 
@@ -161,7 +159,6 @@ fn prepare_package(
     )
     .map_err(WorkspaceAnalysisError::from)?;
     let root_package = selected.root().clone();
-    let standard = selected.standard().clone();
     let package = selected
         .graph()
         .packages()
@@ -194,7 +191,7 @@ fn prepare_package(
         toolchain.target(),
         packages,
         roots.into_iter().collect(),
-        bundled_standard_toolchain(&standard),
+        toolchain.source().input().clone(),
     ))
 }
 
@@ -206,7 +203,6 @@ fn prepare_single_file(
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
-    let standard = toolchain.standard().identity().clone();
     let packages = resolve_standard_package_with_root_catalog(
         toolchain.standard().clone(),
         package_roots,
@@ -218,6 +214,6 @@ fn prepare_single_file(
         toolchain.target(),
         source,
         packages,
-        bundled_standard_toolchain(&standard),
+        toolchain.source().input().clone(),
     ))
 }

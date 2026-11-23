@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Make prepared commands and workspace analysis use one standard source profile for grammar and
-trusted declarations. Carry the selected v2 grammar through editor package topology, source
-overlays and compiler discovery. Verify a v2 source edit reports the current diagnostic and
-recovers using the development standard package.
+Project v2 named call navigation from the accepted package unit and its exact bound source.
+Use the selected declaration identity, prefer the public contract for definition and the actual
+body for implementation, and validate the current source ranges without repeating name lookup.
+Keep unavailable coverage explicit for source forms without a navigation projection.
 
 ## Remaining Contextual Representation Qualification
 
@@ -744,6 +744,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Put the verified process API and its trusted implementation in the development standard
   package. Select one exact profile for that package. Verify the same source through package
   discovery and prepared check, build and run with a native Unicode argument.
+- [x] Share one standard source profile between prepared command and workspace orchestration.
+  Keep v2 grammar selection through topology, root probes, overlays and compiler discovery.
+  Verify exact diagnostic recovery after an editor overlay change and analysis of the selected
+  development standard package.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

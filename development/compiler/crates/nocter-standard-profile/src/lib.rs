@@ -6,8 +6,63 @@ use nocter_compile_input::{
 };
 use nocter_model::{BuiltinType, PackageIdentity};
 use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
-use nocter_syntax::NodeKind;
+use nocter_syntax::{NodeKind, ParseGoal};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
+use std::fmt;
+
+/// The grammar and trusted declarations selected together for one standard source package.
+#[derive(Clone, Debug)]
+pub struct StandardSourceProfile {
+    goal: ParseGoal,
+    input: ToolchainInput,
+}
+
+impl StandardSourceProfile {
+    #[must_use]
+    pub fn released(package: &PackageIdentity) -> Self {
+        Self {
+            goal: ParseGoal::SourceFile,
+            input: bundled_standard_toolchain(package),
+        }
+    }
+
+    /// # Errors
+    /// Rejects a profile whose standard package or prelude belongs to another package.
+    pub fn value_access(
+        package: &PackageIdentity,
+        input: ToolchainInput,
+    ) -> Result<Self, ValueAccessProfileMismatch> {
+        if input.standard_package() != package || input.prelude().package() != package {
+            return Err(ValueAccessProfileMismatch);
+        }
+        Ok(Self {
+            goal: ParseGoal::V2CoreUnit,
+            input,
+        })
+    }
+
+    #[must_use]
+    pub const fn goal(&self) -> ParseGoal {
+        self.goal
+    }
+
+    #[must_use]
+    pub const fn input(&self) -> &ToolchainInput {
+        &self.input
+    }
+}
+
+/// The value-access declaration profile belongs to a different standard source package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ValueAccessProfileMismatch;
+
+impl fmt::Display for ValueAccessProfileMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("v2 standard profile does not match the selected standard package")
+    }
+}
+
+impl std::error::Error for ValueAccessProfileMismatch {}
 
 const DARWIN_NET: &[&str] = &["internal", "net", "darwin"];
 const INTERNAL_TASK: &[&str] = &["internal", "task"];

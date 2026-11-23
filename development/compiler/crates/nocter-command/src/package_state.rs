@@ -10,7 +10,7 @@ use nocter_package::{
 use nocter_package_state::{
     PackageAcquisitionAuthority, PackageStateError, resolve_package_state_with_driver,
 };
-use nocter_standard_profile::bundled_standard_toolchain;
+use nocter_standard_profile::{StandardSourceProfile, ValueAccessProfileMismatch};
 use nocter_syntax::ParseGoal;
 
 use crate::compiler::CommandCompiler;
@@ -21,7 +21,7 @@ use crate::{PackageCommandInput, ResolutionOptions};
 pub struct CommandPackageContext {
     nocter_home: PathBuf,
     standard: nocter_package::StandardPackage,
-    value_access_profile: Option<ToolchainInput>,
+    source: StandardSourceProfile,
 }
 
 impl CommandPackageContext {
@@ -29,8 +29,8 @@ impl CommandPackageContext {
     pub fn new(nocter_home: impl Into<PathBuf>, standard: nocter_package::StandardPackage) -> Self {
         Self {
             nocter_home: nocter_home.into(),
+            source: StandardSourceProfile::released(standard.identity()),
             standard,
-            value_access_profile: None,
         }
     }
 
@@ -45,21 +45,19 @@ impl CommandPackageContext {
     }
 
     pub(crate) const fn source_goal(&self) -> ParseGoal {
-        if self.value_access_profile.is_some() {
-            ParseGoal::V2CoreUnit
-        } else {
-            ParseGoal::SourceFile
-        }
+        self.source.goal()
     }
 
-    pub(crate) fn select_value_access(&mut self, profile: ToolchainInput) {
-        self.value_access_profile = Some(profile);
+    pub(crate) fn select_value_access(
+        &mut self,
+        profile: ToolchainInput,
+    ) -> Result<(), ValueAccessProfileMismatch> {
+        self.source = StandardSourceProfile::value_access(self.standard.identity(), profile)?;
+        Ok(())
     }
 
     pub(crate) fn source_profile(&self) -> ToolchainInput {
-        self.value_access_profile
-            .clone()
-            .unwrap_or_else(|| bundled_standard_toolchain(self.standard().identity()))
+        self.source.input().clone()
     }
 }
 

@@ -149,6 +149,111 @@ fn package_generation_uses_overlay_bytes_and_reaches_compiler_analysis() {
 }
 
 #[test]
+fn v2_workspace_profile_reuses_candidate_sources_and_recovers_after_an_overlay_edit() {
+    let temporary = TemporaryDirectory::new();
+    let root = temporary.path();
+    let body = root.join("body.nct");
+    fs::write(
+        root.join("index.nct"),
+        "#package: { name: \"app\", version: \"2.0.0\" }\n\
+         #executable: { name: \"app\" }\n\
+         see ./body.nct\nasync func main(): i32",
+    )
+    .unwrap();
+    let text = |answer| {
+        format!(
+            "use std/process\nsee ./index.nct\n\
+             async func count(): usize {{ process.arg_count() }}\n\
+             async func main(): i32 {{\n\
+                 let pending = count()\n\
+                 let _ = await pending^\n\
+                 {answer}\n\
+             }}"
+        )
+    };
+    fs::write(&body, text("42")).unwrap();
+    let standard = nocter_test_support::repository_root()
+        .join("development/stdlib")
+        .canonicalize()
+        .unwrap();
+    let identity = PackageIdentity::new("toolchain:std-v2");
+    let toolchain = WorkspaceToolchain::new(
+        CompilationTarget::Arm64Darwin,
+        root,
+        StandardPackage::new(identity.clone(), standard.clone(), "2.0.0"),
+    )
+    .with_value_access_profile(nocter_standard_profile::development_value_access_toolchain(
+        &identity,
+    ))
+    .unwrap();
+    let configuration = WorkspaceConfiguration::resolve([root.to_path_buf()], toolchain).unwrap();
+    let mut documents = DocumentWorkspace::new();
+    let mut analyses = WorkspaceAnalyses::new(configuration);
+    let broken = analyses
+        .analyze(documents.open(&body, 1, &text("true")).unwrap())
+        .unwrap();
+    assert!(matches!(
+        broken.primary().scope(),
+        Some(AnalysisScope::Package(_))
+    ));
+    let snapshot = broken.primary().snapshot().unwrap();
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    let [diagnostic] = snapshot.diagnostics() else {
+        panic!("{:?}", snapshot.diagnostics());
+    };
+    assert_eq!(diagnostic.code(), "E0370");
+    let span = diagnostic.primary().span();
+    let source = snapshot.sources().get(span.source()).unwrap();
+    assert_eq!(
+        Path::new(source.name().as_str()),
+        body.canonicalize().unwrap()
+    );
+    assert_eq!(source.text_at(span.range()), Some("true"));
+    let DocumentWorkspaceChange::Accepted(fixed) = documents.change(&body, 2, &text("42")).unwrap()
+    else {
+        panic!("newer document version is accepted");
+    };
+    let fixed = analyses.analyze(fixed).unwrap();
+    let current = fixed.primary().snapshot().unwrap();
+    assert_eq!(
+        current.status(),
+        AnalysisStatus::Complete,
+        "{:?}",
+        current.diagnostics()
+    );
+    assert_eq!(
+        current.document_version(&body.canonicalize().unwrap()),
+        Some(DocumentVersion::new(2))
+    );
+    assert!(
+        current.sources().iter().any(|source| {
+            Path::new(source.name().as_str()) == standard.join("process/text.nct")
+        })
+    );
+    assert_eq!(snapshot.diagnostics()[0].code(), "E0370");
+
+    let contract = standard.join("process/index.nct");
+    let std = analyses
+        .analyze(
+            documents
+                .open(&contract, 1, &fs::read_to_string(&contract).unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        std.primary().scope(),
+        Some(&AnalysisScope::ToolchainStandard(standard))
+    );
+    let library = std.primary().snapshot().unwrap();
+    assert_eq!(
+        library.status(),
+        AnalysisStatus::Complete,
+        "{:?}",
+        library.diagnostics()
+    );
+}
+
+#[test]
 fn incomplete_syntax_analysis_is_a_reusable_exact_current_query() {
     let temporary = TemporaryDirectory::new();
     let root = temporary.path().join("index.nct");

@@ -4,12 +4,16 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use nocter_compile_input::ToolchainInput;
+use nocter_standard_profile::{StandardSourceProfile, ValueAccessProfileMismatch};
+
 /// Installation-owned compiler facts used by every workspace generation.
 #[derive(Clone, Debug)]
 pub struct WorkspaceToolchain {
     target: nocter_model::CompilationTarget,
     nocter_home: PathBuf,
     standard: nocter_package::StandardPackage,
+    source: StandardSourceProfile,
 }
 
 impl WorkspaceToolchain {
@@ -22,8 +26,26 @@ impl WorkspaceToolchain {
         Self {
             target,
             nocter_home: nocter_home.into(),
+            source: StandardSourceProfile::released(standard.identity()),
             standard,
         }
+    }
+
+    /// Selects the same v2 source profile used by prepared package commands.
+    ///
+    /// # Errors
+    /// Rejects a profile bound to a different standard package.
+    pub fn with_value_access_profile(
+        mut self,
+        profile: ToolchainInput,
+    ) -> Result<Self, ValueAccessProfileMismatch> {
+        self.source = StandardSourceProfile::value_access(self.standard.identity(), profile)?;
+        Ok(self)
+    }
+
+    #[must_use]
+    pub(crate) const fn source(&self) -> &StandardSourceProfile {
+        &self.source
     }
 
     #[must_use]

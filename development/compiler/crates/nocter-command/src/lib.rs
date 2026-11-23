@@ -71,6 +71,7 @@ pub use inspection::{
     SourceInspectionCommandError, SourceInspectionCommandResult, execute_source_inspection,
 };
 pub use install::execute_install;
+pub use nocter_standard_profile::ValueAccessProfileMismatch;
 pub use output_plan::{BuildOutputPlan, OutputPlanError, PlannedOutput};
 pub use package_state::{CommandPackageContext, CommandPackageStateError};
 pub use planning::{
@@ -80,7 +81,7 @@ pub use planning::{
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use run_invocation::RunProgramArguments;
-pub use source::{CommandSourceError, CommandToolchain, ValueAccessProfileMismatch};
+pub use source::{CommandSourceError, CommandToolchain};
 pub use standalone_source::StandaloneSourceError;
 pub use test::{
     TestCommandExecutionError, TestCommandIntegrityError, TestCommandPresentation,

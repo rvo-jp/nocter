@@ -33,13 +33,19 @@ The detailed body-query chain above describes released source analysis. The same
 now selects the existing value-access source coordinator for explicitly selected v2 discovery,
 without entering released declaration or recovery stages. Its
 [query scope](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
-owns the qualified result/reuse boundary; it does not yet produce session semantic evidence.
+owns the qualified result and reuse boundary. Session carries its source diagnostics in the
+workspace analysis snapshot. Semantic navigation needs its own source projection.
 
 Commands and workspace analysis both enter through `nocter-compiler-computation`. They differ in
 owner lifetime and requested downstream product, not in syntax providers, semantic stage order, or
 recovery policy. Intermediate semantic queries are private to that owner. A caller can publish one
 admitted revision, discover through its syntax provider, and demand one closed unit result; it
 cannot demand or reorder a declaration, preparation, body, or finalization query.
+
+The standard source profile selects grammar and trusted declaration locators together. Prepared
+commands and workspace configuration use the same profile validation. Workspace topology,
+standard-library and single-file analysis, and candidate edit validation build their root
+catalogs with the configured grammar before sending discovery to compiler computation.
 
 ## Responsibility Boundaries
 

@@ -600,7 +600,10 @@ impl WorkspaceAnalyses {
             &self.configuration,
             &input,
             source.generation(),
-            nocter_package::PackageRootCatalog::new(candidate.source_overlay().clone()),
+            nocter_package::PackageRootCatalog::for_goal(
+                candidate.source_overlay().clone(),
+                self.configuration.toolchain().source().goal(),
+            ),
             &mut candidate_computation,
             &candidate_revision,
         ) {
