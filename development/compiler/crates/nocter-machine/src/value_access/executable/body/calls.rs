@@ -52,7 +52,7 @@ impl Builder<'_> {
         self.select_callable_case(base, call.carrier.data, |builder, index| {
             let case = call.cases.get(index).ok_or_else(Self::invalid)?;
             let Some(RuntimeType::StaticCallable { environment }) =
-                builder.context.program.runtime().types().get(case.data)
+                builder.context.runtime.types().get(case.data)
             else {
                 return Err(Self::invalid());
             };

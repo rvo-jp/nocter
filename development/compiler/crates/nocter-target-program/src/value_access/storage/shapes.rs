@@ -244,12 +244,7 @@ impl<'a> Builder<'a> {
                     .map(|case| self.intern(case))
                     .collect::<Result<Box<[_]>, _>>()?;
                 let tag = RuntimePrimitive::callable_tag(cases.len()).ok_or_else(invalid)?;
-                let builtin = BuiltinType::ALL
-                    .iter()
-                    .copied()
-                    .find(|&builtin| RuntimePrimitive::for_builtin(builtin) == tag)
-                    .ok_or_else(invalid)?;
-                self.builtin(key, builtin)?;
+                self.builtin_role(key, tag)?;
                 RuntimeType::CallableAlternatives(cases)
             }
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {
@@ -320,6 +315,9 @@ impl<'a> Builder<'a> {
                 variants: schema.variants().into(),
             });
         }
+        let tag = RuntimePrimitive::unsigned_tag(schema.variants().len())
+            .ok_or(Failure::InvalidPayload(key.data()))?;
+        self.builtin_role(key, tag)?;
         let mut variants = Vec::with_capacity(schema.variants().len());
         for &variant in schema.variants() {
             let fields = self
@@ -341,6 +339,18 @@ impl<'a> Builder<'a> {
         Ok(RuntimeTypeRepresentation::ValueEnum {
             variants: variants.into(),
         })
+    }
+    fn builtin_role(
+        &mut self,
+        key: &DataInstanceKey,
+        role: RuntimePrimitive,
+    ) -> Result<RuntimeDataId, Failure> {
+        let builtin = BuiltinType::ALL
+            .iter()
+            .copied()
+            .find(|&builtin| RuntimePrimitive::for_builtin(builtin) == role)
+            .ok_or(Failure::InvalidPayload(key.data()))?;
+        self.builtin(key, builtin)
     }
     fn primitive(
         &mut self,

@@ -460,7 +460,7 @@ impl Context<'_> {
                 self.require(
                     self.program
                         .runtime
-                        .scalar_enum_variant(source.data, *tag)
+                        .enum_case_fields(source.data, *tag)
                         .is_some()
                         && self.primitive(destination.data, boolean),
                 )
@@ -1134,15 +1134,14 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
             }
             Terminator::EnumSwitch { source, cases, .. } => {
                 context.place(source)?;
-                let variants = context
-                    .program
-                    .runtime
-                    .scalar_enum_variants(source.data)
-                    .ok_or_else(|| context.invalid())?;
+                let largest = cases.last().map_or(0, |&(tag, _)| tag);
                 context.require(
-                    cases.last().is_none_or(|&(tag, _)| {
-                        usize::try_from(tag).is_ok_and(|tag| tag < variants.len())
-                    }) && !cases.windows(2).any(|pair| pair[0].0 >= pair[1].0),
+                    context
+                        .program
+                        .runtime
+                        .enum_case_fields(source.data, largest)
+                        .is_some()
+                        && !cases.windows(2).any(|pair| pair[0].0 >= pair[1].0),
                 )?;
             }
             Terminator::Return(place) => {

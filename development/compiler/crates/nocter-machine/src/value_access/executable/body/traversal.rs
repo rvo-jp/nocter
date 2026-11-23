@@ -16,8 +16,7 @@ pub(super) struct Traversal {
 impl Builder<'_> {
     pub(super) fn primitive(&self, role: RuntimePrimitive) -> Result<RuntimeDataId, Failure> {
         self.context
-            .program
-            .runtime()
+            .runtime
             .types()
             .primitive(role)
             .ok_or_else(Self::invalid)

@@ -12,26 +12,31 @@ mod encoding;
 
 pub(super) struct Data {
     values: Vec<MachineData>,
-    statics: BTreeMap<nocter_model::ValueStatic, MachineDataId>,
+    statics: BTreeMap<nocter_model::ValueStatic, (RuntimeDataId, MachineDataId)>,
     ids: HashMap<(RuntimeDataId, FrozenData), MachineDataId>,
     texts: BTreeMap<Box<str>, MachineDataId>,
     remaining: usize,
+}
+impl Default for Data {
+    fn default() -> Self {
+        Self {
+            values: Vec::new(),
+            statics: BTreeMap::new(),
+            ids: HashMap::new(),
+            texts: BTreeMap::new(),
+            remaining: 16 * 1024 * 1024,
+        }
+    }
 }
 impl Data {
     pub fn build(
         program: &nocter_mir::value_access::Program,
         layouts: &MachineLayoutPlan,
     ) -> Result<Self, Failure> {
-        let mut data = Self {
-            values: Vec::new(),
-            statics: BTreeMap::new(),
-            ids: HashMap::new(),
-            texts: BTreeMap::new(),
-            remaining: 16 * 1024 * 1024,
-        };
+        let mut data = Self::default();
         for (&id, source) in program.statics() {
             let object = data.encode(program.runtime(), layouts, source.data, &source.value)?;
-            data.statics.insert(id, object);
+            data.statics.insert(id, (source.data, object));
         }
         for body in program.bodies().values() {
             for action in body.actions().values() {
@@ -123,7 +128,7 @@ impl Data {
         self.texts.insert(text.into(), id);
         Ok(id)
     }
-    pub fn global(&self, id: nocter_model::ValueStatic) -> Option<MachineDataId> {
+    pub fn global(&self, id: nocter_model::ValueStatic) -> Option<(RuntimeDataId, MachineDataId)> {
         self.statics.get(&id).copied()
     }
     pub fn get(&self, ty: RuntimeDataId, value: &FrozenData) -> Option<MachineDataId> {

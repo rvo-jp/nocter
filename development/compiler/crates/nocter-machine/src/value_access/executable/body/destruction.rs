@@ -5,9 +5,11 @@ use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineBlockId, MachineCall,
     MachineCallAllocation, MachineCallTarget, MachineFunction, MachineFunctionId,
     MachineFunctionKind, MachineLayoutKind, MachineOperationKind, MachineStackId,
-    MachineStackObject, MachineStackPurpose, MachineTerminator,
+    MachineStackObject, MachineStackPurpose, MachineTerminator, MachineValueEnumVariantLayout,
 };
 use nocter_runtime_contract::RuntimeDataId;
+#[cfg(test)]
+mod enum_tests;
 
 pub(crate) fn build(
     context: &Context<'_>,
@@ -25,13 +27,7 @@ pub(crate) fn build(
     let layout = context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
     match layout.kind() {
         MachineLayoutKind::ErrorHandle => {
-            let place = builder.address(MachineAddress::new(
-                data,
-                layout.size(),
-                layout.alignment(),
-                MachineAddressRoot::Stack(MachineStackId::new(0)),
-                [MachineAddressStep::Dereference],
-            ));
+            let place = builder.cleanup_root(data)?;
             builder.emit(MachineOperationKind::ReleaseError { place });
         }
         MachineLayoutKind::Outcome {
@@ -40,13 +36,7 @@ pub(crate) fn build(
             payload_offset,
             ..
         } => {
-            let base = builder.address(MachineAddress::new(
-                data,
-                layout.size(),
-                layout.alignment(),
-                MachineAddressRoot::Stack(MachineStackId::new(0)),
-                [MachineAddressStep::Dereference],
-            ));
+            let base = builder.cleanup_root(data)?;
             let condition = builder.primary_condition(base, data)?;
             let present = builder.block();
             let absent = builder.block();
@@ -80,6 +70,9 @@ pub(crate) fn build(
         } => {
             cleanup_choice(&mut builder, data, *payload_offset, cases)?;
         }
+        MachineLayoutKind::ValueEnum { variants, .. } => {
+            cleanup_enum(&mut builder, data, variants)?;
+        }
         MachineLayoutKind::FixedArray {
             element,
             length,
@@ -99,21 +92,27 @@ fn cleanup_choice(
     payload_offset: u64,
     cases: &[RuntimeDataId],
 ) -> Result<(), Failure> {
-    let layout = builder
-        .context
-        .layouts
-        .get(data)
-        .ok_or(Failure::InvalidRoot)?;
-    let base = builder.address(MachineAddress::new(
-        data,
-        layout.size(),
-        layout.alignment(),
-        MachineAddressRoot::Stack(MachineStackId::new(0)),
-        [MachineAddressStep::Dereference],
-    ));
+    let base = builder.cleanup_root(data)?;
     builder.select_callable_case(base, data, |builder, index| {
         let case = cases.get(index).ok_or(Failure::InvalidRoot)?;
         cleanup_field(builder, *case, payload_offset)
+    })
+}
+
+fn cleanup_enum(
+    builder: &mut Builder<'_>,
+    data: RuntimeDataId,
+    variants: &[MachineValueEnumVariantLayout],
+) -> Result<(), Failure> {
+    let base = builder.cleanup_root(data)?;
+    let subject = builder.load_enum_tag(base, data)?;
+    let tags = (0_u64..).take(variants.len()).map(i128::from);
+    builder.select_integer_cases(subject, tags, |builder, position| {
+        let variant = variants.get(position).ok_or(Failure::InvalidRoot)?;
+        for (_, field) in variant.fields().iter().rev() {
+            cleanup_field(builder, field.ty(), field.offset())?;
+        }
+        Ok(())
     })
 }
 
@@ -155,6 +154,17 @@ fn cleanup_field(
 }
 
 impl Builder<'_> {
+    fn cleanup_root(&mut self, data: RuntimeDataId) -> Result<crate::MachineAddressId, Failure> {
+        let layout = self.context.layouts.get(data).ok_or(Failure::InvalidRoot)?;
+        Ok(self.address(MachineAddress::new(
+            data,
+            layout.size(),
+            layout.alignment(),
+            MachineAddressRoot::Stack(MachineStackId::new(0)),
+            [MachineAddressStep::Dereference],
+        )))
+    }
+
     pub(super) fn cleanup_array(
         &mut self,
         data: RuntimeDataId,
@@ -164,20 +174,8 @@ impl Builder<'_> {
         if length == 0 {
             return Err(Self::invalid());
         }
-        let slot = MachineStackId::new(0);
         let container = self.stack.first().ok_or_else(Self::invalid)?.ty();
-        let layout = self
-            .context
-            .layouts
-            .get(container)
-            .ok_or_else(Self::invalid)?;
-        let base = self.address(MachineAddress::new(
-            container,
-            layout.size(),
-            layout.alignment(),
-            MachineAddressRoot::Stack(slot),
-            [MachineAddressStep::Dereference],
-        ));
+        let base = self.cleanup_root(container)?;
         let pointer = self.value(
             container,
             true,

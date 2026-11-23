@@ -226,12 +226,8 @@ impl Builder<'_> {
                 self.visit_partial_array(element, length, stride, pointer, partial, destination)?;
             }
             MachineLayoutKind::Struct { fields } => {
-                let Some(RuntimeTypeRepresentation::ValueAggregate { fields: schema }) = self
-                    .context
-                    .program
-                    .runtime()
-                    .type_representations()
-                    .get(data)
+                let Some(RuntimeTypeRepresentation::ValueAggregate { fields: schema }) =
+                    self.context.runtime.type_representations().get(data)
                 else {
                     return Err(Self::invalid());
                 };
@@ -274,8 +270,7 @@ impl Builder<'_> {
         let traversal = self.begin_array(length)?;
         let boolean = self
             .context
-            .program
-            .runtime()
+            .runtime
             .types()
             .primitive(RuntimePrimitive::Bool)
             .ok_or_else(Self::invalid)?;

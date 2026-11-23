@@ -58,6 +58,10 @@ pub(super) fn required(
                 Some(RuntimeTypeRepresentation::ValueAggregate { fields }) => {
                     fields.iter().map(|field| field.ty()).collect()
                 }
+                Some(RuntimeTypeRepresentation::ValueEnum { variants }) => variants
+                    .iter()
+                    .flat_map(|variant| variant.fields().iter().map(|&(_, ty)| ty))
+                    .collect(),
                 _ => return Err(Failure::InvalidRoot),
             },
             Some(RuntimeType::FixedArray { element, length }) => {

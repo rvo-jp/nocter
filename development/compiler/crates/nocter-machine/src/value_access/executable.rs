@@ -1,5 +1,5 @@
 //! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
-use nocter_runtime_contract::RuntimeDataId;
+use nocter_runtime_contract::{RuntimeDataId, RuntimeEnvironment};
 mod body;
 mod cleanup;
 mod data;
@@ -17,7 +17,7 @@ use nocter_runtime_contract::RuntimeType;
 use std::collections::BTreeMap;
 
 struct Context<'a> {
-    program: &'a mir::Program,
+    runtime: &'a RuntimeEnvironment,
     layouts: &'a MachineLayoutPlan,
     data: &'a data::Data,
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
@@ -110,7 +110,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     let transports = transport::prepare(program, &layouts, program.bodies().len() + cleanup.len())?;
     let context = Context {
         data: &data,
-        program,
+        runtime: program.runtime(),
         layouts: &layouts,
         functions,
         abis,

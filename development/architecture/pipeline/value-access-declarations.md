@@ -135,6 +135,11 @@ case. MIR validates those edges against the selected case's stored types. Native
 writes the tag and only that case's fields at the offsets chosen by the layout planner. The target
 selects the smallest supported unsigned width that fits the schema.
 
+Native tag tests, dispatch and structural cleanup use that same stored discriminator. Each path
+reads the tag once at its layout width. Cleanup preparation collects the helpers for every
+potentially active field. The generated cleanup helper dispatches to the selected case and visits
+only its fields in reverse declaration order.
+
 The evaluator type table preserves nominal identity and declaration order for each case and its
 fields. The value domain includes each case whose fields are representable, including an empty
 case when another case requires an unavailable resource. An evaluator plan assembles an exact
@@ -151,9 +156,7 @@ A scalar [if-is condition](../../spec/language/patterns.md#enum-branch-input) se
 variant through the same declaration and audience. The checker requires the scrutinee's exact
 nominal type and evaluates it once. An edit input checks update authority during tag inspection.
 A take input uses the ordinary Copy or transfer boundary and retires the received carrier after
-inspection, before either branch. Required evaluation compares the typed ordinal. Native
-lowering reads the tag at the enum's physical width and feeds the comparison into ordinary
-Boolean control flow.
+inspection, before either branch. The tag comparison feeds ordinary Boolean control flow.
 
 Scalar `match` checks nominal variant identity and coverage using the same source visibility.
 The checked graph records one tag dispatch with the sorted cases and the fallback edge.

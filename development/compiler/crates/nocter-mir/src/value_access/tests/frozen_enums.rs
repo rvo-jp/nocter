@@ -6,8 +6,7 @@ use nocter_runtime_contract::{
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeValueVariantRepresentation,
 };
 
-#[test]
-fn frozen_static_enum_checks_only_the_selected_declared_fields() {
+fn tagged_program() -> (Program, nocter_model::ValueStatic) {
     let fixture = nocter_test_support::ValueModuleFixture::new(
         &[
             (
@@ -20,7 +19,10 @@ fn frozen_static_enum_checks_only_the_selected_declared_fields() {
                 Implementation,
                 concat!(
                     "see ./index.nct\nstatic DATA: State = State.empty\n",
-                    "func run(): i32 { read state = DATA\n42 }",
+                    "func run(): i32 {\n",
+                    "let first = if DATA is State.present { 1 } else { 2 }\n",
+                    "match DATA { State.empty { first }\nState.present { first + 40 } }\n",
+                    "}",
                 ),
             ),
         ],
@@ -58,7 +60,12 @@ fn frozen_static_enum_checks_only_the_selected_declared_fields() {
         program.runtime.abi(),
     )
     .unwrap();
+    (program, id)
+}
 
+#[test]
+fn frozen_static_enum_checks_only_the_selected_declared_fields() {
+    let (mut program, id) = tagged_program();
     let case = |tag, fields: Box<[usize]>| FrozenNode::Enum { tag, fields };
     let number = FrozenNode::Scalar(ConstantValue::Integer(42));
     let bool_value = FrozenNode::Scalar(ConstantValue::Bool(false));
@@ -73,4 +80,36 @@ fn frozen_static_enum_checks_only_the_selected_declared_fields() {
         program.statics.get_mut(&id).unwrap().value = FrozenData::new(nodes).unwrap();
         assert_eq!(validate::program(&program).is_ok(), valid);
     }
+}
+
+#[test]
+fn tagged_enum_conditions_and_dispatch_keep_their_checked_case_domain() {
+    let (program, _) = tagged_program();
+    validate::program(&program).unwrap();
+    let mut condition = program.clone();
+    let body = condition.bodies.get_mut(&condition.root).unwrap();
+    let tag = body
+        .actions
+        .values_mut()
+        .flat_map(|action| &mut action.operations)
+        .find_map(|op| match op {
+            Operation::EnumCondition { tag, .. } => Some(tag),
+            _ => None,
+        })
+        .expect("source enum condition");
+    *tag = 2;
+    assert!(validate::program(&condition).is_err());
+
+    let mut dispatch = program;
+    let body = dispatch.bodies.get_mut(&dispatch.root).unwrap();
+    let cases = body
+        .terminators
+        .values_mut()
+        .find_map(|terminator| match terminator {
+            Terminator::EnumSwitch { cases, .. } => Some(cases),
+            _ => None,
+        })
+        .expect("source enum dispatch");
+    Arc::make_mut(cases).last_mut().unwrap().0 = 2;
+    assert!(validate::program(&dispatch).is_err());
 }

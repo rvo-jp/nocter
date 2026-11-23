@@ -151,3 +151,32 @@ fn closed_enum_storage_rejects_independently_excluded_fields() {
             .is_err()
     );
 }
+
+#[test]
+fn enum_storage_closes_the_unsigned_tag_primitive_for_its_whole_schema() {
+    use std::fmt::Write;
+    for (count, bits) in [(256, 8), (257, 16)] {
+        let mut authored = "enum Packet {\n".to_owned();
+        for variant in 1..count {
+            writeln!(authored, "case{variant}").unwrap();
+        }
+        authored.push_str("data(value: bool)\n}");
+        let source = nocter_test_support::ValueModuleFixture::new(
+            &[("/app/index.nct", Root, &authored)],
+            &[],
+        );
+        let input = source.input();
+        let unit = ModuleSourceUnit::prepare(&input).unwrap();
+        let program = unit.unit().program();
+        let data = schema(program, "Packet").data();
+        let key = program.instantiate_closed_data(data).unwrap();
+        let prepared = prepare_data(program, RuntimeAbiIdentity::Arm64DarwinV1, [key]).unwrap();
+        let types = prepared.environment().types();
+        assert!(types.primitive(RuntimePrimitive::Unsigned(bits)).is_some());
+        assert_eq!(
+            types.iter().count(),
+            3,
+            "record only the selected width in addition to the enum and its field"
+        );
+    }
+}

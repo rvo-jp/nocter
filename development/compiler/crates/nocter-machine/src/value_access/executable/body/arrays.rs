@@ -122,8 +122,7 @@ impl Builder<'_> {
         };
         let data = self
             .context
-            .program
-            .runtime()
+            .runtime
             .types()
             .primitive(nocter_runtime_contract::RuntimePrimitive::Usize)
             .ok_or_else(Self::invalid)?;

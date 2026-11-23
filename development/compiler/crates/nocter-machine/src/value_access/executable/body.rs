@@ -19,6 +19,7 @@ mod arrays;
 mod callable_choices;
 mod calls;
 mod destruction;
+mod enums;
 mod outcomes;
 mod process;
 pub(super) use destruction::build as cleanup;
@@ -289,7 +290,7 @@ impl<'a> Builder<'a> {
                 mir::Projection::Environment => {
                     let Some(RuntimeType::StaticCallable {
                         environment: Some(environment),
-                    }) = self.context.program.runtime().types().get(data)
+                    }) = self.context.runtime.types().get(data)
                     else {
                         return Err(Self::invalid());
                     };
@@ -299,8 +300,7 @@ impl<'a> Builder<'a> {
         }
         if !self
             .context
-            .program
-            .runtime()
+            .runtime
             .has_same_value_representation(data, place.data)
         {
             return Err(Self::invalid());
@@ -552,30 +552,16 @@ impl<'a> Builder<'a> {
         slot: MirLocalId,
         id: nocter_model::ValueStatic,
     ) -> Result<(), Failure> {
-        let global = self
-            .context
-            .program
-            .statics()
-            .get(&id)
-            .ok_or_else(Self::invalid)?;
-        let layout = self
-            .context
-            .layouts
-            .get(global.data)
-            .ok_or_else(Self::invalid)?;
-        let data = self.context.data.global(id).ok_or_else(Self::invalid)?;
+        let (data, object) = self.context.data.global(id).ok_or_else(Self::invalid)?;
+        let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
         let source = self.address(MachineAddress::new(
-            global.data,
+            data,
             layout.size(),
             layout.alignment(),
-            MachineAddressRoot::Data(data),
+            MachineAddressRoot::Data(object),
             [],
         ));
-        let value = self.value(
-            global.data,
-            true,
-            MachineOperationKind::AddressOf { source },
-        )?;
+        let value = self.value(data, true, MachineOperationKind::AddressOf { source })?;
         let destination = self.slot_address(*self.slots.get(&slot).ok_or_else(Self::invalid)?);
         self.emit(MachineOperationKind::Store { destination, value });
         Ok(())
@@ -614,8 +600,9 @@ impl<'a> Builder<'a> {
                 tag,
                 destination,
             } => {
-                let address = self.place(source)?;
-                let value = self.tag_matches(address, source.data, *tag)?;
+                let base = self.place(source)?;
+                let (data, address) = self.enum_tag_address(base, source.data)?;
+                let value = self.tag_matches(address, data, *tag)?;
                 self.store(destination, value)?;
             }
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
@@ -713,19 +700,22 @@ impl<'a> Builder<'a> {
                 source,
                 cases,
                 fallback,
-            } => MachineTerminator::SwitchValue {
-                subject: self.load(source)?,
-                cases: cases
-                    .iter()
-                    .map(|&(tag, point)| {
-                        MachineSwitchCase::new(
-                            MachineSwitchValue::Integer(tag.into()),
-                            MachineBranchTarget::new(points[&point], []),
-                        )
-                    })
-                    .collect(),
-                fallback: MachineBranchTarget::new(points[fallback], []),
-            },
+            } => {
+                let base = self.place(source)?;
+                MachineTerminator::SwitchValue {
+                    subject: self.load_enum_tag(base, source.data)?,
+                    cases: cases
+                        .iter()
+                        .map(|&(tag, point)| {
+                            MachineSwitchCase::new(
+                                MachineSwitchValue::Integer(tag.into()),
+                                MachineBranchTarget::new(points[&point], []),
+                            )
+                        })
+                        .collect(),
+                    fallback: MachineBranchTarget::new(points[fallback], []),
+                }
+            }
             mir::Terminator::Return(place) => MachineTerminator::Return(Some(self.load(place)?)),
             mir::Terminator::Unreachable => MachineTerminator::Unreachable,
         })

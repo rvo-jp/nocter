@@ -45,7 +45,7 @@ pub(in crate::value_access::executable) fn build(
             None,
         )),
     )?;
-    match context.program.runtime().types().get(data) {
+    match context.runtime.types().get(data) {
         Some(RuntimeType::Fallible(_)) => exit_fallible(&mut builder, data, value)?,
         Some(RuntimeType::Unit) => builder.terminate(MachineTerminator::Exit(None))?,
         _ => builder.terminate(MachineTerminator::Exit(Some(value)))?,
@@ -112,7 +112,7 @@ fn exit_fallible(
     let status = primary
         .filter(|&data| {
             !matches!(
-                builder.context.program.runtime().types().get(data),
+                builder.context.runtime.types().get(data),
                 Some(RuntimeType::Unit)
             )
         })
