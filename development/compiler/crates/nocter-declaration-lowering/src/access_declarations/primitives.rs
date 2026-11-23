@@ -201,12 +201,9 @@ impl PrimitiveBindings {
             if program.data_kind(actual.data()) != Some(expected.data())
                 || actual.operation() != expected.operation()
             {
-                let origin = SyntaxOrigin::Token(
-                    *source
-                        .parameters()
-                        .get(index)
-                        .ok_or(Failure::InconsistentSyntax)?,
-                );
+                let origin = source
+                    .parameter_origin(index, None)
+                    .ok_or(Failure::InconsistentSyntax)?;
                 let message = format!(
                     "primitive input requires {:?} operation and data type {}",
                     expected.operation(),

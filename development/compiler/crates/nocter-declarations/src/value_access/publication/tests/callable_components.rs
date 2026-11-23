@@ -23,7 +23,7 @@ fn fixture(reverse: bool) -> (Program, AccessCodeId, [AccessCodeId; 2]) {
             receiver,
             CodeKind::Function(CompileTimeGuarantee::Evaluatable),
             [ParameterDefinition {
-                name: symbols.get("pair").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(symbols.get("pair").unwrap()),
                 operation: nocter_model::ValueInputOperation::Take,
                 data: DataReference::Tuple(TupleData::new(
                     callable(),
@@ -198,7 +198,7 @@ fn raw_root_callable_data_requires_an_explicit_value_contract() {
         let mut builder = reservations.finish().unwrap();
         let parameters = if input {
             vec![ParameterDefinition {
-                name: symbols.get("value").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(symbols.get("value").unwrap()),
                 operation: nocter_model::ValueInputOperation::Read,
                 data: callable().into(),
             }]
@@ -247,7 +247,9 @@ fn callable_component_signatures_validate_their_data_before_publication() {
                 run,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [ParameterDefinition {
-                    name: symbols.get("value").unwrap(),
+                    binding: crate::value_access::ParameterBinding::Name(
+                        symbols.get("value").unwrap(),
+                    ),
                     operation: nocter_model::ValueInputOperation::Take,
                     data: DataReference::Array {
                         element: std::sync::Arc::new(invalid),

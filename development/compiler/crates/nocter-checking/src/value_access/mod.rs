@@ -256,7 +256,7 @@ pub enum Failure {
 #[derive(Clone, Copy, Debug)]
 enum Site {
     Body(BodySyntaxLocator),
-    Parameter(usize),
+    Parameter { input: usize, leaf: Option<usize> },
 }
 
 #[derive(Clone, Debug, Default)]
@@ -385,11 +385,7 @@ impl Query {
         let resolve = |site| {
             match site {
                 Site::Body(locator) => projection.resolve(locator),
-                Site::Parameter(index) => source
-                    .parameters()
-                    .get(index)
-                    .copied()
-                    .map(SyntaxOrigin::Token),
+                Site::Parameter { input, leaf } => source.parameter_origin(input, leaf),
             }
             .ok_or(Failure::InconsistentSyntax)
         };

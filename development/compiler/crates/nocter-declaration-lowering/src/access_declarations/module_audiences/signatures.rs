@@ -1,12 +1,12 @@
 //! Public semantic type names, never hidden representation payloads or const supplier names.
 use super::{ModuleAudience, ModuleAudiences, VisibilityDiagnostic, VisibilityRule};
-use crate::access_declarations::{Failure, module_scopes::ParsedHeader};
+use crate::access_declarations::{Failure, headers::Header, module_scopes::ParsedHeader};
 use crate::{DeclarationSurface, SurfaceDeclarationId, SurfaceDeclarationKind};
 use nocter_declarations::value_access::{
     AggregateForm, DeclarationId, Namespace, PayloadSchema, Program, QualifiedNameError, ScopeId,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessFieldId, BuiltinType, TypeId};
+use nocter_model::{AccessCodeId, AccessFieldId, BuiltinType, TypeId};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxOrigin, direct_node};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -61,30 +61,7 @@ impl ModuleAudiences {
                     let Some(ParsedHeader::Code(header)) = headers.get(&raw) else {
                         return Err(Failure::InconsistentSyntax);
                     };
-                    let code = program.codes().get(id).ok_or(Failure::InconsistentSyntax)?;
-                    if code.parameters().len() != header.parameters.len() {
-                        return Err(Failure::InconsistentSyntax);
-                    }
-                    for (&parameter, source) in code.parameters().iter().zip(&header.parameters) {
-                        let parameter = program
-                            .parameters()
-                            .get(parameter)
-                            .ok_or(Failure::InconsistentSyntax)?;
-                        checking.check(
-                            audience,
-                            syntax,
-                            scopes[index],
-                            source.ty,
-                            parameter.data(),
-                        )?;
-                    }
-                    checking.check(
-                        audience,
-                        syntax,
-                        scopes[index],
-                        header.result_syntax,
-                        code.result(),
-                    )?;
+                    checking.check_code(audience, syntax, scopes[index], id, header)?;
                 }
                 None if declaration.kind() == SurfaceDeclarationKind::Field => {
                     let id = fields[index].ok_or(Failure::InconsistentSyntax)?;
@@ -129,6 +106,38 @@ struct Signatures<'a, 'syntax> {
     exported_types: HashMap<DeclarationId, (SurfaceDeclarationId, &'a ModuleAudience)>,
 }
 impl Signatures<'_, '_> {
+    fn check_code(
+        &self,
+        audience: &ModuleAudience,
+        syntax: BoundSyntax<'_>,
+        scope: ScopeId,
+        id: AccessCodeId,
+        header: &Header,
+    ) -> Result<(), Failure> {
+        let code = self
+            .program
+            .codes()
+            .get(id)
+            .ok_or(Failure::InconsistentSyntax)?;
+        if code.parameters().len() != header.parameters.len() {
+            return Err(Failure::InconsistentSyntax);
+        }
+        for (&id, parameter) in code.parameters().iter().zip(&header.parameters) {
+            let data = self
+                .program
+                .parameters()
+                .get(id)
+                .ok_or(Failure::InconsistentSyntax)?
+                .data();
+            let ty = parameter
+                .source
+                .type_node()
+                .ok_or(Failure::InconsistentSyntax)?;
+            self.check(audience, syntax, scope, ty, data)?;
+        }
+        self.check(audience, syntax, scope, header.result_syntax, code.result())
+    }
+
     fn check(
         &self,
         audience: &ModuleAudience,

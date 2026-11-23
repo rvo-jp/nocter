@@ -71,7 +71,9 @@ fn nested_header_contracts_preserve_owners_reconciliation_and_body_replay() {
                     id,
                     CodeKind::Function(CompileTimeGuarantee::Evaluatable),
                     [ParameterDefinition {
-                        name: symbols.get("action").unwrap(),
+                        binding: crate::value_access::ParameterBinding::Name(
+                            symbols.get("action").unwrap(),
+                        ),
                         operation: ValueInputOperation::Take,
                         data: recipe.clone(),
                     }],
@@ -155,7 +157,9 @@ fn invalid_nested_signature_publishes_no_header_contract_or_type() {
             code,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("action").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    symbols.get("action").unwrap(),
+                ),
                 operation: ValueInputOperation::Read,
                 data: crate::value_access::ValueDefinition::Function(signature(callable(
                     BuiltinType::F64.into(),
@@ -196,7 +200,9 @@ fn signature_children_do_not_advance_sibling_payload_ordinals() {
             code,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("actions").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    symbols.get("actions").unwrap(),
+                ),
                 operation: ValueInputOperation::Take,
                 data: recipe.clone().into(),
             }],

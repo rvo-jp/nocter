@@ -22,7 +22,9 @@ fn structural_annotation_constraints_preserve_both_code_and_formal_data_identiti
                 id,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [ParameterDefinition {
-                    name: symbols.get("action").unwrap(),
+                    binding: crate::value_access::ParameterBinding::Name(
+                        symbols.get("action").unwrap(),
+                    ),
                     operation: ValueInputOperation::Read,
                     data: ValueDefinition::Function(FunctionDefinition {
                         invocation: ValueInvocation::Read,

@@ -139,13 +139,16 @@ fn related(
             .ok_or(Failure::InconsistentSyntax);
         }
         R::DuplicateParameter { first } => {
-            let DeclarationId::Code(id) = violation.declaration else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            sources
-                .get(&id)
-                .and_then(|source| source.parameters().get(first))
-                .copied()
+            return super::source::header_origin(
+                sources,
+                records,
+                aliases,
+                violation.declaration,
+                first,
+                false,
+            )
+            .map(Some)
+            .ok_or(Failure::InconsistentSyntax);
         }
         R::DuplicateField { first } => {
             let DeclarationId::Record(id) = violation.declaration else {
@@ -175,6 +178,10 @@ fn details(violation: DeclarationViolation) -> Option<(DiagnosticCode, &'static 
         R::DuplicateRecord { .. } => (DiagnosticCode::E0241, "duplicate record name"),
         R::DuplicateTypeName { .. } => (DiagnosticCode::E0241, "duplicate type declaration name"),
         R::DuplicateParameter { .. } => (DiagnosticCode::E0341, "duplicate parameter name"),
+        R::ParameterPatternMismatch => (
+            DiagnosticCode::E0341,
+            "parameter pattern does not match the declared tuple data",
+        ),
         R::DuplicateField { .. } => (DiagnosticCode::E0241, "duplicate field name"),
         R::ParameterShadowsNamespace { .. } => (
             DiagnosticCode::E0341,

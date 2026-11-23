@@ -198,13 +198,22 @@ fn parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if (parser.at_contextual(ContextualSpelling::Edit)
         || parser.at_contextual(ContextualSpelling::Take))
-        && parser.nth_kind(1) == TokenKind::Identifier
+        && matches!(
+            parser.nth_kind(1),
+            TokenKind::Identifier | TokenKind::Punctuation(Punctuation::LeftParen)
+        )
     {
         let operation = parser.start();
         parser.bump();
         parser.complete(operation, NodeKind::InputOperation);
     }
-    parser.expect_name();
+    if parser.at_punctuation(Punctuation::LeftParen)
+        || parser.at_contextual(ContextualSpelling::Discard)
+    {
+        super::statement::binding_pattern(parser);
+    } else {
+        parser.expect_name();
+    }
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
     parser.complete(marker, NodeKind::Parameter);

@@ -1,22 +1,21 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
     Failure, TypeSyntax, project_type_syntax,
-    source::{AliasSource, FieldSource, RecordSource},
+    source::{AliasSource, FieldSource, ParameterSource, RecordSource},
     text,
 };
-use nocter_declarations::value_access::CodeKind;
+use nocter_declarations::value_access::{CodeKind, ParameterBinding};
 use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
 use nocter_syntax::{
-    BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
+    BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxOrigin, SyntaxToken, child_node_iter,
     declaration_name_token, direct_identifier, direct_node, direct_node_iter, first_direct_token,
 };
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
-    pub name: SyntaxToken,
+    pub source: ParameterSource<SyntaxOrigin>,
     pub data: TypeSyntax,
-    pub ty: NodeId,
     pub operation: ValueInputOperation,
 }
 #[derive(Clone, Debug)]
@@ -52,14 +51,45 @@ pub(super) fn alias(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Alia
 }
 
 pub(super) fn parameter(syntax: BoundSyntax<'_>, node: NodeId) -> Result<ParameterHeader, Failure> {
-    let name = direct_identifier(syntax.tree(), node).ok_or(Failure::InconsistentSyntax)?;
     let ty = direct_node(syntax.tree(), node, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    let source = if let Some(pattern) = direct_node(syntax.tree(), node, NodeKind::BindingPattern) {
+        ParameterSource {
+            origin: SyntaxOrigin::Node(pattern),
+            binding: parameter_binding(syntax, pattern)?,
+            ty: SyntaxOrigin::Node(ty),
+        }
+    } else {
+        let token = direct_identifier(syntax.tree(), node).ok_or(Failure::InconsistentSyntax)?;
+        ParameterSource::named(token, ty)
+    };
     Ok(ParameterHeader {
-        name,
+        source,
         data: project_type_syntax(syntax, ty)?,
-        ty,
         operation: super::input_operation(syntax, node)?,
     })
+}
+
+fn parameter_binding(
+    syntax: BoundSyntax<'_>,
+    node: NodeId,
+) -> Result<ParameterBinding<SyntaxOrigin>, Failure> {
+    let tree = syntax.tree();
+    let mut children = direct_node_iter(tree, node, NodeKind::BindingPattern).peekable();
+    if children.peek().is_some() {
+        return Ok(ParameterBinding::Tuple(
+            children
+                .map(|child| parameter_binding(syntax, child))
+                .collect::<Result<_, _>>()?,
+        ));
+    }
+    let token = direct_identifier(tree, node).ok_or(Failure::InconsistentSyntax)?;
+    Ok(
+        if text(syntax, token) == ContextualSpelling::Discard.as_str() {
+            ParameterBinding::Discard
+        } else {
+            ParameterBinding::Name(SyntaxOrigin::Token(token))
+        },
+    )
 }
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
@@ -219,7 +249,7 @@ pub(super) fn symbols(
                 std::iter::once(h.name).chain(h.result_data.tokens()).chain(
                     h.parameters
                         .iter()
-                        .flat_map(|p| std::iter::once(p.name).chain(p.data.tokens())),
+                        .flat_map(|p| p.source.names().chain(p.data.tokens())),
                 )
             })
             .chain(records.iter().flat_map(|r| {

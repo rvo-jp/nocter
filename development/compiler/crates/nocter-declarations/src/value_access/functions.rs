@@ -220,18 +220,24 @@ impl Program {
     #[must_use]
     pub fn parameter_label(&self, parameter: nocter_model::ValueParameter) -> Option<String> {
         self.parameter_contract(parameter)?;
+        let input_label = |input| {
+            let parameter = self.parameters.get(input)?;
+            match parameter.binding() {
+                super::ParameterBinding::Name(name) => {
+                    self.symbols.spelling(*name).map(str::to_owned)
+                }
+                _ => Some(format!("input {}", parameter.position().checked_add(1)?)),
+            }
+        };
         match parameter {
-            nocter_model::ValueParameter::Declaration(id) => self
-                .symbols
-                .spelling(self.parameters.get(id)?.name())
-                .map(str::to_owned),
+            nocter_model::ValueParameter::Declaration(id) => input_label(id),
             nocter_model::ValueParameter::Component {
                 input: nocter_model::ValueInput::Declaration(input),
                 ordinal,
             } => Some(format!(
                 "callable component {} of {}",
                 ordinal.checked_add(1)?,
-                self.symbols.spelling(self.parameters.get(input)?.name())?
+                input_label(input)?
             )),
             nocter_model::ValueParameter::Component {
                 input: nocter_model::ValueInput::Closure { owner, position },

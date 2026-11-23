@@ -1,5 +1,8 @@
 //! Source-neutral capture/rebinding of executable roots and declaration header slots.
-use super::{CodeHeaderSource, CodeSource, CodeSourceKind, FieldSource, RecordSource, Sources};
+use super::{
+    CodeHeaderSource, CodeSource, CodeSourceKind, FieldSource, ParameterSource, RecordSource,
+    Sources,
+};
 use crate::access_declarations::Failure;
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin};
@@ -18,8 +21,7 @@ enum CodeRecipe {
 struct CodeHeaderRecipe {
     name: DeclarationSyntaxLocator,
     deferred_modifier: Option<DeclarationSyntaxLocator>,
-    parameters: Box<[DeclarationSyntaxLocator]>,
-    parameter_types: Box<[DeclarationSyntaxLocator]>,
+    parameters: Box<[ParameterSource<DeclarationSyntaxLocator>]>,
     result: DeclarationSyntaxLocator,
 }
 
@@ -52,12 +54,7 @@ impl Recipes {
                 parameters: header
                     .parameters
                     .iter()
-                    .map(|&name| locate(SyntaxOrigin::Token(name)))
-                    .collect::<Result<_, _>>()?,
-                parameter_types: header
-                    .parameter_types
-                    .iter()
-                    .map(|&ty| locate(SyntaxOrigin::Node(ty)))
+                    .map(|parameter| parameter.try_map(|&origin| locate(origin)))
                     .collect::<Result<_, _>>()?,
                 result: locate(SyntaxOrigin::Node(header.result))?,
             })
@@ -120,12 +117,13 @@ impl Recipes {
                 parameters: header
                     .parameters
                     .iter()
-                    .map(|&locator| token(locator))
-                    .collect::<Result<_, _>>()?,
-                parameter_types: header
-                    .parameter_types
-                    .iter()
-                    .map(|&locator| node(locator))
+                    .map(|parameter| {
+                        parameter.try_map(|&locator| {
+                            projection
+                                .resolve(locator)
+                                .ok_or(Failure::InconsistentSyntax)
+                        })
+                    })
                     .collect::<Result<_, _>>()?,
                 result: node(header.result)?,
             })

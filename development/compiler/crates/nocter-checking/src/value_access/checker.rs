@@ -9,13 +9,13 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{
-    AggregateForm, BehaviorOwner, Namespace, PayloadSchema, Program,
+    AggregateForm, BehaviorOwner, Namespace, ParameterBinding, PayloadSchema, Program,
 };
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
-    AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId, AccessPlaceId,
-    AccessStatementId, ArenaBuilder, BuiltinType, FieldPath, TypeId, ValueAccess as Ty,
-    ValueAccessMode as Mode,
+    AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId,
+    AccessParameterId, AccessPlaceId, AccessStatementId, ArenaBuilder, BuiltinType, FieldPath,
+    TypeId, ValueAccess as Ty, ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
@@ -98,39 +98,59 @@ pub(super) fn prepare(
         nocter_model::ValueCode::Declaration(callable),
         values,
     );
-    for (&parameter, &token) in declaration.parameters().iter().zip(source.parameters()) {
-        let parameter_declaration = context
-            .program()
-            .parameters()
-            .get(parameter)
-            .ok_or(Failure::InconsistentSyntax)?;
-        let local = checker.locals.insert(Local {
-            data: parameter_declaration.data(),
-            kind: parameter_declaration.operation().binding_kind(),
-            origin: LocalOrigin::Parameter(parameter),
-        });
-        checker.inputs.push(super::BodyInput {
-            local,
-            operation: parameter_declaration.operation(),
-        });
-        checker
-            .origins
-            .locals
-            .insert(local, Site::Parameter(parameter_declaration.position()));
-        let spelling = checker.text(token)?.to_owned();
-        checker.bind_local(spelling, local);
+    let mut entry = Vec::new();
+    for &parameter in declaration.parameters() {
+        checker.form_parameter(body_root, parameter, &mut entry)?;
     }
     let boundary = Some(Boundary::Result(result));
     let root = if declaration.kind().is_initializer() {
         let value = checker.expression(body_root, boundary, true)?;
         checker.emit_block(body_root, Vec::new(), Some(value), checker.ty(value))?
     } else {
-        checker.block(body_root, boundary, true)?
+        checker.block_with_entry(body_root, boundary, entry)?
     };
     Ok(checker.finish(root))
 }
 
 impl<'a, 's> Checker<'a, 's> {
+    fn form_parameter(
+        &mut self,
+        body: NodeId,
+        parameter: AccessParameterId,
+        entry: &mut Vec<AccessStatementId>,
+    ) -> Result<(), Failure> {
+        let declared = self
+            .context
+            .program()
+            .parameters()
+            .get(parameter)
+            .ok_or(Failure::InconsistentSyntax)?;
+        let operation = declared.operation();
+        let input = declared.position();
+        let local = self.locals.insert(Local {
+            data: declared.data(),
+            kind: operation.binding_kind(),
+            origin: LocalOrigin::Parameter(parameter),
+        });
+        self.inputs.push(super::BodyInput { local, operation });
+        self.origins
+            .locals
+            .insert(local, Site::Parameter { input, leaf: None });
+        match declared.binding() {
+            ParameterBinding::Name(name) => {
+                let spelling = self
+                    .program()
+                    .symbols()
+                    .spelling(*name)
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .to_owned();
+                self.bind_local(spelling, local);
+            }
+            _ => self.form_input_pattern(body, declared, local, entry)?,
+        }
+        Ok(())
+    }
+
     pub(super) fn known_result(&self, node: NodeId) -> Result<TypeId, Failure> {
         self.result.as_ref().and_then(Annotation::data).map_or_else(|| self.reject_message(
             Rule::UnknownType, node,
@@ -483,37 +503,24 @@ impl<'a, 's> Checker<'a, 's> {
                 .projection
                 .resolve(locator)
                 .ok_or(Failure::InconsistentSyntax)?,
-            Site::Parameter(position) => {
-                let LocalOrigin::Parameter(parameter) = declaration.origin else {
+            Site::Parameter { input, leaf } => {
+                let nocter_model::ValueCode::Declaration(owner) = self.code else {
                     return Err(Failure::InconsistentSyntax);
                 };
-                let owner = self
-                    .program()
-                    .parameters()
-                    .get(parameter)
-                    .ok_or(Failure::InconsistentSyntax)?
-                    .owner();
-                let token = self
-                    .context
+                self.context
                     .code_source(owner)
-                    .and_then(|source| source.parameters().get(position))
-                    .ok_or(Failure::InconsistentSyntax)?;
-                SyntaxOrigin::Token(*token)
+                    .and_then(|source| source.parameter_origin(input, leaf))
+                    .ok_or(Failure::InconsistentSyntax)?
             }
         };
-        let binding_description = match (declaration.kind, declaration.origin) {
+        let input = matches!(site, Site::Parameter { .. });
+        let binding_description = match (declaration.kind, input) {
             (nocter_model::ValueBindingKind::FixedValue, _) => "a fixed let value",
-            (nocter_model::ValueBindingKind::MutableValue, LocalOrigin::Parameter(_)) => {
-                "a value received by take"
-            }
+            (nocter_model::ValueBindingKind::MutableValue, true) => "a value received by take",
             (nocter_model::ValueBindingKind::MutableValue, _) => "a mutable var value",
-            (nocter_model::ValueBindingKind::ReadAlias, LocalOrigin::Parameter(_)) => {
-                "a read input"
-            }
+            (nocter_model::ValueBindingKind::ReadAlias, true) => "a read input",
             (nocter_model::ValueBindingKind::ReadAlias, _) => "a read alias",
-            (nocter_model::ValueBindingKind::EditAlias, LocalOrigin::Parameter(_)) => {
-                "an edit input"
-            }
+            (nocter_model::ValueBindingKind::EditAlias, true) => "an edit input",
             (nocter_model::ValueBindingKind::EditAlias, _) => "an edit alias",
         };
         let note = DiagnosticNote::new(

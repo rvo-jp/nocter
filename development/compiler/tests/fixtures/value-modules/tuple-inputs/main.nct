@@ -1,0 +1,31 @@
+see ./index.nct
+use ./inputs
+use std/error as errors
+
+const func compute(): i32 {
+    var pair: inputs.Pair = ((19, 23), 100)
+    inputs.adjust(pair)
+    if pair.0.0 != 20 || pair.1 != 100 { return 3 }
+    var counter = inputs.Counter.create()
+    counter.record((inputs.sum(pair, ()), -1))
+    inputs.offset((counter.total(), 100))
+}
+
+const ANSWER: i32 = compute()
+
+func packet(): inputs.Packet {
+    ((error.new("held", "held failure"), ANSWER - 1),
+        error.new("ignored", "ignored failure"))
+}
+
+async func main(): i32! {
+    if inputs.receive(packet()) != 42 { return 4 }
+    let pending = inputs.deferred(packet())
+    let cancelled = inputs.deferred(packet())
+    drop cancelled
+    let all = inputs.discard((error.new("first", "first failure"),
+        error.new("second", "second failure")))
+    if (await all^)? != 42 { return 5 }
+    let answer = (await pending^)?
+    answer
+}

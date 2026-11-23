@@ -128,10 +128,11 @@ fn mutual_result_relations_substitute_the_selected_formal_positions() {
         };
         let declaration = unit.program().parameters().get(id).unwrap();
         assert_eq!(declaration.owner(), body.typed().source_owner());
-        assert_eq!(
-            unit.program().symbols().spelling(declaration.name()),
-            Some(parameter)
-        );
+        let nocter_declarations::value_access::ParameterBinding::Name(name) = declaration.binding()
+        else {
+            panic!("whole named input");
+        };
+        assert_eq!(unit.program().symbols().spelling(*name), Some(parameter));
     }
 }
 

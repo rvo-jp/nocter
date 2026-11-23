@@ -29,7 +29,9 @@ fn headers() -> (Program, [AccessCodeId; 5]) {
                 id,
                 kind,
                 [ParameterDefinition {
-                    name: symbols.get("action").unwrap(),
+                    binding: crate::value_access::ParameterBinding::Name(
+                        symbols.get("action").unwrap(),
+                    ),
                     operation,
                     data: ValueDefinition::Function(FunctionDefinition {
                         invocation,

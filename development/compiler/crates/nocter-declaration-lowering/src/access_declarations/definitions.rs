@@ -14,7 +14,7 @@ use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, TypeAliasId,
     ValueInputOperation,
 };
-use nocter_syntax::{BoundSyntax, SyntaxToken};
+use nocter_syntax::{BoundSyntax, SyntaxOrigin, SyntaxToken};
 use std::collections::BTreeMap;
 
 /// Raw type/operation recipe only; names and source positions remain in the source catalog.
@@ -393,25 +393,35 @@ impl Definitions<'_, '_, '_> {
         source: &CodeSource,
     ) -> Result<Option<CodeDefinition>, Failure> {
         self.symbol(source.name().ok_or(Failure::InconsistentSyntax)?)?;
-        let names = source
+        let bindings = source
             .parameters()
             .iter()
-            .map(|token| self.symbol(*token))
+            .map(|parameter| {
+                parameter.binding.try_map(&mut |origin| match origin {
+                    SyntaxOrigin::Token(token) => self.symbol(*token),
+                    SyntaxOrigin::Node(_) => Err(Failure::InconsistentSyntax),
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?;
         self.progress.violations.extend(
             self.program
-                .parameter_name_violations_in(self.scope.lookup, id, names.iter().copied())
+                .parameter_name_violations_in(self.scope.lookup, id, &bindings)
                 .map_err(|_| Failure::InconsistentSyntax)?,
         );
+        if bindings.len() != header.parameters.len() {
+            return Err(Failure::InconsistentSyntax);
+        }
         let mut parameters = Vec::new();
         let mut complete = true;
-        for (index, (operation, parameter)) in header.parameters.iter().enumerate() {
+        for (index, ((operation, parameter), binding)) in
+            header.parameters.iter().zip(bindings).enumerate()
+        {
             let owner = DeclarationId::Code(id);
             let position = HeaderPosition::Parameter(index);
             let data = self.value(parameter, owner, position)?;
             if let Some(data) = data {
                 parameters.push(ParameterDefinition {
-                    name: *names.get(index).ok_or(Failure::InconsistentSyntax)?,
+                    binding,
                     data,
                     operation: *operation,
                 });

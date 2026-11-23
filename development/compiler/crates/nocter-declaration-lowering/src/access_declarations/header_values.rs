@@ -175,7 +175,7 @@ fn matches_code(
             .zip(&expected.parameters)
             .all(|(id, expected)| {
                 program.parameters().get(*id).is_some_and(|parameter| {
-                    parameter.name() == expected.name
+                    parameter.binding() == &expected.binding
                         && parameter.operation() == expected.operation
                         && program.existing_input_value_reference(*id, &expected.data)
                             == Some(parameter.data())

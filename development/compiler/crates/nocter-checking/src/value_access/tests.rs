@@ -598,22 +598,58 @@ fn numeric_checks_and_local_diagnostics_are_preserved() {
 }
 #[test]
 fn typed_body_rebinding_checks_authority_and_own_body() {
-    let (sources, tree) = input("func f(input: i32): i32 { return input }");
+    let source =
+        "func f(take ((left, _), right): ((i32, error), i32)): i32 { return left + right }";
+    let (sources, tree) = input(source);
     let header = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     let context = header.bind(bound(&sources, &tree)).unwrap();
     let id = context.program().codes().iter().next().unwrap().0;
     let query = Query::prepare(&context, id).unwrap();
     assert!(query.bind(&context).is_ok());
-    let (other, other_tree) = input("// moved\nfunc f(input: i32): i32 { return input }");
+    let moved = format!("// moved\n{source}");
+    let (other, other_tree) = input(&moved);
     let rebound = header.bind(bound(&other, &other_tree)).unwrap();
-    assert!(query.bind(&rebound).is_ok());
+    let bound_body = query.bind(&rebound).unwrap();
+    let body = query.body();
+    let mut inputs = body.inputs().ordered();
+    let carrier = inputs.next().unwrap().local;
+    assert!(inputs.next().is_none());
+    let statements = &body.blocks().get(body.root()).unwrap().statements;
+    let entry = statements
+        .iter()
+        .map(|&id| body.statements().get(id).unwrap())
+        .collect::<Vec<_>>();
+    assert!(matches!(entry.as_slice(), [
+        super::ir::Statement::Bind { .. },
+        super::ir::Statement::Bind { .. },
+        super::ir::Statement::Drop(local),
+        super::ir::Statement::Return(_)
+    ] if *local == carrier));
+    let mut leaves = body
+        .locals()
+        .iter()
+        .filter(|(_, local)| local.origin == super::ir::LocalOrigin::Binding);
+    for (name, start) in [
+        ("left", moved.find("left").unwrap()),
+        ("right", moved.find("right").unwrap()),
+    ] {
+        let (id, local) = leaves.next().unwrap();
+        let SyntaxOrigin::Token(token) = bound_body.local_origin(id).unwrap() else {
+            panic!("named input leaf");
+        };
+        assert_eq!(usize::try_from(token.range().start().get()).unwrap(), start);
+        assert_eq!(bound_body.syntax().text_at(token.range()), Some(name));
+        assert_eq!(local.kind, ValueBindingKind::MutableValue);
+    }
+    assert!(leaves.next().is_none());
     let rebuilt = declarations::Query::prepare(bound(&other, &other_tree)).unwrap();
     let rebuilt = rebuilt.bind(bound(&other, &other_tree)).unwrap();
     assert!(matches!(
         query.bind(&rebuilt),
         Err(Failure::ChangedAuthority)
     ));
-    let (changed, changed_tree) = input("func f(input: i32): i32 { return input + 1 }");
+    let changed_body = source.replace("left + right", "left - right");
+    let (changed, changed_tree) = input(&changed_body);
     let changed = header.bind(bound(&changed, &changed_tree)).unwrap();
     assert!(matches!(query.bind(&changed), Err(Failure::ChangedBody)));
 }

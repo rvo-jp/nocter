@@ -107,7 +107,7 @@ construction under the grant's effective audience and checks every listed field 
 audience. The ordinary record initializer consumes the resulting schema. Compile-time evaluation
 and native lowering retain the written initializer order and the schema's field identities.
 
-### Local Tuple Bindings
+### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)
 use the ordinary binding initializer once. Checking walks the exact tuple schema and assigns
@@ -122,7 +122,16 @@ address before forming the named leaves. Their ordinary place projections retain
 initializer evidence, including saved array indices. Each leaf independently checks its
 initialized storage and read/update request. Ignored leaves acquire no access, so existing
 disjoint aliases and missing ignored components remain valid. The named accesses use ordinary
-liveness after formation. Parameter patterns are a separate qualification task.
+liveness after formation.
+
+Nongeneric declared functions and methods use one formal slot per parameter pattern. The
+header normalizes its data (including transparent aliases), checks shape and header-wide leaf
+names, and retains the complete binding pattern for contract/body correspondence. The source
+catalog rebinds each named leaf independently of the body. At entry, read and edit project the
+already supplied place. Take forms leaves directly from the received value and retires the
+remainder before the authored body. A lazy producer performs these same operations when first
+driven. Cancellation before entry cleans the intact received inputs. Callable annotation and
+closure patterns and explicit dependency origins remain separate qualification tasks.
 
 ## Implemented Handoff
 

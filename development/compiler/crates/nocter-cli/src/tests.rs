@@ -773,6 +773,81 @@ fn installed_v2_tuple_bindings_reuse_one_supplied_value_or_selected_place() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_tuple_inputs_preserve_the_formal_position_and_form_at_entry() {
+    let tree = TempTree::new("tuple-inputs");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/tuple-inputs"),
+        &package,
+    );
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    let InvocationOutcome::Run(executed) =
+        execute("run").unwrap_or_else(|error| panic!("{}", render(&error)))
+    else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    let contract = package.join("inputs/index.nct");
+    let implementation = package.join("inputs/body.nct");
+    let public = fs::read_to_string(&contract).unwrap();
+    let body = fs::read_to_string(&implementation).unwrap();
+    for (original, replacement, expected, pair) in [
+        (
+            "((left, right), _): Pair,",
+            "((left, total), _): Pair,",
+            "does not match its public contract",
+            false,
+        ),
+        (
+            "((left, right), _): Pair,",
+            "((left, right), _): i32,",
+            "does not match the declared tuple data",
+            true,
+        ),
+        ("_: void", "left: void", "duplicate parameter name", true),
+    ] {
+        assert!(public.contains(original) && body.contains(original));
+        fs::write(&contract, public.replace(original, replacement)).unwrap();
+        let changed = if pair {
+            body.replace(original, replacement)
+        } else {
+            body.clone()
+        };
+        fs::write(&implementation, changed).unwrap();
+        let diagnostic = render(&execute("check").unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+    fs::write(&contract, public).unwrap();
+    fs::write(
+        &implementation,
+        body.replace("{ left + right }", "{ left += 1\n left + right }"),
+    )
+    .unwrap();
+    let diagnostic = render(&execute("check").unwrap_err());
+    assert!(
+        diagnostic.contains("a read input") && diagnostic.contains("left"),
+        "{diagnostic}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

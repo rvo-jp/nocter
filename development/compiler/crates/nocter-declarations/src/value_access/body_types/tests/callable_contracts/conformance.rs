@@ -192,7 +192,9 @@ fn named_higher_order_inputs_conform_to_nested_type_contracts_without_rebinding_
             code,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("action").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    symbols.get("action").unwrap(),
+                ),
                 operation: ValueInputOperation::Read,
                 data: ValueDefinition::Function(FunctionDefinition {
                     invocation: ValueInvocation::Read,

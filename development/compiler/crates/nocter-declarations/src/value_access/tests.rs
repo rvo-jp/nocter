@@ -12,7 +12,7 @@ fn wrong_slot_counts_leave_both_definition_kinds_retryable_without_resizing() {
     let inputs = builder.parameter_ids(run).unwrap().to_vec();
     let kind = CodeKind::Function(CompileTimeGuarantee::RuntimeOnly);
     let parameter = ParameterDefinition {
-        name: symbols.get("value").unwrap(),
+        binding: crate::value_access::ParameterBinding::Name(symbols.get("value").unwrap()),
         data: BuiltinType::I32.into(),
         operation: ValueInputOperation::Read,
     };
@@ -118,7 +118,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
             beta,
             kind,
             [ParameterDefinition {
-                name: symbol("item"),
+                binding: crate::value_access::ParameterBinding::Name(symbol("item")),
                 data: DataReference::Record(record).into(),
                 operation: ValueInputOperation::Edit,
             }],
@@ -131,7 +131,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
             kind,
             [
                 ParameterDefinition {
-                    name: symbol("action"),
+                    binding: crate::value_access::ParameterBinding::Name(symbol("action")),
                     operation: ValueInputOperation::Read,
                     data: ValueDefinition::Function(FunctionDefinition {
                         invocation: ValueInvocation::Read,
@@ -140,7 +140,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
                     }),
                 },
                 ParameterDefinition {
-                    name: symbol("value"),
+                    binding: crate::value_access::ParameterBinding::Name(symbol("value")),
                     data: BuiltinType::Usize.into(),
                     operation: ValueInputOperation::Take,
                 },
@@ -312,7 +312,7 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
             run,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [item_name, item_name, run_name, run_name].map(|name| ParameterDefinition {
-                name,
+                binding: crate::value_access::ParameterBinding::Name(name),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }),
@@ -329,16 +329,20 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
         rules,
         [
             (
-                HeaderPosition::Parameter(1),
-                DeclarationRule::DuplicateParameter { first: 0 }
+                HeaderPosition::ParameterName { input: 1, leaf: 0 },
+                DeclarationRule::DuplicateParameter {
+                    first: HeaderPosition::ParameterName { input: 0, leaf: 0 }
+                }
             ),
             (
-                HeaderPosition::Parameter(2),
+                HeaderPosition::ParameterName { input: 2, leaf: 0 },
                 DeclarationRule::ParameterShadowsValue { declaration: run }
             ),
             (
-                HeaderPosition::Parameter(3),
-                DeclarationRule::DuplicateParameter { first: 2 }
+                HeaderPosition::ParameterName { input: 3, leaf: 0 },
+                DeclarationRule::DuplicateParameter {
+                    first: HeaderPosition::ParameterName { input: 2, leaf: 0 }
+                }
             ),
         ]
     );
@@ -356,7 +360,9 @@ fn build(reverse: bool) -> Program {
                 id,
                 crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [ParameterDefinition {
-                    name: symbols.get("input").unwrap(),
+                    binding: crate::value_access::ParameterBinding::Name(
+                        symbols.get("input").unwrap(),
+                    ),
                     data: BuiltinType::Error.into(),
                     operation: ValueInputOperation::Edit,
                 }],
@@ -399,17 +405,23 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
                 crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [
                     ParameterDefinition {
-                        name: symbols.get("read").unwrap(),
+                        binding: crate::value_access::ParameterBinding::Name(
+                            symbols.get("read").unwrap(),
+                        ),
                         data: data.into(),
                         operation: ValueInputOperation::Read,
                     },
                     ParameterDefinition {
-                        name: symbols.get("edit").unwrap(),
+                        binding: crate::value_access::ParameterBinding::Name(
+                            symbols.get("edit").unwrap(),
+                        ),
                         data: data.into(),
                         operation: ValueInputOperation::Edit,
                     },
                     ParameterDefinition {
-                        name: symbols.get("take").unwrap(),
+                        binding: crate::value_access::ParameterBinding::Name(
+                            symbols.get("take").unwrap(),
+                        ),
                         data: data.into(),
                         operation: ValueInputOperation::Take,
                     },
@@ -485,7 +497,7 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
     let f = reservations.reserve(symbols.get("f").unwrap(), 2);
     let mut builder = reservations.finish().unwrap();
     let parameter = ParameterDefinition {
-        name: symbols.get("x").unwrap(),
+        binding: crate::value_access::ParameterBinding::Name(symbols.get("x").unwrap()),
         data: BuiltinType::I32.into(),
         operation: ValueInputOperation::Read,
     };
@@ -498,11 +510,12 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
         )
         .unwrap();
     let violations = builder.finish().unwrap_err();
-    assert!(
-        violations
-            .iter()
-            .any(|v| matches!(v.rule, DeclarationRule::DuplicateParameter { first: 0 }))
-    );
+    assert!(violations.iter().any(|v| matches!(
+        v.rule,
+        DeclarationRule::DuplicateParameter {
+            first: HeaderPosition::ParameterName { input: 0, leaf: 0 }
+        }
+    )));
     assert!(violations.iter().any(|v| matches!(
         v.rule,
         DeclarationRule::UnsupportedDataType {
@@ -699,7 +712,7 @@ fn anonymous_type_expression_code_has_no_name_or_function_witness() {
             function,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("value").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(symbols.get("value").unwrap()),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }],

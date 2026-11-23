@@ -1,6 +1,6 @@
 //! Exact source evidence shared by declaration and checking consumers, without evaluation.
 use super::Context;
-use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
+use nocter_declarations::value_access::{DeclarationId, HeaderPosition, ParameterBinding, Program};
 use nocter_model::{AccessCodeId, NominalTypeId, TypeAliasId, ValueCodeRoot, ValueExpression};
 use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, NodeId, SyntaxOrigin, SyntaxToken};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
@@ -97,10 +97,53 @@ enum CodeSourceKind {
 struct CodeHeaderSource {
     name: SyntaxToken,
     deferred_modifier: Option<NodeId>,
-    parameters: Box<[SyntaxToken]>,
-    parameter_types: Box<[NodeId]>,
+    parameters: Box<[ParameterSource<SyntaxOrigin>]>,
     result: NodeId,
 }
+
+#[derive(Clone, Debug)]
+pub(super) struct ParameterSource<Origin> {
+    pub origin: Origin,
+    pub binding: ParameterBinding<Origin>,
+    pub ty: Origin,
+}
+impl<Origin> ParameterSource<Origin> {
+    fn try_map<T, E>(
+        &self,
+        mut map: impl FnMut(&Origin) -> Result<T, E>,
+    ) -> Result<ParameterSource<T>, E> {
+        Ok(ParameterSource {
+            origin: map(&self.origin)?,
+            binding: self.binding.try_map(&mut map)?,
+            ty: map(&self.ty)?,
+        })
+    }
+}
+impl ParameterSource<SyntaxOrigin> {
+    pub(super) const fn named(token: SyntaxToken, ty: NodeId) -> Self {
+        let origin = SyntaxOrigin::Token(token);
+        Self {
+            origin,
+            binding: ParameterBinding::Name(origin),
+            ty: SyntaxOrigin::Node(ty),
+        }
+    }
+
+    pub(super) fn names(&self) -> impl Iterator<Item = SyntaxToken> {
+        self.binding.names().filter_map(|origin| match origin {
+            SyntaxOrigin::Token(token) => Some(*token),
+            SyntaxOrigin::Node(_) => None,
+        })
+    }
+
+    pub(super) const fn type_node(&self) -> Option<NodeId> {
+        match self.ty {
+            SyntaxOrigin::Node(node) => Some(node),
+            SyntaxOrigin::Token(_) => None,
+        }
+    }
+}
+
 impl CodeSource {
     fn declaration(header: CodeHeaderSource, body: Option<NodeId>) -> Self {
         Self {
@@ -115,12 +158,7 @@ impl CodeSource {
                 parameters: header
                     .parameters
                     .iter()
-                    .map(|parameter| parameter.name)
-                    .collect(),
-                parameter_types: header
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.ty)
+                    .map(|parameter| parameter.source.clone())
                     .collect(),
                 result: header.result_syntax,
             },
@@ -142,7 +180,6 @@ impl CodeSource {
                 name,
                 deferred_modifier: None,
                 parameters: Box::new([]),
-                parameter_types: Box::new([]),
                 result: declaration,
             },
             Some(body),
@@ -170,14 +207,24 @@ impl CodeSource {
             CodeSourceKind::Expression(body) => SyntaxOrigin::Node(*body),
         }
     }
-    #[must_use]
-    pub fn parameters(&self) -> &[SyntaxToken] {
+    pub(super) fn parameters(&self) -> &[ParameterSource<SyntaxOrigin>] {
         self.header().map_or(&[], |header| &header.parameters)
     }
-    /// The authored type annotation of a named parameter, without resolving it.
+
+    /// The whole input pattern, or one named leaf in written order.
+    #[must_use]
+    pub fn parameter_origin(&self, input: usize, leaf: Option<usize>) -> Option<SyntaxOrigin> {
+        let parameter = self.parameters().get(input)?;
+        match leaf {
+            None => Some(parameter.origin),
+            Some(leaf) => parameter.binding.names().nth(leaf).copied(),
+        }
+    }
+
+    /// The authored type annotation of an input, without resolving it.
     #[must_use]
     pub fn parameter_type(&self, position: usize) -> Option<NodeId> {
-        self.header()?.parameter_types.get(position).copied()
+        self.parameters().get(position)?.type_node()
     }
     /// The result annotation, or the expression requiring a usize result for anonymous code.
     #[must_use]
@@ -437,13 +484,17 @@ pub(super) fn header_origin(
 ) -> Option<SyntaxOrigin> {
     Some(match declaration {
         DeclarationId::Code(id) => {
-            let s = sources.get(&id)?.header()?;
+            let source = sources.get(&id)?;
+            let s = source.header()?;
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(s.name),
                 HeaderPosition::Parameter(i) if typed => {
-                    SyntaxOrigin::Node(*s.parameter_types.get(i)?)
+                    SyntaxOrigin::Node(source.parameter_type(i)?)
                 }
-                HeaderPosition::Parameter(i) => SyntaxOrigin::Token(*s.parameters.get(i)?),
+                HeaderPosition::Parameter(i) => source.parameter_origin(i, None)?,
+                HeaderPosition::ParameterName { input, leaf } => {
+                    source.parameter_origin(input, Some(leaf))?
+                }
                 HeaderPosition::Result => SyntaxOrigin::Node(s.result),
                 HeaderPosition::Field(_) => return None,
             }
@@ -462,7 +513,7 @@ pub(super) fn header_origin(
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(alias.name),
                 HeaderPosition::Result => SyntaxOrigin::Node(alias.ty),
-                HeaderPosition::Parameter(_) | HeaderPosition::Field(_) => return None,
+                _ => return None,
             }
         }
     })

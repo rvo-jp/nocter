@@ -1,0 +1,5 @@
+#package: { name: "tuple-inputs", version: "2.0.0" }
+#executable: { name: "tuple-inputs" }
+see ./main.nct
+
+async func main(): i32!

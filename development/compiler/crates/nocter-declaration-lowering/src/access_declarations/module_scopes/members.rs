@@ -436,9 +436,8 @@ fn receiver_header(
     let operation = crate::access_declarations::input_operation(syntax, receiver)?;
     let (ty, owner_name) = type_behavior_owner(tree, owner).ok_or(Failure::InconsistentSyntax)?;
     Ok(ParameterHeader {
-        name,
+        source: super::super::source::ParameterSource::named(name, ty),
         data: TypeSyntax::Named(Box::new([owner_name])),
-        ty,
         operation,
     })
 }

@@ -59,7 +59,9 @@ fn complete(mut headers: HeaderPublication) -> Program {
             .iter()
             .enumerate()
             .map(|(position, _)| ParameterDefinition {
-                name: headers.symbols().get(&format!("arg{position}")).unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    headers.symbols().get(&format!("arg{position}")).unwrap(),
+                ),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             })
@@ -94,7 +96,9 @@ fn equal_reserved_layout_never_grants_typed_readiness_or_construction_lineage() 
             alpha,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: current.symbols().get("arg0").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    current.symbols().get("arg0").unwrap(),
+                ),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }],

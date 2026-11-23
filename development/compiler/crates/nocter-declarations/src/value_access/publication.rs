@@ -313,7 +313,7 @@ impl HeaderPublication {
                     id,
                     Parameter {
                         owner: slot.owner,
-                        name: parameter.name,
+                        binding: parameter.binding.clone(),
                         position: slot.position,
                         data,
                         operation: parameter.operation,

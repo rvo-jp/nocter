@@ -1,5 +1,5 @@
 use super::{
-    Failure, Rule,
+    Failure, Rule, Site,
     annotations::Annotation,
     checker::{Checker, LoopFrame},
     ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
@@ -44,6 +44,30 @@ impl Checker<'_, '_> {
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessBlockId, Failure> {
+        self.block_entries(node, expected, hint, construction, reachable, Vec::new())
+    }
+
+    pub(super) fn block_with_entry(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        entry: Vec<AccessStatementId>,
+    ) -> Result<AccessBlockId, Failure> {
+        let hint = expected
+            .map(|boundary| self.contextual_type(boundary.ty().data()))
+            .transpose()?;
+        self.block_entries(node, expected, hint.as_ref(), None, true, entry)
+    }
+
+    fn block_entries(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        construction: Option<nocter_model::TypeId>,
+        reachable: bool,
+        mut statements: Vec<AccessStatementId>,
+    ) -> Result<AccessBlockId, Failure> {
         // Construction refines supplied identities; an exact boundary cannot also select it.
         if expected.is_some() && construction.is_some() {
             return Err(Failure::InconsistentSyntax);
@@ -60,7 +84,6 @@ impl Checker<'_, '_> {
         } else {
             Vec::new()
         };
-        let mut statements = Vec::new();
         let mut result = None;
         let mut continues = true;
         for entry in entries {
@@ -348,13 +371,22 @@ impl Checker<'_, '_> {
         kind: ValueBindingKind,
         data: TypeId,
     ) -> Result<AccessLocalId, Failure> {
+        Ok(self.binding_local_at(self.site(origin)?, kind, data))
+    }
+
+    fn binding_local_at(
+        &mut self,
+        origin: Site,
+        kind: ValueBindingKind,
+        data: TypeId,
+    ) -> AccessLocalId {
         let local = self.locals.insert(Local {
             data,
             kind,
             origin: LocalOrigin::Binding,
         });
-        self.origins.locals.insert(local, self.site(origin)?);
-        Ok(local)
+        self.origins.locals.insert(local, origin);
+        local
     }
 
     fn writable(&mut self, node: NodeId, reachable: bool) -> Result<super::Referent, Failure> {

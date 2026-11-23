@@ -63,7 +63,7 @@ fn lexical_ancestry_keeps_siblings_independent_and_preserves_nearest_typed_ident
     ] {
         assert_eq!(
             program
-                .parameter_name_violations_in(nested, run, [parameter])
+                .parameter_name_violations_in(nested, run, [&ParameterBinding::Name(parameter)])
                 .unwrap()[0]
                 .rule,
             rule

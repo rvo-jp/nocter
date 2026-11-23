@@ -1,0 +1,37 @@
+see ./index.nct
+use std/error as errors
+
+struct Counter { value: i32 }
+impl Counter {
+    const func create(): Self { Counter { value: 0 } }
+    const method edit self.record((left, right): (i32, i32)): void {
+        self.value += left + right
+    }
+    const method self.total(): i32 { self.value }
+}
+
+const func sum(((left, right), _): Pair, _: void): i32 { left + right }
+
+const func adjust(edit ((left, right), _): Pair): void {
+    left += 1
+    right -= 1
+}
+
+const func offset(take (value, _): (i32, i32)): i32 {
+    value += 1
+    value
+}
+
+func receive(take ((reason, amount), _): Packet): i32 {
+    if !reason.has_code("held") { return 1 }
+    amount += 1
+    amount
+}
+
+async func deferred(take ((reason, amount), _): Packet): i32! {
+    if !reason.has_code("held") { return 2 }
+    amount += 1
+    amount
+}
+
+async func discard(take (_, _): (error, error)): i32! { 42 }

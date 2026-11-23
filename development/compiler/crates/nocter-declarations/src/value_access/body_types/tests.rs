@@ -144,7 +144,9 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
             beta,
             kind,
             [ParameterDefinition {
-                name: symbols.get("action").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    symbols.get("action").unwrap(),
+                ),
                 operation: ValueInputOperation::Read,
                 data: ValueDefinition::Function(FunctionDefinition {
                     invocation: ValueInvocation::Read,

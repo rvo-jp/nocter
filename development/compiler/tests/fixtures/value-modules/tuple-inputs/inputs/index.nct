@@ -1,0 +1,18 @@
+see ./body.nct
+
+type Pair = ((i32, i32), i32)
+type Packet = ((error, i32), error)
+
+struct Counter
+impl Counter {
+    const func create(): Self
+    const method edit self.record((left, right): (i32, i32)): void
+    const method self.total(): i32
+}
+
+const func sum(((left, right), _): Pair, _: void): i32
+const func adjust(edit ((left, right), _): Pair): void
+const func offset(take (value, _): (i32, i32)): i32
+func receive(take ((reason, amount), _): Packet): i32
+async func deferred(take ((reason, amount), _): Packet): i32!
+async func discard(take (_, _): (error, error)): i32!

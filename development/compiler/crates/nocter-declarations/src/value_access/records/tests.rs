@@ -54,7 +54,7 @@ fn nested(reverse: bool) -> super::super::Program {
             function,
             crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("input").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(symbols.get("input").unwrap()),
                 data: BuiltinType::Error.into(),
                 operation: ValueInputOperation::Take,
             }],
@@ -510,7 +510,7 @@ fn callable_parameters_do_not_collide_with_the_type_namespace() {
             f,
             crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: symbols.get("A").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(symbols.get("A").unwrap()),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }],

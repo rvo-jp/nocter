@@ -1,19 +1,25 @@
 //! Tuple bindings form their named leaves from one supplied carrier or prepared place.
 use super::{
-    AccessExpressionId, AccessStatementId, Checker, Failure, NodeId, Rule, Statement, SyntaxOrigin,
-    TypeId, ValueBindingKind,
+    AccessExpressionId, AccessLocalId, AccessStatementId, Checker, Failure, NodeId, Rule, Site,
+    Statement, SyntaxOrigin, TypeId, ValueBindingKind,
 };
 use crate::value_access::ir::{Boundary, ExpressionKind, SelectionAction, value_type};
-use nocter_declarations::value_access::{AggregateForm, PayloadSchema};
+use nocter_declarations::value_access::{AggregateForm, Parameter, PayloadSchema};
 use nocter_model::{FieldPath, ValueAccess, ValueAccessMode as Mode, ValueField};
-use nocter_syntax::SyntaxToken;
 use std::collections::BTreeSet;
 
 struct Leaf {
     syntax: NodeId,
-    name: SyntaxToken,
+    site: Site,
+    name: String,
     data: TypeId,
     path: FieldPath,
+}
+
+#[derive(Clone, Copy)]
+enum Carrier {
+    Owner(AccessLocalId),
+    Place(AccessExpressionId),
 }
 
 impl Checker<'_, '_> {
@@ -35,35 +41,98 @@ impl Checker<'_, '_> {
                 data,
             )?;
             statements.push(self.statement(statement, Statement::Bind { local, value })?);
-            Some(local)
+            Carrier::Owner(local)
         } else {
             statements.push(self.statement(statement, Statement::PreparePlace(value))?);
-            None
+            Carrier::Place(value)
         };
+        self.form_leaves(pattern, kind, carrier, leaves, statements)
+    }
+
+    pub(in crate::value_access) fn form_input_pattern(
+        &mut self,
+        body: NodeId,
+        declared: &Parameter,
+        local: AccessLocalId,
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<(), Failure> {
+        let kind = declared.operation().binding_kind();
+        let leaves = declared
+            .binding()
+            .named_paths()
+            .enumerate()
+            .map(|(leaf, (&name, path))| {
+                let name = self
+                    .program()
+                    .symbols()
+                    .spelling(name)
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .to_owned();
+                let data = self
+                    .program()
+                    .project_data(declared.data(), &path)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                Ok(Leaf {
+                    syntax: body,
+                    site: Site::Parameter {
+                        input: declared.position(),
+                        leaf: Some(leaf),
+                    },
+                    name,
+                    data,
+                    path,
+                })
+            })
+            .collect::<Result<Vec<_>, Failure>>()?;
+        let carrier = if kind.access_mode() == Mode::Own {
+            Carrier::Owner(local)
+        } else if leaves.is_empty() {
+            return Ok(());
+        } else {
+            let place = self.intern_place(local, FieldPath::default(), declared.data());
+            let value = self.emit_place(body, place)?;
+            statements.push(self.statement(body, Statement::PreparePlace(value))?);
+            Carrier::Place(value)
+        };
+        self.form_leaves(body, kind, carrier, leaves, statements)
+    }
+
+    fn form_leaves(
+        &mut self,
+        pattern: NodeId,
+        kind: ValueBindingKind,
+        carrier: Carrier,
+        leaves: Vec<Leaf>,
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<(), Failure> {
+        let mode = kind.access_mode();
         let mut bindings = Vec::with_capacity(leaves.len());
         for leaf in leaves {
-            let leaf_value = if let Some(carrier) = carrier {
-                // The tuple is already supplied. Extract each named leaf from its anonymous owner.
-                let place = self.intern_place(carrier, leaf.path, leaf.data);
-                self.transfer_place(leaf.syntax, place)?
-            } else {
-                let projected = self.emit(
-                    leaf.syntax,
-                    value_type(leaf.data, Mode::Read)
-                        .with_continuation(self.ty(value).may_complete()),
-                    ExpressionKind::Select {
-                        source: value,
-                        fields: leaf.path,
-                        action: SelectionAction::PreparedAccess,
-                    },
-                )?;
-                self.boundary(
-                    leaf.syntax,
-                    projected,
-                    Boundary::Binding(ValueAccess::new(leaf.data, mode)),
-                )?
+            let leaf_value = match carrier {
+                Carrier::Owner(local) => {
+                    // Extract each named leaf from the already supplied anonymous owner.
+                    let place = self.intern_place(local, leaf.path, leaf.data);
+                    self.transfer_place(leaf.syntax, place)?
+                }
+                Carrier::Place(value) => {
+                    let projected = self.emit(
+                        leaf.syntax,
+                        value_type(leaf.data, Mode::Read)
+                            .with_continuation(self.ty(value).may_complete()),
+                        ExpressionKind::Select {
+                            source: value,
+                            fields: leaf.path,
+                            action: SelectionAction::PreparedAccess,
+                        },
+                    )?;
+                    self.boundary(
+                        leaf.syntax,
+                        projected,
+                        Boundary::Binding(ValueAccess::new(leaf.data, mode)),
+                    )?
+                }
             };
-            let local = self.binding_local(SyntaxOrigin::Token(leaf.name), kind, leaf.data)?;
+            let local = self.binding_local_at(leaf.site, kind, leaf.data);
             statements.push(self.statement(
                 leaf.syntax,
                 Statement::Bind {
@@ -73,11 +142,11 @@ impl Checker<'_, '_> {
             )?);
             bindings.push((leaf.name, local));
         }
-        if let Some(carrier) = carrier {
-            statements.push(self.statement(pattern, Statement::Drop(carrier))?);
+        if let Carrier::Owner(local) = carrier {
+            statements.push(self.statement(pattern, Statement::Drop(local))?);
         }
         for (name, local) in bindings {
-            self.bind_local(self.text(name)?.to_owned(), local);
+            self.bind_local(name, local);
         }
         Ok(())
     }
@@ -99,7 +168,8 @@ impl Checker<'_, '_> {
                 }
                 leaves.push(Leaf {
                     syntax,
-                    name,
+                    site: self.site(SyntaxOrigin::Token(name))?,
+                    name: spelling.to_owned(),
                     data,
                     path,
                 });

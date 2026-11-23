@@ -238,7 +238,9 @@ fn callable_headers_keep_record_identity_without_requiring_signature_payloads() 
             run,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [super::super::ParameterDefinition {
-                name: symbols.get("callback").unwrap(),
+                binding: crate::value_access::ParameterBinding::Name(
+                    symbols.get("callback").unwrap(),
+                ),
                 operation: nocter_model::ValueInputOperation::Read,
                 data: ValueDefinition::Function(contract.clone()),
             }],

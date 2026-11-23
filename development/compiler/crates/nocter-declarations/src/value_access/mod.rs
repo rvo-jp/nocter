@@ -77,9 +77,12 @@ pub enum BehaviorOwner {
 #[cfg(test)]
 mod tests;
 
+mod parameter_binding;
+pub use parameter_binding::ParameterBinding;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParameterDefinition {
-    pub name: Symbol,
+    pub binding: ParameterBinding,
     pub data: ValueDefinition,
     pub operation: ValueInputOperation,
 }
@@ -88,6 +91,7 @@ pub struct ParameterDefinition {
 pub enum HeaderPosition {
     Name,
     Parameter(usize),
+    ParameterName { input: usize, leaf: usize },
     Result,
     Field(usize),
 }
@@ -99,7 +103,8 @@ pub enum DeclarationRule {
     UnknownSymbol,
     ReservedBuiltinName,
     DuplicateValue { first: AccessCodeId },
-    DuplicateParameter { first: usize },
+    DuplicateParameter { first: HeaderPosition },
+    ParameterPatternMismatch,
     ParameterShadowsValue { declaration: AccessCodeId },
     ParameterShadowsNamespace { name: Symbol },
     NameConflictsWithNamespace { name: Symbol },
@@ -218,7 +223,7 @@ impl Code {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameter {
     owner: AccessCodeId,
-    name: Symbol,
+    binding: ParameterBinding,
     position: usize,
     data: TypeId,
     operation: ValueInputOperation,
@@ -238,8 +243,8 @@ impl Parameter {
         self.owner
     }
     #[must_use]
-    pub const fn name(&self) -> Symbol {
-        self.name
+    pub const fn binding(&self) -> &ParameterBinding {
+        &self.binding
     }
     #[must_use]
     pub const fn position(&self) -> usize {
@@ -328,11 +333,11 @@ impl Program {
     /// Validate names in one physical header scope without publishing typed inputs.
     /// # Errors
     /// Rejects an unknown scope or named declaration identity.
-    pub fn parameter_name_violations_in(
+    pub fn parameter_name_violations_in<'binding>(
         &self,
         scope: ScopeId,
         code: AccessCodeId,
-        names: impl IntoIterator<Item = Symbol>,
+        bindings: impl IntoIterator<Item = &'binding ParameterBinding>,
     ) -> Result<Vec<DeclarationViolation>, DefinitionError> {
         if !self.has_scope(scope) || !self.codes.is_reserved(code) {
             return Err(DefinitionError::UnknownId);
@@ -343,7 +348,7 @@ impl Program {
             &self.namespace,
             scope,
             code,
-            names,
+            bindings,
             &mut violations,
         );
         Ok(violations)
@@ -1120,18 +1125,22 @@ fn validate_definition(
         namespace,
         reservation.scope,
         id,
-        definition.parameters.iter().map(|parameter| parameter.name),
+        definition
+            .parameters
+            .iter()
+            .map(|parameter| &parameter.binding),
         violations,
     );
     for (position, parameter) in definition.parameters.iter().enumerate() {
-        validate_value(
-            id,
-            HeaderPosition::Parameter(position),
-            &parameter.data,
-            true,
-            records,
-            violations,
-        );
+        let position = HeaderPosition::Parameter(position);
+        if !parameter.binding.matches_data(&parameter.data) {
+            violations.push(DeclarationViolation {
+                declaration: DeclarationId::Code(id),
+                position,
+                rule: DeclarationRule::ParameterPatternMismatch,
+            });
+        }
+        validate_value(id, position, &parameter.data, true, records, violations);
     }
     validate_value(
         id,
@@ -1143,16 +1152,25 @@ fn validate_definition(
     );
 }
 
-fn validate_parameter_names(
+fn validate_parameter_names<'binding>(
     symbols: &SymbolTable,
     namespace: &namespace::Names,
     scope: ScopeId,
     id: AccessCodeId,
-    names: impl IntoIterator<Item = Symbol>,
+    bindings: impl IntoIterator<Item = &'binding ParameterBinding>,
     violations: &mut Vec<DeclarationViolation>,
 ) {
     let mut seen = BTreeMap::new();
-    for (position, name) in names.into_iter().enumerate() {
+    let names = bindings
+        .into_iter()
+        .enumerate()
+        .flat_map(|(input, binding)| {
+            binding
+                .names()
+                .enumerate()
+                .map(move |(leaf, &name)| (HeaderPosition::ParameterName { input, leaf }, name))
+        });
+    for (position, name) in names {
         let rule = match symbols.spelling(name) {
             None => Some(DeclarationRule::UnknownSymbol),
             Some(name) if BuiltinType::from_spelling(name).is_some() => {
@@ -1183,7 +1201,7 @@ fn validate_parameter_names(
         if let Some(rule) = rule {
             violations.push(DeclarationViolation {
                 declaration: DeclarationId::Code(id),
-                position: HeaderPosition::Parameter(position),
+                position,
                 rule,
             });
         }

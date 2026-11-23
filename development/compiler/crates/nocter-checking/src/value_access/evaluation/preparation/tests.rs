@@ -502,7 +502,7 @@ fn header_data(
             };
             program.codes().get(id).unwrap().result()
         }
-        HeaderPosition::Name => unreachable!(),
+        HeaderPosition::Name | HeaderPosition::ParameterName { .. } => unreachable!(),
     }
 }
 

@@ -148,7 +148,7 @@ fn parameter_collision_checks_use_the_declarations_own_scope() {
                 run,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 vec![ParameterDefinition {
-                    name: input,
+                    binding: crate::value_access::ParameterBinding::Name(input),
                     data: BuiltinType::I32.into(),
                     operation: ValueInputOperation::Read,
                 }],
@@ -603,7 +603,11 @@ fn namespace_parameter_collisions_and_finite_cyclic_paths_share_the_closed_name_
     assert_eq!(
         headers
             .snapshot()
-            .parameter_name_violations_in(ScopeId::ROOT, run, [name("module")])
+            .parameter_name_violations_in(
+                ScopeId::ROOT,
+                run,
+                [&crate::value_access::ParameterBinding::Name(name("module"))],
+            )
             .unwrap()[0]
             .rule,
         DeclarationRule::ParameterShadowsNamespace {
@@ -615,7 +619,7 @@ fn namespace_parameter_collisions_and_finite_cyclic_paths_share_the_closed_name_
             run,
             CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
-                name: name("module"),
+                binding: crate::value_access::ParameterBinding::Name(name("module")),
                 data: BuiltinType::I32.into(),
                 operation: ValueInputOperation::Read,
             }],
