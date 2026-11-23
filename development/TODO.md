@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Store a local future's producer selector only where a reached drive, capture move or
-cancellation needs it. Follow the original ownership transfers and use a constant when an
-incoming edge supplies one known producer. Verify that unrelated activations of the same
-future type allocate no selector and that real joined storage retains the selected producer.
+Qualify trusted v2 process argument values. Close the exact optional/fallible result shape
+through the primitive signature, accepted source and native ABI. Preserve the process vector's
+argument boundaries, return absence for a missing index, and validate the bytes before
+publishing them as `str`. Verify this path through a selected package and real launches.
 
 ## Remaining Contextual Representation Qualification
 
@@ -834,12 +834,15 @@ not a language restriction derived from the current realization boundary.
   callable channels. Verify complete and component replacement through the saved address,
   including wide values, optional states and real owned-error cleanup. Verify that cancellation
   preserves the caller's value and that an edited temporary is cleaned once in its evaluation.
+- [x] Limit local future selectors to holders needed by original drives, capture moves and
+  cancellations. A known incoming producer writes its selector at receipt; only ambiguous
+  incoming moves need a selector from their source. Verify unrelated activations of the same
+  future type allocate no selector and reject writes to an unrelated numeric slot.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
   Qualify scoped future aliases, nested annotations and represented carriers through their actual
-  activation and storage evidence. Refine selector storage from body/type scope to the relevant
-  activation occurrences where exact transport evidence permits it.
+  activation and storage evidence.
   Extend input cancellation to contextual take inputs and retained accesses using their
   exact release obligations and construction/completion phases.
   Extend read-temporary extents across evaluation boundaries where the source contract permits,

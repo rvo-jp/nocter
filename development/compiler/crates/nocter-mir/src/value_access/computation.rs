@@ -400,22 +400,6 @@ impl Builder<'_> {
             })
             .collect()
     }
-    fn construct_future(&mut self, id: AccessExpressionId) -> Result<Option<Operation>, Failure> {
-        if !self.local_future_expression(id) {
-            return Err(self.invalid());
-        }
-        self.instances
-            .unit()
-            .future_construction_tag(self.instance.key().code(), id)
-            .map(|tag| {
-                Ok(Operation::Constant {
-                    destination: self.future_selector(Holder::Expression(id))?,
-                    value: Constant::Integer(i128::from(tag)),
-                })
-            })
-            .transpose()
-    }
-
     fn prepare_argument(
         &mut self,
         call: AccessExpressionId,
@@ -501,9 +485,10 @@ impl Builder<'_> {
             flow::Operation::CommitCall(id) => self.call(id)?,
             flow::Operation::DriveFuture { future, result } => self.drive(future, result)?,
             flow::Operation::ConstructFuture(id) => {
-                return self
-                    .construct_future(id)
-                    .map(|operation| operation.into_iter().collect());
+                if !self.local_future_expression(id) {
+                    return Err(self.invalid());
+                }
+                return Ok(Box::new([]));
             }
             flow::Operation::Bind { local, value } => {
                 let item = self

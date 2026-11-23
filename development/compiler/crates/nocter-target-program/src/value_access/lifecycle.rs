@@ -2,14 +2,15 @@
 pub mod flags;
 mod payloads;
 use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
-use nocter_checking::value_access::accepted::{FutureCaptureCases, FutureInputCleanup};
+use nocter_checking::value_access::accepted::{
+    FutureCaptureCases, FutureInputCleanup, LocalFutureMove,
+};
 use nocter_checking::value_access::flow::{
     Location, Operation,
     resources::{
         ActivationInput, Condition, Holder, Payload as CheckedPayload, Step as ResourceStep,
     },
 };
-use nocter_declarations::value_access::FunctionInput;
 use nocter_model::AccessInstanceId;
 use std::{
     collections::{BTreeMap, btree_map::Entry},
@@ -32,18 +33,18 @@ pub enum Step {
     MoveLocalFuture {
         source: Holder,
         destination: Holder,
-        selector: bool,
-        captures: FutureCaptureCases<FunctionInput>,
+        movement: LocalFutureMove,
     },
     /// Dispose the selected local activation's owned inputs without invoking its body.
     CancelLocalFuture {
         source: Holder,
         captures: FutureCaptureCases<FutureInputCleanup>,
     },
-    /// Install prepared inputs in the newly committed local activation.
-    CaptureFutureInputs {
+    /// Install prepared inputs and any required selector in the newly committed activation.
+    ActivateLocalFuture {
         destination: Holder,
         inputs: Box<[ActivationInput<CheckedPayload>]>,
+        tag: Option<u64>,
     },
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
@@ -86,7 +87,7 @@ impl Step {
             Self::ScopedReplacement(replacement) => Some(replacement.operation()),
             Self::MoveLocalFuture { .. }
             | Self::CancelLocalFuture { .. }
-            | Self::CaptureFutureInputs { .. }
+            | Self::ActivateLocalFuture { .. }
             | Self::DisposeEnvironment { .. } => None,
         }
     }
@@ -285,7 +286,7 @@ impl Program {
                             }
                             Step::MoveLocalFuture { .. }
                             | Step::CancelLocalFuture { .. }
-                            | Step::CaptureFutureInputs { .. } => None,
+                            | Step::ActivateLocalFuture { .. } => None,
                         };
                         if let Some(resource) = resource {
                             let result = resource.try_map_payloads::<std::convert::Infallible, _>(

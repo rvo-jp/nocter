@@ -318,6 +318,7 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::SetFutureSelector { destination, .. } => self.future_selector(destination),
             Effect::SelectedFutureMove { selector, cases } => self.future_move(selector, cases),
             Effect::SelectedFutureCleanup { selector, cases } => {
                 self.future_cleanup(selector, cases)
@@ -695,6 +696,16 @@ impl Context<'_> {
         selector: &Place,
         tags: impl ExactSizeIterator<Item = u64>,
     ) -> Result<(), Failure> {
+        self.future_selector(selector)?;
+        self.require(tags.len() > 1)?;
+        let mut previous = None;
+        for tag in tags {
+            self.require(previous.is_none_or(|prior| prior < tag))?;
+            previous = Some(tag);
+        }
+        Ok(())
+    }
+    fn future_selector(&self, selector: &Place) -> Result<(), Failure> {
         self.place(selector)?;
         self.require(
             selector.projections.is_empty()
@@ -703,20 +714,12 @@ impl Context<'_> {
                         && matches!(slot.key, SlotKey::FutureSelector(_))
                 }),
         )?;
-        self.require(
-            self.primitive(
-                selector.data,
-                RuntimePrimitive::for_builtin(
-                    nocter_target_program::value_access::Drive::SELECTOR_TYPE,
-                ),
-            ) && tags.len() > 1,
-        )?;
-        let mut previous = None;
-        for tag in tags {
-            self.require(previous.is_none_or(|prior| prior < tag))?;
-            previous = Some(tag);
-        }
-        Ok(())
+        self.require(self.primitive(
+            selector.data,
+            RuntimePrimitive::for_builtin(
+                nocter_target_program::value_access::Drive::SELECTOR_TYPE,
+            ),
+        ))
     }
     fn future_input_slot(&self, place: &Place, mode: ValueInputOperation) -> bool {
         let storage = match mode {

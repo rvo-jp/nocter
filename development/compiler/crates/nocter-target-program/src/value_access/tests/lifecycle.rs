@@ -80,7 +80,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
             Step::ScopedReplacement(replacement) => Some(replacement.operation()),
             Step::MoveLocalFuture { .. }
             | Step::CancelLocalFuture { .. }
-            | Step::CaptureFutureInputs { .. }
+            | Step::ActivateLocalFuture { .. }
             | Step::DisposeEnvironment { .. } => None,
         };
         if let Some(step) = resource {

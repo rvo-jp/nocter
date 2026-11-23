@@ -1,6 +1,6 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
-use nocter_checking::value_access::accepted::{FutureCaptureCases, LocalFutureStorage, Unit};
+use nocter_checking::value_access::accepted::{FutureCaptureCases, Unit};
 use nocter_checking::value_access::flow::resources::{
     ActivationInput, Holder, Missing, Place, Transition,
 };
@@ -173,43 +173,41 @@ fn partition_local_future_steps<'a>(
     let mut activations = Vec::new();
     if !steps
         .iter()
-        .any(|step| unit.future_step_storage(code, step).is_some())
+        .any(|step| unit.is_local_future_step(code, step))
     {
         return Ok((Cow::Borrowed(steps), activations));
     }
     let mut ordinary = Vec::new();
     for step in steps {
-        match (unit.future_step_storage(code, step), step) {
-            (None, _) => ordinary.push(step.clone()),
-            (
-                Some(backing),
-                ResourceStep::Move {
-                    source,
-                    destination,
-                    ..
-                },
-            ) => {
-                let selector = backing == LocalFutureStorage::Selector;
+        if !unit.is_local_future_step(code, step) {
+            ordinary.push(step.clone());
+            continue;
+        }
+        match step {
+            ResourceStep::Move {
+                source,
+                destination,
+                ..
+            } => {
                 let source = source.holder();
                 let destination = destination.holder();
-                let captures = unit
+                let movement = unit
                     .future_move(code, at, source, destination)
                     .ok_or(Failure::InvalidInstanceProgram)?;
-                if selector
-                    || !matches!(captures, FutureCaptureCases::Direct(fields) if fields.is_empty())
+                if movement.selector.is_some()
+                    || !matches!(&movement.inputs, FutureCaptureCases::Direct(fields) if fields.is_empty())
                 {
                     activations.push((
                         ordinary.len(),
                         Step::MoveLocalFuture {
                             source,
                             destination,
-                            selector,
-                            captures: captures.clone(),
+                            movement: movement.clone(),
                         },
                     ));
                 }
             }
-            (Some(_), ResourceStep::Dispose { source, .. }) => {
+            ResourceStep::Dispose { source, .. } => {
                 let source = source.holder();
                 let captures = unit
                     .future_cancellation(code, at, source)
@@ -224,27 +222,29 @@ fn partition_local_future_steps<'a>(
                     ));
                 }
             }
-            (
-                Some(_),
-                ResourceStep::ConstructActivation {
-                    destination,
-                    inputs,
-                    ..
-                },
-            ) if !inputs.is_empty() => {
+            ResourceStep::ConstructActivation {
+                destination: Holder::Expression(expression),
+                inputs,
+                ..
+            } => {
+                let tag = unit.future_construction_tag(code, *expression);
                 if inputs.iter().any(|input| matches!(input, ActivationInput::Take { source, .. }
                     if !source.fields().is_root() || !matches!(source.holder(), Holder::Prepared { .. }))) {
                     return Err(Failure::InvalidInstanceProgram);
                 }
-                activations.push((
-                    ordinary.len(),
-                    Step::CaptureFutureInputs {
-                        destination: *destination,
-                        inputs: inputs.clone(),
-                    },
-                ));
+                if tag.is_some() || !inputs.is_empty() {
+                    activations.push((
+                        ordinary.len(),
+                        Step::ActivateLocalFuture {
+                            destination: Holder::Expression(*expression),
+                            inputs: inputs.clone(),
+                            tag,
+                        },
+                    ));
+                }
             }
-            (Some(_), _) => {}
+            ResourceStep::DriveFuture { .. } => {}
+            _ => return Err(Failure::InvalidInstanceProgram),
         }
     }
     Ok((Cow::Owned(ordinary), activations))

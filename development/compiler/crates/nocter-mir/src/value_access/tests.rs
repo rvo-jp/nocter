@@ -27,6 +27,95 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn local_future_selectors_start_at_the_join_and_follow_only_ambiguous_moves() {
+    let mut program = lower(
+        "func choose(value: u64): bool { value > 0 }\n\
+         async func first(): i32 { 20 }\n\
+         async func second(): i32 { 22 }\n\
+         async func run(): i32 {\n\
+             let direct = await first()\n\
+             let pending = if choose(1) { first() } else { second() }\n\
+             let moved = pending^\n\
+             direct + await moved^\n\
+         }",
+    );
+    validate::program(&program).unwrap();
+    let body = &program.bodies[&program.root];
+    let drive_slot = {
+        let mut drives = operations(body).filter_map(|operation| match operation {
+            Operation::SelectedDrive(drive) => Some(drive),
+            _ => None,
+        });
+        let drive = drives.next().unwrap();
+        assert!(drives.next().is_none());
+        drive.selector.slot
+    };
+    let effects = || {
+        body.actions
+            .values()
+            .flat_map(|action| &action.alternatives)
+            .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+    };
+    let incoming = effects()
+        .filter_map(|effect| match effect {
+            Effect::SetFutureSelector { destination, tag } => Some((destination.slot, *tag)),
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let &(join, _) = incoming.first().unwrap();
+    assert_eq!(incoming, [(join, 0), (join, 1)].into_iter().collect());
+    assert_ne!(drive_slot, join);
+    let mut reachable = std::collections::BTreeSet::from([join]);
+    let copies: Vec<_> = effects()
+        .filter_map(|effect| match effect {
+            Effect::Transfer {
+                source,
+                destination,
+            } if matches!(key(body, source.slot), SlotKey::FutureSelector(_)) => {
+                Some((source.slot, destination.slot))
+            }
+            _ => None,
+        })
+        .collect();
+    while let Some(destination) = copies.iter().find_map(|(source, destination)| {
+        (reachable.contains(source) && !reachable.contains(destination)).then_some(*destination)
+    }) {
+        reachable.insert(destination);
+    }
+    assert!(reachable.contains(&drive_slot));
+    assert_eq!(
+        body.slots
+            .iter()
+            .filter_map(|(id, slot)| matches!(slot.key, SlotKey::FutureSelector(_)).then_some(id))
+            .collect::<std::collections::BTreeSet<_>>(),
+        reachable
+    );
+
+    let body = program.bodies.get_mut(&program.root).unwrap();
+    let destination = body
+        .actions
+        .values_mut()
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        .find_map(|effect| match effect {
+            Effect::SetFutureSelector { destination, .. } => Some(destination),
+            _ => None,
+        })
+        .unwrap();
+    destination.slot = body
+        .slots
+        .iter()
+        .find_map(|(id, slot)| {
+            (slot.storage == Storage::Payload
+                && slot.representations.contains(&destination.data)
+                && !matches!(slot.key, SlotKey::FutureSelector(_)))
+            .then_some(id)
+        })
+        .unwrap();
+    assert!(validate::program(&program).is_err());
+}
+
+#[test]
 fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

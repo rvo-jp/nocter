@@ -45,11 +45,11 @@ pub enum DataEvidence<P = flow::resources::Payload> {
     Unproduced,
 }
 
-/// Producer selection strategy of a qualified local activation.
+/// Write the producer selector for the receiving holder at one reached ownership move.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LocalFutureStorage {
-    Direct,
-    Selector,
+pub enum FutureSelectorMove {
+    Known(u64),
+    FromSource,
 }
 
 /// The captured input lanes used by one original move or cancellation.
@@ -57,6 +57,12 @@ pub enum LocalFutureStorage {
 pub enum FutureCaptureCases<T> {
     Direct(Arc<[T]>),
     Selected(Box<[(u64, Arc<[T]>)]>),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalFutureMove {
+    pub inputs: FutureCaptureCases<nocter_declarations::value_access::FunctionInput>,
+    pub selector: Option<FutureSelectorMove>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -235,7 +241,7 @@ impl Unit {
     ) -> Option<&Arc<[nocter_declarations::value_access::FunctionInput]>> {
         self.local_futures.captures(code, holder, producer)
     }
-    /// Exact captured input transport for a reached original ownership move.
+    /// Exact captured inputs and producer selector for a reached original ownership move.
     #[must_use]
     pub fn future_move(
         &self,
@@ -243,7 +249,7 @@ impl Unit {
         at: flow::Location,
         source: flow::resources::Holder,
         destination: flow::resources::Holder,
-    ) -> Option<&FutureCaptureCases<nocter_declarations::value_access::FunctionInput>> {
+    ) -> Option<&LocalFutureMove> {
         self.local_futures.movement(code, at, source, destination)
     }
     /// Exact nontrivial input cleanup for a reached cancellation, in initialization-reverse order.
@@ -261,14 +267,14 @@ impl Unit {
     pub fn local_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
         self.local_futures.contains(code, data)
     }
-    /// Producer selection strategy for an original transition in the local activation plan.
+    /// Whether the local activation plan owns this original transition.
     #[must_use]
-    pub fn future_step_storage(
+    pub fn is_local_future_step(
         &self,
         code: nocter_model::ValueCode,
         step: &flow::resources::Step,
-    ) -> Option<LocalFutureStorage> {
-        self.local_futures.step(code, step)
+    ) -> bool {
+        self.local_futures.contains_step(code, step)
     }
     #[must_use]
     pub fn constant_value(&self, id: AccessCodeId) -> Option<&nocter_model::FrozenData> {

@@ -352,6 +352,9 @@ impl<'a> Builder<'a> {
     }
     fn effect(&mut self, effect: &mir::Effect) -> Result<(), Failure> {
         match effect {
+            mir::Effect::SetFutureSelector { destination, tag } => {
+                self.constant(destination, &mir::Constant::Integer(i128::from(*tag)))?;
+            }
             mir::Effect::SelectedFutureMove { selector, cases } => {
                 let subject = self.load(selector)?;
                 let tags = cases.iter().map(|case| i128::from(case.tag));

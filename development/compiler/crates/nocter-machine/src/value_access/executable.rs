@@ -202,6 +202,7 @@ fn cleanup_plan(
                 | mir::Effect::VariantTag { .. }
                 | mir::Effect::Initialize(_)
                 | mir::Effect::Transfer { .. }
+                | mir::Effect::SetFutureSelector { .. }
                 | mir::Effect::SelectedFutureMove { .. }
                 | mir::Effect::Repack { .. }
                 | mir::Effect::Transport { .. }

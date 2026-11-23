@@ -375,9 +375,12 @@ access without running the body. A drive invalidates caller facts whose preserva
 need a producer write footprint.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
-A future type in a body uses a producer selector when a reached drive has multiple producers
-or a reached move or cancellation must distinguish captured inputs. Construction stores the
-prepared values and any needed tag. A move with a common layout transfers its slots directly.
+A producer selector belongs to the holders needed by a reached multi-producer drive or a move or
+cancellation with different captured inputs. The plan follows original ownership transfers back
+to their inputs. An incoming transfer with one known producer writes its tag at the receiving
+holder. An ambiguous incoming transfer copies a tag from the source. Equal future types in the
+same body do not require equal storage. Construction stores prepared values and writes a tag
+only for a holder that needs one. A move with a common input layout transfers its slots directly.
 A move with different layouts selects the active slots before retiring the source. Cancellation
 uses the original ownership transition and releases only the selected initialized inputs in
 reverse order. Trivial captures require no physical release. A drive supplies the inputs to the

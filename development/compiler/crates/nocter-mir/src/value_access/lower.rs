@@ -5,7 +5,7 @@ use super::{
 };
 use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind, ValueSourceSlot,
-    accepted::{FutureCaptureCases, FutureInputCleanup},
+    accepted::{FutureCaptureCases, FutureInputCleanup, FutureSelectorMove},
     flow::{
         self, Operation,
         resources::{
@@ -788,10 +788,9 @@ impl Builder<'_> {
                 lifecycle::Step::MoveLocalFuture {
                     source,
                     destination,
-                    selector,
-                    captures,
+                    movement,
                 } => {
-                    match captures {
+                    match &movement.inputs {
                         FutureCaptureCases::Direct(fields) => {
                             output.extend(
                                 self.future_transfers(*source, *destination, fields)?
@@ -831,11 +830,18 @@ impl Builder<'_> {
                             });
                         }
                     }
-                    if *selector {
-                        output.push(Effect::Transfer {
+                    match movement.selector {
+                        Some(FutureSelectorMove::Known(tag)) => {
+                            output.push(Effect::SetFutureSelector {
+                                destination: self.future_selector(*destination)?,
+                                tag,
+                            });
+                        }
+                        Some(FutureSelectorMove::FromSource) => output.push(Effect::Transfer {
                             source: self.future_selector(*source)?,
                             destination: self.future_selector(*destination)?,
-                        });
+                        }),
+                        None => {}
                     }
                 }
                 lifecycle::Step::CancelLocalFuture { source, captures } => match captures {
@@ -866,9 +872,10 @@ impl Builder<'_> {
                         });
                     }
                 },
-                lifecycle::Step::CaptureFutureInputs {
+                lifecycle::Step::ActivateLocalFuture {
                     destination,
                     inputs,
+                    tag,
                 } => {
                     for (index, input) in inputs.iter().enumerate() {
                         let destination =
@@ -892,6 +899,12 @@ impl Builder<'_> {
                                 },
                                 destination: destination.slot,
                             },
+                        });
+                    }
+                    if let Some(tag) = *tag {
+                        output.push(Effect::SetFutureSelector {
+                            destination: self.future_selector(*destination)?,
+                            tag,
                         });
                     }
                 }

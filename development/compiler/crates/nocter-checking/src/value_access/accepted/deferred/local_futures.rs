@@ -1,5 +1,5 @@
 //! Close captured input layouts and optional producer selectors for actual local activations.
-use super::super::{FutureCaptureCases, FutureInputCleanup, LocalFutureStorage};
+use super::super::{FutureCaptureCases, FutureInputCleanup, FutureSelectorMove, LocalFutureMove};
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
@@ -21,18 +21,19 @@ pub(in crate::value_access::accepted) struct LocalFutures {
 #[derive(Clone, Debug, Default)]
 struct Body {
     data: BTreeSet<TypeId>,
-    tagged: BTreeSet<TypeId>,
+    tagged: BTreeSet<Holder>,
     drives: BTreeMap<AccessExpressionId, Drive>,
     constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
     tags: BTreeMap<AccessCodeId, u64>,
     captures: BTreeMap<(Holder, AccessCodeId), Arc<[FunctionInput]>>,
-    moves: BTreeMap<Movement, FutureCaptureCases<FunctionInput>>,
+    moves: BTreeMap<Movement, LocalFutureMove>,
     cancellations: BTreeMap<(Location, Holder), FutureCaptureCases<FutureInputCleanup>>,
 }
 
 #[derive(Clone, Debug)]
 struct Drive {
     data: TypeId,
+    operand: Holder,
     producers: BTreeSet<AccessCodeId>,
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -133,8 +134,8 @@ impl LocalFutures {
         expression: AccessExpressionId,
     ) -> Option<u64> {
         let body = self.bodies.get(&code)?;
-        let &(data, producer) = body.constructions.get(&expression)?;
-        if !body.tagged.contains(&data) {
+        let &(_, producer) = body.constructions.get(&expression)?;
+        if !body.tagged.contains(&Holder::Expression(expression)) {
             return None;
         }
         body.tags.get(&producer).copied()
@@ -159,7 +160,7 @@ impl LocalFutures {
         at: Location,
         source: Holder,
         destination: Holder,
-    ) -> Option<&FutureCaptureCases<FunctionInput>> {
+    ) -> Option<&LocalFutureMove> {
         self.bodies.get(&code)?.moves.get(&Movement {
             at,
             source,
@@ -176,21 +177,12 @@ impl LocalFutures {
         self.bodies.get(&code)?.cancellations.get(&(at, source))
     }
 
-    pub(in crate::value_access::accepted) fn step(
+    pub(in crate::value_access::accepted) fn contains_step(
         &self,
         code: ValueCode,
         step: &Step,
-    ) -> Option<LocalFutureStorage> {
-        let data = local_payload(step)?.data();
-        let body = self.bodies.get(&code)?;
-        if !body.data.contains(&data) {
-            return None;
-        }
-        Some(if body.tagged.contains(&data) {
-            LocalFutureStorage::Selector
-        } else {
-            LocalFutureStorage::Direct
-        })
+    ) -> bool {
+        local_payload(step).is_some_and(|payload| self.contains(code, payload.data()))
     }
 
     pub(in crate::value_access::accepted) fn prepare<'a>(
@@ -304,32 +296,63 @@ impl Body {
         moves: BTreeMap<Movement, ObservedCaptures<FunctionInput>>,
         cancellations: BTreeMap<(Location, Holder), ObservedCaptures<FutureInputCleanup>>,
     ) -> Result<(), Failure> {
-        self.tagged.extend(
-            self.drives
-                .values()
-                .filter(|drive| drive.producers.len() > 1)
-                .map(|drive| drive.data),
-        );
-        self.tagged.extend(
-            moves
-                .values()
-                .filter(|movement| movement.needs_selector())
-                .map(|movement| movement.data),
-        );
-        self.tagged.extend(
-            cancellations
-                .values()
-                .filter(|use_| use_.needs_selector())
-                .map(|use_| use_.data),
-        );
-        let producers = self
-            .constructions
+        let mut needed = self
+            .drives
             .values()
-            .filter_map(|&(data, producer)| self.tagged.contains(&data).then_some(producer))
+            .filter(|drive| drive.producers.len() > 1)
+            .map(|drive| drive.operand)
+            .collect::<BTreeSet<_>>();
+        let mut uncertain_inputs = BTreeMap::<_, BTreeSet<_>>::new();
+        for (site, movement) in &moves {
+            if movement.needs_selector() {
+                needed.insert(site.source);
+            }
+            if movement.producers.len() > 1 {
+                uncertain_inputs
+                    .entry(site.destination)
+                    .or_default()
+                    .insert(site.source);
+            }
+        }
+        needed.extend(
+            cancellations
+                .iter()
+                .filter(|(_, cancellation)| cancellation.needs_selector())
+                .map(|(&(_, holder), _)| holder),
+        );
+        // A known incoming producer supplies its constant at the move. Only an
+        // ambiguous incoming edge needs the selector in its original source slot.
+        while let Some(holder) = needed.pop_first() {
+            if self.tagged.insert(holder)
+                && let Some(inputs) = uncertain_inputs.remove(&holder)
+            {
+                needed.extend(inputs);
+            }
+        }
+        let producers = self
+            .captures
+            .keys()
+            .filter_map(|&(holder, producer)| self.tagged.contains(&holder).then_some(producer))
             .collect::<BTreeSet<_>>();
         self.tags = producers.into_iter().zip(0_u64..).collect();
         for (site, movement) in moves {
-            self.moves.insert(site, movement.close(&self.tags)?);
+            let selector = if !self.tagged.contains(&site.destination) {
+                None
+            } else if movement.producers.len() == 1 {
+                let producer = movement.producers.first_key_value().ok_or(INVALID)?.0;
+                Some(FutureSelectorMove::Known(
+                    *self.tags.get(producer).ok_or(INVALID)?,
+                ))
+            } else {
+                Some(FutureSelectorMove::FromSource)
+            };
+            self.moves.insert(
+                site,
+                LocalFutureMove {
+                    inputs: movement.close(&self.tags)?,
+                    selector,
+                },
+            );
         }
         for (site, cancellation) in cancellations {
             self.cancellations
@@ -401,9 +424,10 @@ impl Body {
             {
                 let drive = self.drives.entry(*result).or_insert_with(|| Drive {
                     data: payload.data(),
+                    operand: source.holder(),
                     producers: BTreeSet::new(),
                 });
-                if drive.data != payload.data() {
+                if drive.data != payload.data() || drive.operand != source.holder() {
                     return Err(INVALID);
                 }
                 drive.producers.insert(producer);

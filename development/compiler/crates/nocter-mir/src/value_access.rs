@@ -125,6 +125,11 @@ pub struct Preserved {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Record the statically known producer of a receiving activation.
+    SetFutureSelector {
+        destination: Place,
+        tag: u64,
+    },
     SelectedFutureMove {
         selector: Place,
         cases: Box<[FutureCaptureCase<FutureMoveInput>]>,
