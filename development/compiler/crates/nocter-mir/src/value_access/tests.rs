@@ -1,21 +1,24 @@
 //! Actual private source lowering and integrity mutations; no substitute source interpreter.
 use super::*;
 use crate::{MirArithmeticCheck, MirBinaryOperation};
-use nocter_checking::value_access::accepted::SourceUnit;
+use nocter_checking::value_access::accepted::{SourceUnit, Unit};
 use nocter_model::{MirLocalId, ValueInputOperation};
 use nocter_runtime_contract::RuntimeType;
 use nocter_target_program::value_access::InstanceProgram;
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
+mod frozen_enums;
 
 fn lower(source: &str) -> Program {
     let fixture = ValueSourceFixture::new(source);
-    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    lower_unit(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit())
+}
+fn lower_unit(unit: Unit) -> Program {
     let root = unit
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())
         .unwrap();
-    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let instances = Arc::new(InstanceProgram::prepare(Arc::new(unit), root).unwrap());
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
     Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap()
 }

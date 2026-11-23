@@ -136,7 +136,7 @@ impl Executor<'_, '_> {
                 fallback,
             } => {
                 let value = self.read(active.frame, source)?;
-                let super::Data::EnumTag(tag) = value.data() else {
+                let super::Data::Enum { tag, .. } = value.data() else {
                     return Err(Rule::InvalidPlan);
                 };
                 cases

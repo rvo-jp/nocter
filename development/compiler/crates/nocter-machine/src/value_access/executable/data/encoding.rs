@@ -1,7 +1,10 @@
 //! Iterative physical serialization. A repeated array adds one cursor, never N pending entries.
 use super::Failure;
-use crate::{MachineLayoutKind, MachineLayoutPlan, MachineTarget};
-use nocter_model::{FrozenData, FrozenNode};
+use crate::{
+    MachineFieldLayout, MachineLayout, MachineLayoutKind, MachineLayoutPlan, MachineScalar,
+    MachineTarget,
+};
+use nocter_model::{AccessFieldId, FrozenData, FrozenNode};
 use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeRepresentation};
 
@@ -100,18 +103,30 @@ pub(super) fn write(
             continue;
         }
         match &value.nodes()[node] {
-            FrozenNode::EnumTag(tag) => {
-                if runtime.scalar_enum_variant(ty, *tag).is_none() {
+            FrozenNode::Enum { tag, fields } => {
+                let geometry = enum_geometry(layout, *tag).ok_or(Failure::InvalidRoot)?;
+                if runtime
+                    .enum_case_fields(ty, *tag)
+                    .is_none_or(|members| members.len() != fields.len())
+                {
                     return Err(Failure::InvalidRoot);
                 }
                 crate::data::write_integer_bytes(
                     bytes,
-                    offset,
+                    offset
+                        .checked_add(geometry.tag_offset)
+                        .ok_or(Failure::InvalidRoot)?,
                     (*tag).into(),
-                    layout.size(),
+                    geometry.tag_width,
                     target,
                 )
                 .ok_or(Failure::InvalidRoot)?;
+                for ((_, member), &node) in geometry.fields.iter().zip(fields).rev() {
+                    let address = offset
+                        .checked_add(member.offset())
+                        .ok_or(Failure::InvalidRoot)?;
+                    pending.push(Work::Value(member.ty(), node, address));
+                }
             }
             FrozenNode::Variant { primary, payload } => {
                 if let Some(payload) =
@@ -165,6 +180,39 @@ pub(super) fn write(
     Ok(())
 }
 
+struct EnumGeometry<'a> {
+    tag_offset: u64,
+    tag_width: u64,
+    fields: &'a [(AccessFieldId, MachineFieldLayout)],
+}
+
+fn enum_geometry(layout: &MachineLayout, tag: u64) -> Option<EnumGeometry<'_>> {
+    match layout.kind() {
+        MachineLayoutKind::Scalar(MachineScalar::Integer { signed: false, .. }) => {
+            Some(EnumGeometry {
+                tag_offset: 0,
+                tag_width: layout.size(),
+                fields: &[],
+            })
+        }
+        MachineLayoutKind::ValueEnum {
+            tag:
+                MachineScalar::Integer {
+                    bits,
+                    signed: false,
+                },
+            tag_offset,
+            variants,
+            ..
+        } => Some(EnumGeometry {
+            tag_offset: *tag_offset,
+            tag_width: u64::from(*bits) / 8,
+            fields: variants.get(usize::try_from(tag).ok()?)?.fields(),
+        }),
+        _ => None,
+    }
+}
+
 fn write_outcome(
     bytes: &mut [u8],
     target: MachineTarget,
@@ -214,9 +262,10 @@ fn write_outcome(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nocter_model::{ArenaBuilder, VariantId};
+    use nocter_model::{ArenaBuilder, ConstantValue, VariantId};
     use nocter_runtime_contract::{
-        RuntimeAbiIdentity, RuntimeType, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+        RuntimeAbiIdentity, RuntimePrimitive, RuntimeType, RuntimeTypeRepresentationTable,
+        RuntimeTypeTableBuilder, RuntimeValueVariantRepresentation,
     };
     use std::collections::BTreeMap;
 
@@ -241,7 +290,11 @@ mod tests {
             let layout = layouts.get(data).unwrap();
             assert_eq!(layout.size(), u64::try_from(expected.len()).unwrap());
             let mut bytes = vec![0; expected.len()];
-            let value = FrozenData::new(vec![FrozenNode::EnumTag(count - 1)]).unwrap();
+            let value = FrozenData::new(vec![FrozenNode::Enum {
+                tag: count - 1,
+                fields: Box::new([]),
+            }])
+            .unwrap();
             write(
                 &runtime,
                 &layouts,
@@ -252,7 +305,11 @@ mod tests {
             )
             .unwrap();
             assert_eq!(bytes, expected);
-            let invalid = FrozenData::new(vec![FrozenNode::EnumTag(count)]).unwrap();
+            let invalid = FrozenData::new(vec![FrozenNode::Enum {
+                tag: count,
+                fields: Box::new([]),
+            }])
+            .unwrap();
             assert!(
                 write(
                     &runtime,
@@ -264,6 +321,85 @@ mod tests {
                 )
                 .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn tagged_enum_serialization_writes_only_the_active_fields_at_their_offsets() {
+        let (data, wide, byte) = (
+            RuntimeDataId::Instance(0),
+            RuntimeDataId::Instance(1),
+            RuntimeDataId::Instance(2),
+        );
+        let mut ids = ArenaBuilder::<VariantId, ()>::new();
+        let mut fields = ArenaBuilder::<AccessFieldId, ()>::new();
+        let narrow_case = [(fields.insert(()), byte)];
+        let wide_case = [(fields.insert(()), wide), (fields.insert(()), byte)];
+        let variants = (0..257)
+            .map(|index| {
+                let fields = match index {
+                    0 => narrow_case.as_slice(),
+                    256 => wide_case.as_slice(),
+                    _ => &[],
+                };
+                RuntimeValueVariantRepresentation::new(ids.insert(()), fields)
+            })
+            .collect();
+        let mut types = RuntimeTypeTableBuilder::new();
+        types.insert(data, RuntimeType::Aggregate).unwrap();
+        for (id, bits) in [(wide, 64), (byte, 8)] {
+            types
+                .insert(id, RuntimeType::Primitive(RuntimePrimitive::Unsigned(bits)))
+                .unwrap();
+        }
+        let runtime = RuntimeEnvironment::new(
+            types.finish().unwrap(),
+            RuntimeTypeRepresentationTable::new(BTreeMap::from([(
+                data,
+                RuntimeTypeRepresentation::ValueEnum { variants },
+            )])),
+            RuntimeAbiIdentity::Arm64DarwinV1,
+        )
+        .unwrap();
+        let layouts = MachineLayoutPlan::from_runtime(&runtime, [data]).unwrap();
+        let number = |value| FrozenNode::Scalar(ConstantValue::Integer(value));
+        let literal = |tag, fields: Box<[usize]>| {
+            FrozenData::new(vec![
+                number(0x1234),
+                number(0x56),
+                FrozenNode::Enum { tag, fields },
+            ])
+            .unwrap()
+        };
+        let size = usize::try_from(layouts.get(data).unwrap().size()).unwrap();
+        let encode = |value, bytes: &mut [u8]| {
+            write(
+                &runtime,
+                &layouts,
+                data,
+                &value,
+                bytes,
+                |_, _| unreachable!(),
+            )
+        };
+        let mut bytes = vec![0xA5; size];
+        encode(literal(256, vec![0, 1].into()), &mut bytes).unwrap();
+        let mut expected = vec![0xA5; size];
+        expected[..2].copy_from_slice(&[0, 1]);
+        expected[8..16].copy_from_slice(&0x1234u64.to_le_bytes());
+        expected[16] = 0x56;
+        assert_eq!(bytes, expected);
+
+        bytes.fill(0xA5);
+        encode(literal(0, vec![1].into()), &mut bytes).unwrap();
+        expected.fill(0xA5);
+        expected[..2].fill(0);
+        expected[8] = 0x56;
+        assert_eq!(bytes, expected);
+
+        for (tag, fields) in [(256, &[][..]), (1, &[1][..]), (257, &[][..])] {
+            assert!(encode(literal(tag, fields.into()), &mut bytes).is_err());
+            assert_eq!(bytes, expected);
         }
     }
 }

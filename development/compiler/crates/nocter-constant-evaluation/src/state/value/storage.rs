@@ -41,6 +41,20 @@ impl Storage {
         &self,
         fields: impl ExactSizeIterator<Item = Value>,
     ) -> Result<Value, Rule> {
+        self.sequence(fields, Data::Aggregate)
+    }
+    fn enumeration(
+        &self,
+        tag: u64,
+        fields: impl ExactSizeIterator<Item = Value>,
+    ) -> Result<Value, Rule> {
+        self.sequence(fields, |fields| Data::Enum { tag, fields })
+    }
+    fn sequence(
+        &self,
+        fields: impl ExactSizeIterator<Item = Value>,
+        data: impl FnOnce(Box<[Value]>) -> Data,
+    ) -> Result<Value, Rule> {
         let allocation = self.items(fields.len())?;
         let fields = fields.collect::<Box<[_]>>();
         if fields.iter().any(|value| !value.belongs_to(self)) {
@@ -48,7 +62,7 @@ impl Storage {
         }
         Ok(Value {
             node: Some(Arc::new(Node {
-                data: Data::Aggregate(fields),
+                data: data(fields),
                 allocation: Some(allocation),
             })),
         })
@@ -116,6 +130,9 @@ impl Storage {
             } else {
                 match source.data() {
                     Data::Aggregate(fields) => self.aggregate(fields.iter().map(imported))?,
+                    Data::Enum { tag, fields } => {
+                        self.enumeration(*tag, fields.iter().map(imported))?
+                    }
                     Data::Variant { primary, payload } => {
                         self.variant(*primary, payload.as_ref().map(imported))?
                     }

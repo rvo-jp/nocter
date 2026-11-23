@@ -95,7 +95,8 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_))
             | (Some(Type::Text), Data::Text(_)) => {}
-            (Some(Type::ScalarEnum { variants, .. }), Data::EnumTag(tag)) if tag < variants => {}
+            (Some(Type::ScalarEnum { variants, .. }), Data::Enum { tag, fields })
+                if tag < variants && fields.is_empty() => {}
             (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()

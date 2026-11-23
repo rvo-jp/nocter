@@ -24,7 +24,10 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
-                Data::EnumTag(tag) => FrozenNode::EnumTag(*tag),
+                Data::Enum { tag, fields } => FrozenNode::Enum {
+                    tag: *tag,
+                    fields: fields.iter().map(|field| ids[&field.identity()]).collect(),
+                },
                 Data::Text(text) => FrozenNode::Scalar(ConstantValue::Text(text.as_ref().into())),
                 Data::Variant { primary, payload } => FrozenNode::Variant {
                     primary: *primary,
@@ -62,21 +65,23 @@ impl Value {
                 continue;
             }
             let node = data.nodes().get(id)?;
-            if !expanded
-                && matches!(
-                    node,
-                    FrozenNode::Aggregate(_)
-                        | FrozenNode::Repeated { .. }
-                        | FrozenNode::Variant { .. }
-                )
-            {
-                pending.push((id, true));
-                pending.extend(children(node).rev().map(|field| (field, false)));
-                continue;
+            if !expanded {
+                let mut children = children(node).rev().peekable();
+                if children.peek().is_some() {
+                    pending.push((id, true));
+                    pending.extend(children.map(|field| (field, false)));
+                    continue;
+                }
             }
             let value = match node {
                 FrozenNode::Unit => Self::unit(),
-                FrozenNode::EnumTag(tag) => Self::enum_tag(*tag),
+                FrozenNode::Enum { tag, fields } => Self::enumeration(
+                    *tag,
+                    fields
+                        .iter()
+                        .map(|id| values.get(id).cloned())
+                        .collect::<Option<Box<[_]>>>()?,
+                ),
                 FrozenNode::Variant { primary, payload } => Self::variant(
                     *primary,
                     match payload {
@@ -114,7 +119,7 @@ impl Value {
 }
 fn children(node: &FrozenNode) -> impl DoubleEndedIterator<Item = usize> + '_ {
     let (fields, element, replacements): (&[usize], _, _) = match node {
-        FrozenNode::Aggregate(fields) => (fields, None, None),
+        FrozenNode::Aggregate(fields) | FrozenNode::Enum { fields, .. } => (fields, None, None),
         FrozenNode::Variant { payload, .. } => (&[], *payload, None),
         FrozenNode::Repeated {
             element,

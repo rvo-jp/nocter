@@ -7,8 +7,11 @@ use std::sync::Arc;
 pub enum FrozenNode {
     Unit,
     Scalar(ConstantValue),
-    /// A payloadless variant's ordinal within the consuming nominal schema.
-    EnumTag(u64),
+    /// One variant's ordinal and its active payload nodes in declaration order.
+    Enum {
+        tag: u64,
+        fields: Box<[usize]>,
+    },
     /// One selected branch and its optional stored payload; the consuming type owns tag meaning.
     Variant {
         primary: bool,
@@ -38,7 +41,9 @@ impl FrozenData {
         let nodes = nodes.into();
         let root = nodes.len().checked_sub(1).ok_or(InvalidFrozenData)?;
         if nodes.iter().enumerate().any(|(id, node)| match node {
-            FrozenNode::Aggregate(fields) => fields.iter().any(|&field| field >= id),
+            FrozenNode::Enum { fields, .. } | FrozenNode::Aggregate(fields) => {
+                fields.iter().any(|&field| field >= id)
+            }
             FrozenNode::Variant { payload, .. } => payload.is_some_and(|payload| payload >= id),
             FrozenNode::Repeated {
                 element,
@@ -51,7 +56,7 @@ impl FrozenData {
                         .any(|&(index, value)| index >= length.get() || value >= id)
                     || replacements.windows(2).any(|pair| pair[0].0 >= pair[1].0)
             }
-            FrozenNode::Unit | FrozenNode::Scalar(_) | FrozenNode::EnumTag(_) => false,
+            FrozenNode::Unit | FrozenNode::Scalar(_) => false,
         }) {
             return Err(InvalidFrozenData);
         }
@@ -137,6 +142,28 @@ mod tests {
 #[cfg(test)]
 mod variant_tests {
     use super::*;
+    #[test]
+    fn enum_payload_edges_must_precede_the_active_case_node() {
+        let nodes = |fields: Box<[usize]>| {
+            vec![
+                FrozenNode::Unit,
+                FrozenNode::Enum { tag: 256, fields },
+                FrozenNode::Unit,
+            ]
+        };
+        for invalid in [1, 2, usize::MAX] {
+            assert!(FrozenData::new(nodes(vec![invalid].into())).is_err());
+        }
+        let graph = FrozenData::new(nodes(vec![0, 0].into())).unwrap();
+        assert_eq!(
+            graph.at(1).unwrap().node(),
+            &FrozenNode::Enum {
+                tag: 256,
+                fields: vec![0, 0].into()
+            }
+        );
+    }
+
     #[test]
     fn variant_edges_are_validated_even_when_not_selected_as_the_final_root() {
         assert!(

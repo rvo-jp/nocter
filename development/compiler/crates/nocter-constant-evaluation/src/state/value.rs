@@ -19,7 +19,10 @@ pub enum Data {
     Unit,
     Bool(bool),
     Integer(i128),
-    EnumTag(u64),
+    Enum {
+        tag: u64,
+        fields: Box<[Value]>,
+    },
     Text(Arc<str>),
     Variant {
         primary: bool,
@@ -83,8 +86,11 @@ impl Value {
         Self::plain(Data::Integer(value.into()))
     }
     #[must_use]
-    pub fn enum_tag(tag: u64) -> Self {
-        Self::plain(Data::EnumTag(tag))
+    pub fn enumeration(tag: u64, fields: impl Into<Box<[Self]>>) -> Self {
+        Self::plain(Data::Enum {
+            tag,
+            fields: fields.into(),
+        })
     }
     #[must_use]
     pub fn text(value: impl Into<Arc<str>>) -> Self {
@@ -191,7 +197,6 @@ impl PartialEq for Value {
                 (Data::Unit, Data::Unit) => {}
                 (Data::Bool(a), Data::Bool(b)) if a == b => {}
                 (Data::Integer(a), Data::Integer(b)) if a == b => {}
-                (Data::EnumTag(a), Data::EnumTag(b)) if a == b => {}
                 (Data::Text(a), Data::Text(b)) if a == b => {}
                 _ if left.data().component_pairs(right.data(), &mut pending) => {}
                 _ => return false,

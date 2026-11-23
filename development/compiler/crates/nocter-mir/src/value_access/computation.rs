@@ -151,10 +151,18 @@ impl Builder<'_> {
                 primary: true,
             },
             ExpressionKind::Constant(value) => match value.node() {
-                nocter_model::FrozenNode::EnumTag(tag) => Operation::Constant {
-                    destination,
-                    value: Constant::EnumTag(*tag),
-                },
+                nocter_model::FrozenNode::Enum { tag, fields }
+                    if fields.is_empty()
+                        && self
+                            .runtime
+                            .scalar_enum_variant(destination.data, *tag)
+                            .is_some() =>
+                {
+                    Operation::Constant {
+                        destination,
+                        value: Constant::EnumTag(*tag),
+                    }
+                }
                 _ => Operation::Frozen { destination, value },
             },
             ExpressionKind::Integer(value) => Operation::Constant {

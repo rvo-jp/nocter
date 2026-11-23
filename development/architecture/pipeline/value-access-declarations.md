@@ -107,7 +107,7 @@ construction under the grant's effective audience and checks every listed field 
 audience. The ordinary record initializer consumes the resulting schema. Compile-time evaluation
 and native lowering retain the written initializer order and the schema's field identities.
 
-### Scalar Enum Declarations
+### Enum Declarations and Storage
 
 The [enum contract](../../spec/language/structs-and-enums.md#public-and-opaque-schemas) selects
 one braced schema from the declaring source or the opaque contract's paired implementation.
@@ -128,14 +128,17 @@ data-instance and target shape projection as records. The layout planner places 
 fields in one shared aligned payload area and derives tag width from the complete schema. Logical
 paths retain both variant and field identity. Fields within the same case are disjoint, while fields
 from different cases may share the backing area. Projecting a field's type supplies no active-tag
-proof. The source execution path currently materializes scalar enum values.
+proof.
 
-A payloadless constructor selects its declared variant and produces the owning nominal value.
-Required evaluation validates and retains its tag under the exact enum schema. Native lowering
-materializes standalone tags as immediates and uses the same layout for nested constant data and
-statics. The target selects the smallest supported unsigned width that fits the schema.
-That width belongs to the representation. Source numeric operations still use their own data
-contracts.
+The frozen value graph represents an enum with one ordinal and the ordered payload edges for that
+case. MIR validates those edges against the selected case's stored types. Native serialization
+writes the tag and only that case's fields at the offsets chosen by the layout planner. The target
+selects the smallest supported unsigned width that fits the schema.
+
+A scalar enum constructor produces the owning nominal value with an empty payload list. Native
+lowering materializes standalone scalar tags as immediates and uses the same scalar layout for
+nested constant data and statics. The source execution path currently materializes scalar enum
+values.
 
 A scalar [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the
 variant through the same declaration and audience. The checker requires the scrutinee's exact

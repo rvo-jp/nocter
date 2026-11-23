@@ -1181,13 +1181,19 @@ impl Context<'_> {
                 continue;
             }
             match (&value.nodes()[node], self.program.runtime.types().get(data)) {
-                (FrozenNode::EnumTag(tag), Some(RuntimeType::Aggregate)) => {
-                    self.require(
-                        self.program
-                            .runtime
-                            .scalar_enum_variant(data, *tag)
-                            .is_some(),
-                    )?;
+                (FrozenNode::Enum { tag, fields }, Some(RuntimeType::Aggregate)) => {
+                    let members = self
+                        .program
+                        .runtime
+                        .enum_case_fields(data, *tag)
+                        .ok_or_else(|| self.invalid())?;
+                    self.require(members.len() == fields.len())?;
+                    pending.extend(
+                        members
+                            .iter()
+                            .zip(fields)
+                            .map(|(&(_, data), &node)| (data, node)),
+                    );
                 }
                 (FrozenNode::Unit, Some(RuntimeType::Unit))
                 | (

@@ -277,6 +277,38 @@ fn publication_roundtrip_preserves_deep_shared_data_without_expanding_a_tree() {
 }
 
 #[test]
+fn enum_values_freeze_and_meter_only_their_active_payloads() {
+    let leaf = Value::integer(42);
+    let value = Value::enumeration(256, vec![leaf.clone(), leaf]);
+    let frozen = value.freeze();
+    assert_eq!(frozen.nodes().len(), 2);
+    let restored = Value::from_frozen(&frozen).unwrap();
+    assert_eq!(restored, value);
+    let Data::Enum { tag, fields } = restored.data() else {
+        panic!("active enum case")
+    };
+    assert_eq!(*tag, 256);
+    assert_eq!(fields[0].identity(), fields[1].identity());
+    assert_ne!(restored, Value::enumeration(255, fields.clone()));
+    assert_ne!(restored, Value::aggregate(fields.clone()));
+    let roomy = budget(100);
+    let imported = roomy.storage.import(&restored).unwrap();
+    assert_eq!(roomy.storage_used(), 4);
+    drop(imported);
+    assert_eq!(roomy.storage_used(), 0);
+
+    let tight = budget(2);
+    assert_eq!(
+        tight.storage.import(&restored).unwrap_err(),
+        Rule::StorageLimit
+    );
+    assert_eq!(tight.storage_used(), 0);
+    let empty = Value::enumeration(1, Box::<[Value]>::default());
+    assert_eq!(tight.storage.import(&empty).unwrap(), empty);
+    assert_eq!(tight.storage_used(), 0);
+}
+
+#[test]
 fn publication_views_restore_only_reachable_data_and_preserve_selected_sharing() {
     use nocter_model::{ConstantValue, FrozenData, FrozenNode};
     let frozen = FrozenData::new(vec![

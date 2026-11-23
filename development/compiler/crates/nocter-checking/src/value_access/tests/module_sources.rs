@@ -190,9 +190,12 @@ fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
     };
     let tags = fields
         .iter()
-        .map(|&id| &value.nodes()[id])
+        .map(|&id| match &value.nodes()[id] {
+            FrozenNode::Enum { tag, fields } if fields.is_empty() => *tag,
+            _ => panic!("expected a scalar enum case"),
+        })
         .collect::<Vec<_>>();
-    assert_eq!(tags, [&FrozenNode::EnumTag(1), &FrozenNode::EnumTag(2)]);
+    assert_eq!(tags, [1, 2]);
     verify_enum_carrier_retirement(unit);
 }
 

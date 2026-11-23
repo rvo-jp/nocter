@@ -241,9 +241,11 @@ impl Checker<'_, '_> {
                 && let Some(owner) = self.constructor_owner(*base)?
                 && let Some((data, tag)) = self.enum_variant(owner, member)?
             {
-                let value =
-                    nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::EnumTag(tag)])
-                        .map_err(|_| Failure::InconsistentSyntax)?;
+                let value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Enum {
+                    tag,
+                    fields: Box::new([]),
+                }])
+                .map_err(|_| Failure::InconsistentSyntax)?;
                 return self.constant_value(node, data, &value);
             }
         }

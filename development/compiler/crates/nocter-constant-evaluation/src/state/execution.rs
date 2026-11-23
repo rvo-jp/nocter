@@ -435,7 +435,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 destination,
             } => {
                 let value = self.read(frame, source)?;
-                let Data::EnumTag(actual) = value.data() else {
+                let Data::Enum { tag: actual, .. } = value.data() else {
                     return Err(Rule::InvalidPlan);
                 };
                 (

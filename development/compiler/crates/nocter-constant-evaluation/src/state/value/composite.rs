@@ -6,11 +6,11 @@ impl Data {
         matches!(
             self,
             Self::Aggregate(_) | Self::Repeated { .. } | Self::Variant { .. }
-        )
+        ) || matches!(self, Self::Enum { fields, .. } if !fields.is_empty())
     }
     pub(in crate::state) fn children(&self) -> impl DoubleEndedIterator<Item = &Value> {
         let (fields, element, replacements): (&[Value], _, _) = match self {
-            Self::Aggregate(fields) => (fields, None, None),
+            Self::Aggregate(fields) | Self::Enum { fields, .. } => (fields, None, None),
             Self::Variant { payload, .. } => (&[], payload.as_ref(), None),
             Self::Repeated {
                 element,
@@ -26,7 +26,7 @@ impl Data {
     }
     pub(super) fn into_children(self) -> Vec<Value> {
         match self {
-            Self::Aggregate(fields) => fields.into_vec(),
+            Self::Aggregate(fields) | Self::Enum { fields, .. } => fields.into_vec(),
             Self::Variant { payload, .. } => payload.into_iter().collect(),
             Self::Repeated {
                 element,
@@ -41,7 +41,7 @@ impl Data {
     pub(super) fn storage_items(&self) -> Result<usize, Rule> {
         match self {
             Self::Text(text) => Ok(text.len()),
-            Self::Aggregate(fields) => Ok(fields.len()),
+            Self::Aggregate(fields) | Self::Enum { fields, .. } => Ok(fields.len()),
             Self::Variant { payload, .. } => Ok(usize::from(payload.is_some())),
             Self::Repeated { replacements, .. } => Self::repeated_items(replacements.len()),
             _ => Ok(0),
@@ -96,6 +96,18 @@ impl Data {
                 };
             }
             (Self::Aggregate(left), Self::Aggregate(right)) if left.len() == right.len() => {
+                pending.extend(left.iter().zip(right));
+            }
+            (
+                Self::Enum {
+                    tag: a,
+                    fields: left,
+                },
+                Self::Enum {
+                    tag: b,
+                    fields: right,
+                },
+            ) if a == b && left.len() == right.len() => {
                 pending.extend(left.iter().zip(right));
             }
             (Self::Aggregate(fields), Self::Repeated { length, .. })

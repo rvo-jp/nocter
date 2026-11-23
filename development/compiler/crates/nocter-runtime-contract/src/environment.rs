@@ -81,6 +81,26 @@ impl RuntimeEnvironment {
             .copied()
     }
 
+    /// The exact stored fields of the declared case selected by this ordinal.
+    /// A scalar case has no fields. Selection validates metadata only.
+    #[must_use]
+    pub fn enum_case_fields(
+        &self,
+        data: RuntimeDataId,
+        tag: u64,
+    ) -> Option<&[(nocter_model::AccessFieldId, RuntimeDataId)]> {
+        let position = usize::try_from(tag).ok()?;
+        match self.type_representations.get(data)? {
+            RuntimeTypeRepresentation::ScalarEnum { variants } => {
+                variants.get(position).map(|_| &[][..])
+            }
+            RuntimeTypeRepresentation::ValueEnum { variants } => {
+                Some(variants.get(position)?.fields())
+            }
+            _ => None,
+        }
+    }
+
     /// Select one stored value-model component. This grants no initialization or access proof.
     #[must_use]
     pub fn value_field(

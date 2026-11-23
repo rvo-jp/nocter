@@ -200,13 +200,14 @@ impl Checker<'_, '_> {
                 Some(nocter_model::BuiltinType::Str),
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Text(_)),
             ) => ExpressionKind::Constant(value.clone()),
-            (_, nocter_model::FrozenNode::EnumTag(tag))
-                if matches!(
-                    self.program().data_schema(data),
-                    Some(PayloadSchema::Enumeration(schema))
-                        if !schema.has_payload()
-                            && usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
-                ) =>
+            (_, nocter_model::FrozenNode::Enum { tag, fields })
+                if fields.is_empty()
+                    && matches!(
+                        self.program().data_schema(data),
+                        Some(PayloadSchema::Enumeration(schema))
+                            if !schema.has_payload()
+                                && usize::try_from(*tag).is_ok_and(|tag| tag < schema.variants().len())
+                    ) =>
             {
                 ExpressionKind::Constant(value.clone())
             }

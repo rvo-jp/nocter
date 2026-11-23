@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry one active enum case and its ordered payloads through the frozen value graph. Validate the
-selected fields and serialize their bytes using the canonical tagged layout. Keep source
-construction and lifecycle admission independent of immutable data qualification.
+Extend the evaluator plan to assemble and inspect selected enum cases. Check the exact nominal
+case and component types, reuse metered value construction and the common tag branch operations,
+and verify retirement of staged field values before enabling authored construction.
 
 ## Remaining Contextual Representation Qualification
 
@@ -734,9 +734,11 @@ not a language restriction derived from the current realization boundary.
   identities, union alignment, widened tags, and the published layout when sharing geometry.
 - [x] Connect closed payload-bearing enum data instances to the common target representation.
   Qualify exact storage and logical field identity from physical declarations before value operations.
-- [ ] Qualify the frozen representation and serialization of enum values with selected payloads.
+- [x] Qualify the frozen representation and serialization of enum values with selected payloads.
   Retain the tag and declaration-ordered active values, validate fields against their exact types,
   and write only the selected case into target storage.
+- [ ] Qualify selected enum case assembly and tag inspection in the evaluator plan. Reuse the
+  metered staging and verify active arity, field types and branch selection before source admission.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
