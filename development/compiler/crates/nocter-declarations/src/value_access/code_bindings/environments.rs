@@ -154,6 +154,7 @@ impl<'a> Validation<'a> {
     }
     fn witnesses(&mut self, mut pending: Vec<&ConcreteWitness>) -> Result<(), CodeBindingError> {
         while let Some(witness) = pending.pop() {
+            self.program.require_concrete_root(witness.code().root())?;
             if self.program.function_data(witness.witness()).is_none() {
                 return Err(CodeBindingError::InvalidWitness);
             }

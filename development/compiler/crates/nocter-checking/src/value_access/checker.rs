@@ -63,23 +63,6 @@ pub(super) struct Checker<'a, 's> {
         Option<nocter_declaration_lowering::access_declarations::BodyExpressions<'s>>,
 }
 
-pub(super) fn prepare(
-    context: &DeclarationContext<'_>,
-    callable: AccessCodeId,
-    values: &dyn super::evaluation::Values,
-) -> Result<Query, Failure> {
-    let draft = type_body(context, callable, values)?;
-    if !draft
-        .program()
-        .generic_parameter_ids(callable)
-        .ok_or(Failure::InconsistentSyntax)?
-        .is_empty()
-    {
-        return reject_generic_body(context, callable);
-    }
-    Ok(draft)
-}
-
 pub(super) fn reject_generic_body<T>(
     context: &DeclarationContext<'_>,
     callable: AccessCodeId,

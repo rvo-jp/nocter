@@ -268,6 +268,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         .program()
                         .generic_parameter_ids(code)
                         .is_some_and(|slots| !slots.is_empty())
+                    && !query.program().codes().get(code).is_some_and(|header| {
+                        matches!(
+                            header.kind(),
+                            nocter_declarations::value_access::CodeKind::Function(
+                                nocter_model::CompileTimeGuarantee::RuntimeOnly
+                            )
+                        )
+                    })
                 {
                     if query.results_closed() {
                         accepted::check_definition_flow(&self.context, Arc::from(query))?;

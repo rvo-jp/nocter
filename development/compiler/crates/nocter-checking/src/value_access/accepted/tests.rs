@@ -72,10 +72,9 @@ fn explicit_generic_arguments_cannot_disappear_during_ordinary_call_or_type_reso
 }
 
 #[test]
-fn generic_headers_do_not_admit_unchecked_bodies_or_unspecialized_calls() {
+fn generic_headers_do_not_admit_unspecialized_calls_or_values() {
     use crate::value_access::Rule::UnqualifiedGenericCallable;
     for (text, origin) in [
-        ("func template<T>(): void {}", "<T>"),
         (
             "func run(): void { template() }\nfunc template<T>(): void {}",
             "template()",
@@ -202,13 +201,12 @@ fn generic_body_initialization_respects_replacement_and_unreached_moves() {
         "if false { let prior = value^ }\nvalue^",
     ] {
         let text = format!("func finish<T>(take value: T): T {{ {body} }}");
-        let (sources, tree) = input(&text);
-        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        let unit = accepted(&text);
         assert!(
-            matches!(failure, SourceFailure::Checking(Failure::Body {
-            failure: BodyFailure::Rejected(ref diagnostic), ..
-        }) if diagnostic.rule() == crate::value_access::Rule::UnqualifiedGenericCallable),
-            "{body}: {failure:?}"
+            named(&unit, "finish")
+                .initialization()
+                .violations()
+                .is_empty()
         );
     }
 }
@@ -224,20 +222,19 @@ fn generic_flow_keeps_cleanup_obligations_until_substitution() {
         ),
         ("func finish<T>(take value: T): T { value^ }", false),
     ] {
-        let (sources, tree) = input(text);
-        let syntax = bound(&sources, &tree);
-        let headers = declarations::Query::prepare(syntax).unwrap();
-        let context = headers.bind(syntax).unwrap();
-        let (owner, header) = headers.program().codes().iter().next().unwrap();
-        let parameter = headers
+        let unit = accepted(text);
+        let checked = named(&unit, "finish");
+        let header = unit
+            .program()
+            .codes()
+            .get(checked.typed().source_owner())
+            .unwrap();
+        let parameter = unit
             .program()
             .parameters()
             .get(header.parameters()[0])
             .unwrap();
-        let typed = crate::value_access::checker::type_body(&context, owner, &()).unwrap();
-        let checked = check_definition_flow(&context, std::sync::Arc::new(typed))
-            .unwrap_or_else(|failure| panic!("{text}: {failure:?}"));
-        let steps = support::steps(&checked);
+        let steps = support::steps(checked);
         let disposal = steps
             .iter()
             .filter_map(|step| match step {
@@ -276,6 +273,31 @@ fn generic_flow_rejects_transfer_that_overlaps_a_still_required_edit() {
             .unwrap()
             .text_at(diagnostic.primary().span().range()),
         Some("slot^")
+    );
+}
+
+#[test]
+fn an_unused_generic_definition_is_checked_in_the_ordinary_unit() {
+    let unit = accepted("func retire<T>(take value: T): void {}\nfunc run(): i32 { 42 }");
+    let body = named(&unit, "retire");
+    let id = body.typed().source_owner();
+    assert!(body.access().violations().is_empty());
+    assert!(unit.program().code_template(id.into()).is_ok());
+    assert_eq!(
+        unit.program().bind_code(id.into(), []),
+        Err(nocter_declarations::value_access::CodeBindingError::MissingGenericApplication(id)),
+    );
+}
+
+#[test]
+fn closed_required_expressions_inside_generic_definitions_need_no_application() {
+    let unit =
+        accepted("func finish<T>(take value: T): T { let work: [i32; 2 + 2] = [1; 4]\nvalue^ }");
+    assert!(
+        named(&unit, "finish")
+            .initialization()
+            .violations()
+            .is_empty()
     );
 }
 

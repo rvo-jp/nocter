@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Retain checked generic definitions in the ordinary accepted unit. Require a complete generic
-application before binding an executable root or call, and preserve deferred cleanup until its
-concrete data is selected.
+Specialize explicit calls to checked generic definitions. Project the selected signature through
+the canonical type substitution, bind a frame to the complete application, and verify that the
+original operations and deferred cleanup hold for the concrete payloads.
 
 ## Remaining Contextual Representation Qualification
 
@@ -691,6 +691,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify definition-local initialization and access for whole-value generic transfers.
   Verify repeated/conditional moves, restored values, live edit conflicts and retained
   generic disposal obligations. Require a closed disposal before MIR lowering.
+- [x] Retain checked runtime generic definitions in the ordinary accepted unit. Verify symbolic
+  producer and evaluator facts, independent closed required expressions, refusal to bind a
+  generic definition as an executable root, and unrelated native entry selection.
+- [ ] Bind explicit applications to concrete signatures and frames. Qualify distinct types and
+  lengths, exact input/return rules, original generic moves, and concrete cleanup through the
+  ordinary native path.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

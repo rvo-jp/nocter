@@ -719,6 +719,9 @@ impl Program {
         path: &nocter_model::ValuePath<I>,
         in_bounds: impl Fn(&I, u64) -> bool,
     ) -> Option<TypeId> {
+        if path.is_root() && self.symbolic_type_parameter(data).is_some() {
+            return Some(data);
+        }
         self.data_schema(data)?;
         for field in path.fields() {
             data = self.project_component(data, field, &in_bounds)?;

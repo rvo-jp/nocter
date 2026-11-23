@@ -280,6 +280,7 @@ pub(super) fn close(
     root: AccessCodeId,
     work: &mut WorkBudget,
 ) -> Result<InstanceProgram, Failure> {
+    use nocter_declarations::value_access::CodeBindingError;
     let declaration = unit
         .program()
         .codes()
@@ -297,23 +298,17 @@ pub(super) fn close(
     ) {
         return Err(Failure::DestructorRoot(root));
     }
-    for &id in declaration.parameters() {
-        if unit
-            .program()
-            .parameters()
-            .get(id)
-            .ok_or(Failure::InvalidAcceptedUnit)?
-            .contract()
-            .is_some()
-        {
-            return Err(Failure::UnboundRoot(id));
-        }
-    }
     let mut builder = Builder::default();
     let root = builder.intern(
         unit.program()
             .bind_code(nocter_model::ValueCode::Declaration(root), [])
-            .map_err(|_| Failure::InvalidAcceptedUnit)?,
+            .map_err(|failure| match failure {
+                CodeBindingError::MissingGenericApplication(owner) => Failure::GenericRoot(owner),
+                CodeBindingError::Missing(nocter_model::ValueParameter::Declaration(formal)) => {
+                    Failure::UnboundRoot(formal)
+                }
+                _ => Failure::InvalidAcceptedUnit,
+            })?,
     );
     while builder.next(&unit, work)?.is_some() {}
     builder.finish(unit, root)

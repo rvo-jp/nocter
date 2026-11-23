@@ -70,7 +70,9 @@ The cross-stage contract is documented in
 `value_access::InstanceProgram` owns the future private product's root-driven static instances.
 It retains the exact accepted Unit and its body/type authority; no released CheckedProgram or
 TargetProgram adapter exists. Roots requiring externally supplied callback witnesses reject as
-unbound. Named and anonymous call instances use the same owner-scoped formal binding keys;
+unbound. An unspecialized generic declaration cannot serve as an executable root, even if its
+authored signature and body use only closed data. Named and anonymous call instances use the same
+owner-scoped formal binding keys;
 an anonymous instance requires exactly its own callable inputs, independently of environment size
 or the positions in another closure. Constant/static initialization thunks reject as roots and never become runtime instances through
 constant/static references; checking has already frozen their initializers. Static place views

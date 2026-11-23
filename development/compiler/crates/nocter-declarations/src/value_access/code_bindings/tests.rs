@@ -7,6 +7,42 @@ use nocter_model::{
     AccessCodeId, BuiltinType, CompileTimeGuarantee, SymbolTable, ValueInputOperation,
 };
 
+#[test]
+fn a_generic_signature_does_not_bind_an_executable_root() {
+    let symbols = SymbolTable::from_spellings(["template", "T"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let code = reservations.reserve(symbols.get("template").unwrap(), 0);
+    reservations
+        .reserve_callable_generics(
+            code,
+            vec![(
+                symbols.get("T").unwrap(),
+                crate::GenericParameterDomain::Type,
+            )],
+        )
+        .unwrap();
+    let mut headers = reservations.finish().unwrap().into_publication();
+    headers
+        .define_generic(
+            code,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    let program = headers.finish().unwrap();
+    let template = ValueCode::Declaration(code);
+    assert_eq!(program.code_template(template).unwrap().code(), template);
+    assert_eq!(
+        program.bind_code(template, []),
+        Err(CodeBindingError::MissingGenericApplication(code))
+    );
+    assert_eq!(
+        program.concrete_witness(FunctionWitness::from(code)),
+        Err(CodeBindingError::MissingGenericApplication(code))
+    );
+}
+
 fn headers() -> (Program, [AccessCodeId; 5]) {
     let symbols =
         SymbolTable::from_spellings(["read", "edit", "plain", "wrong", "factory", "action"]);

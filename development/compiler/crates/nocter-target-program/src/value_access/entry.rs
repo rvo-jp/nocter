@@ -19,6 +19,12 @@ pub fn entry_result(
         .codes()
         .get(callable)
         .ok_or(EntryContractRule::TopLevelFunction)?;
+    if program
+        .generic_parameter_ids(callable)
+        .is_some_and(|slots| !slots.is_empty())
+    {
+        return Err(EntryContractRule::GenericParameters);
+    }
     match code.kind() {
         CodeKind::Function(_) => {}
         CodeKind::DeferredFunction if unit.can_drive_without_suspension(callable) => {}

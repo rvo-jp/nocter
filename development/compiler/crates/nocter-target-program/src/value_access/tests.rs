@@ -838,6 +838,30 @@ fn required_initializers_are_not_function_values_or_runtime_instance_roots() {
 }
 
 #[test]
+fn checked_generic_definitions_stay_out_of_an_unrelated_instance_graph() {
+    let fixture = ValueSourceFixture::new(
+        "func open<T>(): i32 { 42 }\nfunc retire<T>(take value: T): void {}\nfunc run(): i32 { 42 }",
+    );
+    let unit = accepted(&fixture);
+    let generic = callable(&unit, "open");
+    assert_eq!(
+        super::entry::entry_result(&unit, generic),
+        Err(crate::EntryContractRule::GenericParameters)
+    );
+    assert!(matches!(
+        InstanceProgram::prepare(unit.clone(), generic),
+        Err(Failure::GenericRoot(code)) if code == generic
+    ));
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    assert_eq!(
+        graph.instances().get(graph.root()).unwrap().key().code(),
+        root.into()
+    );
+}
+
+#[test]
 fn empty_array_storage_has_identity_without_an_element_payload_edge() {
     for source in [
         "func run(): [i32; 0] { [] }",

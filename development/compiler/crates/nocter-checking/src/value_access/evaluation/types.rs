@@ -301,6 +301,14 @@ impl Types {
                 }
                 continue;
             }
+            if matches!(data, ShapeKey::Raw(_))
+                && program.symbolic_type_parameter(data.data()).is_some()
+            {
+                // Definition conditions may mention a generic payload whose executable
+                // representation is still unknown.
+                self.insert(data, Type::Unavailable, false);
+                continue;
+            }
             let Some(schema) = program.data_schema(data.data()) else {
                 if !metadata_only || program.nominal_identity(data.data()).is_none() {
                     return Err(INVALID);

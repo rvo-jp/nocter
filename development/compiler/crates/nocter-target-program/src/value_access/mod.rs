@@ -170,6 +170,7 @@ pub enum Failure {
     InitializerRoot(AccessCodeId),
     BodylessRoot(AccessCodeId),
     DestructorRoot(AccessCodeId),
+    GenericRoot(AccessCodeId),
     UnboundRoot(AccessParameterId),
     Invocation {
         site: nocter_model::ValueApplication,

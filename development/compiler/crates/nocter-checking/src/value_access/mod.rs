@@ -332,7 +332,7 @@ impl Query {
         context: &DeclarationContext<'_>,
         callable: AccessCodeId,
     ) -> Result<Self, Failure> {
-        checker::prepare(context, callable, &())
+        checker::type_body(context, callable, &())
     }
     #[must_use]
     pub const fn results_closed(&self) -> bool {

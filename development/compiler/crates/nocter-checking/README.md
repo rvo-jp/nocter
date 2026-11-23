@@ -1192,6 +1192,12 @@ access/resource validation, once each. Control IDs and the type authority do not
 graph is rebuilt. A taking formal environment can therefore pass through a result without
 acquiring Copy, while a concrete named result at a caller can independently prove Copy.
 
+The accepted unit retains checked runtime generic definitions even when they have no call sites.
+An unresolved parameter or array extent can participate in whole-value flow and retain its cleanup
+obligation. Producer analysis leaves its callable and tag facts unknown, and the evaluator records
+the unspecialized payload as unavailable. A closed required expression inside the definition still
+has its own evaluation root.
+
 Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
 joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,
 input operations and result data must already agree. Once those identities close, construction
