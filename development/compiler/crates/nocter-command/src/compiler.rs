@@ -108,6 +108,7 @@ impl CommandCompiler {
         .map_err(CommandPackageQueryError::Resolution)
     }
 
+    #[cfg(test)]
     pub(crate) fn compile(
         &mut self,
         discovered: &CompilerDiscoveredUnit,

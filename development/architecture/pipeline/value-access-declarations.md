@@ -26,9 +26,11 @@ identity. Session retains that same query branch and the original common failure
 exact-current envelope, without invoking checking or converting to released semantic views. Source
 checking remains separate from target admission. Session can select a v2 package executable through
 authored metadata and retained module headers. Native lowering consumes that checked selection for
-the supported process results. Editor features, the installed standard library and CLI integration
-require separate qualification. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
-defines its reuse and recovery scope.
+the supported process results. A test body has a compiler-owned `void!` contract and a separate
+identity from named functions. The test target selects directly authored cases from the sealed
+module inventory in source order and lowers their checked bodies through the same native path.
+The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
+defines source reuse and recovery scope.
 
 ## Implemented Handoff
 

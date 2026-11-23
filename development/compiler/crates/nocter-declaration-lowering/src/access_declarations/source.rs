@@ -117,6 +117,22 @@ impl CodeSource {
             kind: CodeSourceKind::Expression(body),
         }
     }
+    pub(in crate::access_declarations) fn test(
+        name: SyntaxToken,
+        declaration: NodeId,
+        body: NodeId,
+    ) -> Self {
+        Self::declaration(
+            CodeHeaderSource {
+                name,
+                deferred_modifier: None,
+                parameters: Box::new([]),
+                parameter_types: Box::new([]),
+                result: declaration,
+            },
+            Some(body),
+        )
+    }
     fn header(&self) -> Option<&CodeHeaderSource> {
         match &self.kind {
             CodeSourceKind::Declaration { header, .. } => Some(header),

@@ -31,7 +31,9 @@ fn declaration(parser: &mut Parser<'_>) {
         Some(DeclarationKind::Construct) => construct::declaration(parser),
         Some(DeclarationKind::Instance) => instance::declaration(parser),
         Some(DeclarationKind::Drop) => drop_declaration(parser),
-        Some(DeclarationKind::Test) => test_declaration(parser),
+        Some(DeclarationKind::Test) => test_declaration(parser, |parser| {
+            block::required(parser);
+        }),
         None => parser.error_token(ExpectedSyntax::Item),
     }
 }
@@ -345,10 +347,10 @@ fn drop_declaration(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::DropDeclaration);
 }
 
-fn test_declaration(parser: &mut Parser<'_>) {
+pub(super) fn test_declaration(parser: &mut Parser<'_>, parse_body: fn(&mut Parser<'_>)) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Test);
     parser.expect_name();
-    block::required(parser);
+    parse_body(parser);
     parser.complete(marker, NodeKind::TestDeclaration);
 }

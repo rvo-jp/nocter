@@ -68,6 +68,9 @@ pub fn validate_source_role(
             .ok_or(Failure::InconsistentSyntax)?
             .kind();
         let violation = match kind {
+            NodeKind::TestDeclaration => declaration_body(syntax.tree(), declaration)
+                .filter(|_| root)
+                .map(|body| (SourceRoleRule::BodyInContract, body)),
             NodeKind::FunctionDeclaration => {
                 let body = declaration_body(syntax.tree(), declaration);
                 match (root, body) {

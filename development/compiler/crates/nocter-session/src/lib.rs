@@ -14,8 +14,9 @@ mod semantic_capabilities;
 mod test_selection;
 mod value_access_entry;
 pub use value_access_entry::{
-    ValueAccessEntryError, ValueAccessExecutable, check_value_access_target,
-    select_all_value_access_executables, select_value_access_executable,
+    ValueAccessEntryError, ValueAccessExecutable, ValueAccessTestError, ValueAccessTests,
+    check_value_access_target, select_all_value_access_executables, select_value_access_executable,
+    select_value_access_tests,
 };
 #[cfg(test)]
 mod value_access_tests;

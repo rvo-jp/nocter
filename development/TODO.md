@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Give v2 `test` declarations a compiler-owned executable identity outside the callable/export
-namespace. Reuse ordinary checks and checked native lowering for the implicit `void!` body,
-then qualify target and case selection, result reporting, and isolated execution through the
-installed command.
+Generate executable and library starter packages in the selected v2 source profile. Keep public
+contracts and ordinary implementation/test bodies in their owning files, and verify both templates
+through installed commands. Preserve atomic initialization and refuse nested directory links.
 
 ## Remaining Contextual Representation Qualification
 
@@ -759,6 +758,12 @@ not a language restriction derived from the current realization boundary.
   package or native artifacts. Preserve exact parsed structure and comment attachment; qualify
   postfix transfer composition, full accepted source-corpus idempotence and no rewrite on invalid
   installation metadata. Preserve standalone released syntax when the manifest is absent.
+- [x] Run authored v2 tests through the installed command and checked native entry path. Keep the
+  fixed `void!` root outside the callable namespace, select direct module cases in source order,
+  and qualify exact `--case` selection, runtime error reporting and continuation, duplicate names,
+  and rejection of calls to test declarations.
+- [ ] Preserve later cases within a v2 test target when native specialization or image lowering
+  fails for one checked case. Retain the exact case identity in its compile-failure report.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

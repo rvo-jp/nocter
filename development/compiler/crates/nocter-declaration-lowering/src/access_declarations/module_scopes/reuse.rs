@@ -3,9 +3,9 @@ use super::{ModuleContext, ModuleSourcesFailure, ScopedModuleSources, syntax};
 use crate::access_declarations::{BodySources, Failure, ModuleSources};
 use nocter_compile_input::{CompileUnitInput, ModuleIdentity, ModuleSourceKind};
 use nocter_declarations::value_access::{DeclarationId, Namespace, Program, ScopeId};
-use nocter_model::CompilationTarget;
+use nocter_model::{AccessCodeId, CompilationTarget};
 use nocter_syntax::{DeclarationSyntaxSurface, project_declaration_syntax};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Reusable complete headers and source-dependency guards, without a current syntax tree.
 /// Header reuse grants neither body acceptance nor evaluated constant/static values.
@@ -24,6 +24,7 @@ struct SourceRecipe {
     path: Box<str>,
     kind: ModuleSourceKind,
     scope: ScopeId,
+    tests: Box<[AccessCodeId]>,
     surface: DeclarationSyntaxSurface,
 }
 impl ModuleContext<'_> {
@@ -46,6 +47,16 @@ impl ModuleQuery {
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
+    }
+    /// Selects only test roots authored directly in the selected module, in source order.
+    pub fn test_codes<'a>(
+        &'a self,
+        module: &'a ModuleIdentity,
+    ) -> impl Iterator<Item = AccessCodeId> + 'a {
+        self.sources
+            .iter()
+            .filter(move |source| &source.module == module)
+            .flat_map(|source| source.tests.iter().copied())
     }
     /// Resolve an authored module export from the retained semantic namespace, without opening
     /// physical sources or granting a body/target capability. Helper visibility is not publication.
@@ -128,6 +139,18 @@ impl<'syntax> ScopedModuleSources<'syntax> {
 fn source_recipes(
     binding: &super::ModuleSourceBinding<'_>,
 ) -> Result<Box<[SourceRecipe]>, ModuleSourcesFailure> {
+    let mut tests = BTreeMap::new();
+    for (id, declaration) in binding.paired.inventory.declaration_entries() {
+        if declaration.kind() == crate::SurfaceDeclarationKind::Test {
+            let Some(DeclarationId::Code(code)) = binding.declarations[id.index()] else {
+                return Err(super::integrity());
+            };
+            tests
+                .entry(declaration.source())
+                .or_insert_with(Vec::new)
+                .push(code);
+        }
+    }
     binding
         .paired
         .inventory
@@ -139,6 +162,7 @@ fn source_recipes(
                 path: physical.canonical_path().into(),
                 kind: physical.kind(),
                 scope: binding.scopes[source.index()],
+                tests: tests.remove(&source).unwrap_or_default().into_boxed_slice(),
                 surface: project_declaration_syntax(syntax).surface().clone(),
             })
         })

@@ -18,8 +18,8 @@ pub use native::{
 pub use output::{CompiledNativeImageSet, NativeImage, NativeImageEntry};
 pub use test::{
     CompiledNativeTestSet, NativeTestCompileRequest, NativeTestImage, NativeTestSessionError,
-    NativeTestTargetCompilation, NativeTestTargetOutcome, TestCaseIdentity, TestTargetIdentity,
-    TestTargetSelectionError, compile_native_tests,
+    NativeTestTargetCompilation, NativeTestTargetOutcome, TestCaseIdentity, TestDeclaration,
+    TestTargetIdentity, TestTargetSelectionError, compile_native_tests, compile_value_access_tests,
 };
 
 #[cfg(test)]

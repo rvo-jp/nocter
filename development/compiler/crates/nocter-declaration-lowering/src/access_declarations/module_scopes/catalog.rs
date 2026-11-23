@@ -32,15 +32,10 @@ impl Catalog {
             let physical = paired.inventory.declarations()[raw.index()];
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             match (semantic, header) {
-                (DeclarationId::Code(code), ParsedHeader::Code(header))
-                    if header.body.is_some()
-                        || header.kind
-                            == nocter_declarations::value_access::CodeKind::Primitive =>
-                {
-                    if codes
-                        .insert(code, CodeSource::from_header(header))
-                        .is_some()
-                        || owners.insert(code, physical.source()).is_some()
+                (DeclarationId::Code(code), header) => {
+                    if let Some(source) = header.executable_source()
+                        && (codes.insert(code, source).is_some()
+                            || owners.insert(code, physical.source()).is_some())
                     {
                         return Err(integrity());
                     }
@@ -82,6 +77,7 @@ impl Catalog {
                 Ok(())
             };
             match header {
+                ParsedHeader::Test { .. } => {}
                 ParsedHeader::Code(header) => {
                     for (index, parameter) in header.parameters.iter().enumerate() {
                         let mut lengths = Vec::new();

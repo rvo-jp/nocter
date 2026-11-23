@@ -188,6 +188,112 @@ fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
     assert_eq!(executed.status().code(), Some(42));
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_test_runs_only_authored_cases_in_source_order() {
+    let tree = TempTree::new("installed-value-tests");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    fs::create_dir_all(package.join("tests/unit")).unwrap();
+    fs::create_dir_all(package.join("tests/helper")).unwrap();
+    fs::write(
+        package.join("index.nct"),
+        "#package: { name: \"app\", version: \"2.0.0\" }\n\
+         #test: { name: \"unit\", module: \"./tests/unit\" }\n",
+    )
+    .unwrap();
+    fs::write(package.join("tests/unit/index.nct"), "see ./cases.nct\n").unwrap();
+    fs::write(
+        package.join("tests/helper/index.nct"),
+        "see ./body.nct\nfunc answer(): i32\n",
+    )
+    .unwrap();
+    fs::write(
+        package.join("tests/helper/body.nct"),
+        "see ./index.nct\nfunc answer(): i32 { 42 }\ntest unselected {}\n",
+    )
+    .unwrap();
+    fs::write(
+        package.join("tests/unit/cases.nct"),
+        "use std/process\nuse ../helper\n\
+         func z_first(): i32 { helper.answer() }\n\
+         test z_first { return }\n\
+         test x_fails { let _ = process.env(\"\")? }\n\
+         test a_last { let _ = z_first() }\n",
+    )
+    .unwrap();
+    let execute =
+        |arguments| execute_invocation(invocation(arguments, &package, &home, "arm64-darwin"));
+
+    let all = execute(vec!["test", "--offline"]).unwrap();
+    assert_eq!(all.exit_code(), 1);
+    let InvocationOutcome::Test(all) = all else {
+        panic!("expected native tests");
+    };
+    let result = all
+        .runs()
+        .iter()
+        .map(|run| {
+            (
+                run.test().expect("expected a case-scoped outcome").name(),
+                run.outcome(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        result,
+        [
+            ("z_first", nocter_command::TestRunOutcome::Passed),
+            ("x_fails", nocter_command::TestRunOutcome::Failed),
+            ("a_last", nocter_command::TestRunOutcome::Passed),
+        ],
+        "{all:#?}"
+    );
+
+    let selected = execute(vec![
+        "test",
+        "--test",
+        "unit",
+        "--case",
+        "a_last",
+        "--offline",
+    ])
+    .unwrap();
+    assert_eq!(selected.exit_code(), 0);
+    let InvocationOutcome::Test(selected) = selected else {
+        panic!("expected selected test");
+    };
+    assert_eq!(selected.runs().len(), 1);
+    assert_eq!(selected.runs()[0].test().unwrap().name(), "a_last");
+    let missing = execute(vec![
+        "test",
+        "--test",
+        "unit",
+        "--case",
+        "unselected",
+        "--offline",
+    ])
+    .unwrap_err();
+    assert_eq!(missing.diagnostic_code(), Some(DiagnosticCode::E0800));
+
+    for (source, expected) in [
+        ("test one {}\ntest one {}\n", "E0241"),
+        (
+            "test one {}\nfunc attempts_call(): void { one() }\n",
+            "E0340",
+        ),
+    ] {
+        fs::write(package.join("tests/unit/cases.nct"), source).unwrap();
+        let rejected = execute(vec!["test", "--format", "json", "--offline"]).unwrap();
+        assert_eq!(rejected.exit_code(), 1);
+        let report = rejected.render_json_diagnostics().unwrap().unwrap();
+        assert!(
+            report.contains(&format!("\"code\":\"{expected}\"")),
+            "{report}"
+        );
+    }
+}
+
 fn invocation(
     arguments: impl IntoIterator<Item = impl Into<OsString>>,
     directory: &Path,

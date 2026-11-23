@@ -114,6 +114,29 @@ impl ModuleSourceBinding<'_> {
 enum ParsedHeader {
     Code(Header),
     Record(RecordHeader),
+    Test {
+        name: SyntaxToken,
+        declaration: nocter_syntax::NodeId,
+        body: nocter_syntax::NodeId,
+    },
+}
+impl ParsedHeader {
+    fn executable_source(&self) -> Option<CodeSource> {
+        match self {
+            Self::Code(header)
+                if header.body.is_some()
+                    || header.kind == nocter_declarations::value_access::CodeKind::Primitive =>
+            {
+                Some(CodeSource::from_header(header))
+            }
+            Self::Test {
+                name,
+                declaration,
+                body,
+            } => Some(CodeSource::test(*name, *declaration, *body)),
+            _ => None,
+        }
+    }
 }
 #[derive(Clone, Copy)]
 struct FieldPosition {
@@ -591,6 +614,18 @@ fn collect_headers(
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
+                SurfaceDeclarationKind::Test => {
+                    syntax(paired, declaration.source()).and_then(|s| {
+                        let name = declaration.name().ok_or_else(integrity)?;
+                        let body = nocter_syntax::declaration_body(s.tree(), declaration.node())
+                            .ok_or_else(integrity)?;
+                        Ok(ParsedHeader::Test {
+                            name,
+                            declaration: declaration.node(),
+                            body,
+                        })
+                    })
+                }
                 SurfaceDeclarationKind::Field => return None,
                 _ => return Some(Err(integrity())),
             };
@@ -612,24 +647,27 @@ fn reserve_canonical(
         }
         let declaration = paired.inventory.declarations()[id.index()];
         let (record, name) = match header {
-            ParsedHeader::Code(header) => (false, header.name),
-            ParsedHeader::Record(header) => (true, header.source.name),
+            ParsedHeader::Code(header) => (false, Some(header.name)),
+            ParsedHeader::Record(header) => (true, Some(header.source.name)),
+            ParsedHeader::Test { .. } => (false, None),
         };
         ordered.push((
             !record,
             declaration.source(),
-            symbol(paired, declaration.source(), name)?,
+            name.map(|name| symbol(paired, declaration.source(), name))
+                .transpose()?,
             *id,
         ));
     }
     ordered.sort_unstable();
+    let mut test_names = BTreeMap::new();
     for (_, _, name, id) in ordered {
         let declaration = paired.inventory.declarations()[id.index()];
         let semantic = match parsed.get(&id).ok_or_else(integrity)? {
             ParsedHeader::Code(header) => reservations
                 .reserve_in(
                     scopes[declaration.source().index()],
-                    name,
+                    name.ok_or_else(integrity)?,
                     header.parameters.len(),
                 )
                 .map(DeclarationId::Code),
@@ -640,8 +678,33 @@ fn reserve_canonical(
                     return Err(integrity());
                 };
                 reservations
-                    .reserve_record_in(scopes[physical.source().index()], name, header.fields.len())
+                    .reserve_record_in(
+                        scopes[physical.source().index()],
+                        name.ok_or_else(integrity)?,
+                        header.fields.len(),
+                    )
                     .map(DeclarationId::Record)
+            }
+            ParsedHeader::Test { name, .. } => {
+                let module = paired.inventory.sources()[declaration.source().index()].module();
+                let spelling = symbol(paired, declaration.source(), *name)?;
+                if let Some(first) = test_names.insert((module, spelling), *name) {
+                    let violation = crate::NamespaceViolation::name_collision(
+                        nocter_syntax::SyntaxOrigin::Token(first),
+                        nocter_syntax::SyntaxOrigin::Token(*name),
+                    );
+                    let diagnostic = crate::NamespaceDiagnostic::project_surface(
+                        violation,
+                        &paired.inventory.surface,
+                    )
+                    .map_err(|_| integrity())?;
+                    return Err(ModuleSourcesFailure::Access(Failure::Namespace(Box::new(
+                        diagnostic,
+                    ))));
+                }
+                reservations
+                    .reserve_test(scopes[declaration.source().index()], spelling)
+                    .map(DeclarationId::Code)
             }
         }
         .map_err(|_| integrity())?;
@@ -657,6 +720,9 @@ fn bind_sources(
 ) -> Result<(), ModuleSourcesFailure> {
     let mut authored = BTreeMap::<SurfaceSourceId, Vec<(Symbol, DeclarationId)>>::new();
     for (id, declaration) in paired.inventory.declaration_entries() {
+        if declaration.kind() == SurfaceDeclarationKind::Test {
+            continue;
+        }
         if let Some(semantic) = declarations[id.index()] {
             authored.entry(declaration.source()).or_default().push((
                 symbol(

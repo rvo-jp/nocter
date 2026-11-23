@@ -12,17 +12,18 @@ publishes command results, artifacts, graph/inspection output, or typed failures
 terminal rendering, language rules, or stage internals. Program arguments accepted after the
 `run` separator remain opaque native OS strings and are never decoded by this crate.
 
-Every source-analyzing command creates one ephemeral `nocter-compiler-computation` owner. Package
+Every command that analyzes semantics creates one ephemeral `nocter-compiler-computation` owner. Package
 resolution and discovery obtain syntax through that owner's computed provider, and target
 construction consumes its closed unit-analysis product through the sole session adapter. Commands
 cannot invoke or order semantic stages.
 
-The command toolchain selects the source grammar and standard-library declaration profile together.
-With an explicit v2 profile, packages and explicit source files reach the checked v2 session through the same
-package resolution and discovery. `check` validates the selected entries and target capability.
+The command toolchain receives the source grammar and standard-library declaration profile together
+from the validated installation. Packages and explicit source files use the same resolution and
+discovery to reach the selected session. `check` validates the selected entries and target capability.
 `build` and `run` lower those entries and use the common output planning, artifact persistence and
-process launcher. The installed CLI still selects its released profile. V2 test execution and
-editor integration require further work.
+process launcher. `test` runs selected cases using the same test result and process interfaces for
+both profiles. Source-only commands pass the selected grammar to the source tooling without
+constructing a compilation session.
 
 ## Internal Responsibilities
 

@@ -32,6 +32,35 @@ fn tree(text: &str, goal: ParseGoal) -> SyntaxTree {
 }
 
 #[test]
+fn test_declaration_uses_the_value_access_block_and_fixed_head() {
+    use crate::{declaration_body, declaration_name_token};
+
+    let text = "test handles_error {\nlet failure = make_error()\nthrow failure^\n}\n";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let (declaration, _) = parsed
+        .nodes()
+        .find(|(_, node)| node.kind() == NodeKind::TestDeclaration)
+        .unwrap();
+    let name = declaration_name_token(&parsed, declaration).unwrap();
+    assert_eq!(name.range().start().get(), 5);
+    assert!(declaration_body(&parsed, declaration).is_some());
+    assert!(
+        parsed
+            .nodes()
+            .any(|(_, node)| node.kind() == NodeKind::TransferExpression)
+    );
+    for text in [
+        "test missing\n",
+        "test parameters(value: i32) {}\n",
+        "test typed: void! {}\n",
+        "async test deferred {}\n",
+    ] {
+        assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+}
+
+#[test]
 fn async_source_preserves_await_outcome_and_future_type_boundaries() {
     use crate::{Punctuation, TokenKind, direct_node, direct_token_iter};
     let source = tree(

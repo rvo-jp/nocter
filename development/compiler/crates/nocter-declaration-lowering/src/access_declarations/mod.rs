@@ -134,6 +134,7 @@ impl<'source> Preparation<'source> {
                     | NodeKind::UseDeclaration
                     | NodeKind::BlockUseDeclaration
                     | NodeKind::TargetDirective
+                    | NodeKind::TestDeclaration
             )
         }) {
             return Err(Failure::ModuleInputRequired);

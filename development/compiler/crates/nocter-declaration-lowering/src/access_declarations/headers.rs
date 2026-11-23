@@ -147,6 +147,8 @@ pub(super) fn collect(
             Some(NodeKind::StructDeclaration) => {
                 records.push(record(syntax, declaration)?);
             }
+            // Test roots have a compiler-owned result and no authored type to reconcile.
+            Some(NodeKind::TestDeclaration) => {}
             _ => return Err(Failure::InconsistentSyntax),
         }
     }

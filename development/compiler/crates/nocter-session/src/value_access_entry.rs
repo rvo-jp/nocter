@@ -5,9 +5,9 @@ use nocter_checking::value_access::accepted::Unit;
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
 };
-use nocter_declarations::value_access::{DeclarationId, Namespace};
+use nocter_declarations::value_access::{CodeKind, DeclarationId, Namespace};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticOrigin, SourceDiagnostic};
-use nocter_model::{AccessCodeId, CompilationTarget, PackageTargetKind};
+use nocter_model::{AccessCodeId, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_semantic_product::{AcceptedValueAccess, ValueAccessAnalysis};
 use nocter_source::{ByteOffset, SourceId, Span, TextRange};
 use nocter_source_index::SourceOrigin;
@@ -277,6 +277,115 @@ fn accepted_input(
         .compile_input()
         .map_err(ValueAccessEntryError::CompileInput)?;
     Ok((accepted, input))
+}
+
+/// Cases selected from one accepted package target and its authored test identities.
+pub struct ValueAccessTests {
+    target: CompilationTarget,
+    unit: Arc<Unit>,
+    cases: Box<[(AccessCodeId, Box<str>)]>,
+}
+
+impl ValueAccessTests {
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
+    #[must_use]
+    pub fn unit(&self) -> Arc<Unit> {
+        Arc::clone(&self.unit)
+    }
+
+    #[must_use]
+    pub fn cases(&self) -> impl ExactSizeIterator<Item = (AccessCodeId, &str)> {
+        self.cases.iter().map(|(code, name)| (*code, name.as_ref()))
+    }
+}
+
+#[derive(Debug)]
+pub enum ValueAccessTestError {
+    Source(ValueAccessEntryError),
+    InvalidTarget,
+    MissingCase,
+    InconsistentCase,
+}
+
+impl fmt::Display for ValueAccessTestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Source(error) => error.fmt(formatter),
+            Self::InvalidTarget => {
+                formatter.write_str("test target does not belong to the selected package")
+            }
+            Self::MissingCase => formatter.write_str("selected test target has no matching case"),
+            Self::InconsistentCase => {
+                formatter.write_str("selected test case has no checked declaration")
+            }
+        }
+    }
+}
+
+impl std::error::Error for ValueAccessTestError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Source(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+/// Selects tests directly authored in the named target module of the exact root package.
+/// # Errors
+/// Rejects unaccepted units, foreign or missing targets, and absent or inconsistent case identities.
+pub fn select_value_access_tests(
+    analysis: &AnalyzedUnit,
+    package: &PackageIdentity,
+    target_name: &str,
+    case: Option<&str>,
+) -> Result<ValueAccessTests, ValueAccessTestError> {
+    let (accepted, input) = accepted_input(analysis).map_err(ValueAccessTestError::Source)?;
+    let mut selected = input.package_target_resolutions().iter().filter(|target| {
+        target.kind() == PackageTargetKind::Test
+            && target.module().package() == package
+            && input.root_packages().contains(package)
+            && target.name() == target_name
+    });
+    let target = selected.next().ok_or(ValueAccessTestError::InvalidTarget)?;
+    if selected.next().is_some() {
+        return Err(ValueAccessTestError::InvalidTarget);
+    }
+
+    let headers = accepted.headers();
+    let program = headers.program();
+    let mut cases = Vec::new();
+    for id in headers.test_codes(target.module()) {
+        let declaration = program
+            .codes()
+            .get(id)
+            .ok_or(ValueAccessTestError::InconsistentCase)?;
+        let CodeKind::Test(name) = declaration.kind() else {
+            return Err(ValueAccessTestError::InconsistentCase);
+        };
+        let name = program
+            .symbols()
+            .spelling(name)
+            .ok_or(ValueAccessTestError::InconsistentCase)?;
+        if accepted.unit().body(id).is_none() {
+            return Err(ValueAccessTestError::InconsistentCase);
+        }
+        if case.is_none_or(|case| case == name) {
+            cases.push((id, name.into()));
+        }
+    }
+    if case.is_some() && cases.is_empty() {
+        return Err(ValueAccessTestError::MissingCase);
+    }
+    Ok(ValueAccessTests {
+        target: input.target(),
+        unit: accepted.unit_handle(),
+        cases: cases.into_boxed_slice(),
+    })
 }
 
 fn entry_origins<'a>(

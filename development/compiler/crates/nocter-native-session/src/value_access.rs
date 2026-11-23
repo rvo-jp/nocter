@@ -77,11 +77,17 @@ pub fn compile_value_access_images(
 }
 
 fn lower_image(executable: ValueAccessExecutable<'_>) -> Result<NativeImage, NativeImageError> {
-    let abi =
-        value_access::executable_abi(executable.target()).map_err(NativeImageError::Target)?;
+    let target = executable.target();
     let (unit, root) = executable.into_entry();
-    let instances =
-        InstanceProgram::prepare(unit, root).map_err(ValueAccessLoweringError::Instances)?;
+    lower_root_image(target, || InstanceProgram::prepare(unit, root))
+}
+
+pub(super) fn lower_root_image(
+    target: nocter_model::CompilationTarget,
+    prepare: impl FnOnce() -> Result<InstanceProgram, value_access::Failure>,
+) -> Result<NativeImage, NativeImageError> {
+    let abi = value_access::executable_abi(target).map_err(NativeImageError::Target)?;
+    let instances = prepare().map_err(ValueAccessLoweringError::Instances)?;
     let lifecycle = lifecycle::Program::prepare(Arc::new(instances))
         .map_err(ValueAccessLoweringError::Lifecycle)?;
     let mir = nocter_mir::value_access::Program::lower(&lifecycle, abi)

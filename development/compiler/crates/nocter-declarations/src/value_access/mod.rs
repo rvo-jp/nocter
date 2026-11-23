@@ -122,6 +122,8 @@ pub enum CodeKind {
     DeferredFunction,
     /// A bodyless callable declaration; primitive authority is a separate lowering receipt.
     Primitive,
+    /// A package test body selected by a test plan and absent from source lookup.
+    Test(Symbol),
     ConstantInitializer,
     StaticInitializer,
     TypeExpression(TypeExpressionSource),
@@ -145,7 +147,9 @@ impl CodeKind {
     pub const fn compile_time(self) -> CompileTimeGuarantee {
         match self {
             Self::Function(capability) => capability,
-            Self::DeferredFunction | Self::Primitive => CompileTimeGuarantee::RuntimeOnly,
+            Self::DeferredFunction | Self::Primitive | Self::Test(_) => {
+                CompileTimeGuarantee::RuntimeOnly
+            }
             Self::ConstantInitializer | Self::StaticInitializer | Self::TypeExpression(_) => {
                 CompileTimeGuarantee::Evaluatable
             }
@@ -719,6 +723,29 @@ impl Reservations {
         })
     }
 
+    /// Reserve a test root in the authored source scope with its implicit `void!` result.
+    /// # Errors
+    /// Rejects an unknown scope or spelling before reserving code.
+    pub fn reserve_test(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+    ) -> Result<AccessCodeId, DefinitionError> {
+        if !self.scopes.contains(scope) || self.symbols.spelling(name).is_none() {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.codes.insert(Reservation {
+            scope,
+            name: None,
+            parameters: Box::new([]),
+            definition: Some(Definition {
+                kind: CodeKind::Test(name),
+                parameters: Box::new([]),
+                result_data: test_result(),
+            }),
+        }))
+    }
+
     /// Reserve an anonymous required expression in an existing authored type slot.
     /// It has no namespace name, function witness, formal inputs or source return target.
     /// # Errors
@@ -926,6 +953,10 @@ impl Builder {
     }
 }
 
+fn test_result() -> ValueDefinition {
+    ValueDefinition::Data(DataReference::Fallible(Box::new(BuiltinType::Void.into())))
+}
+
 fn validate_definition(
     symbols: &SymbolTable,
     namespace: &namespace::Names,
@@ -942,9 +973,15 @@ fn validate_definition(
         });
         return;
     };
-    if reservation.name.is_none() != matches!(definition.kind, CodeKind::TypeExpression(_))
+    let anonymous = matches!(
+        definition.kind,
+        CodeKind::TypeExpression(_) | CodeKind::Test(_)
+    );
+    if reservation.name.is_none() != anonymous
         || (matches!(definition.kind, CodeKind::TypeExpression(_))
             && definition.result_data != ValueDefinition::Data(BuiltinType::Usize.into()))
+        || (matches!(definition.kind, CodeKind::Test(_))
+            && (!definition.parameters.is_empty() || definition.result_data != test_result()))
     {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Code(id),

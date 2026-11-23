@@ -63,6 +63,8 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
         {
             record(parser);
+        } else if parser.at_keyword(Keyword::Test) {
+            super::declaration::test_declaration(parser, required_block);
         } else {
             parser.error_token(ExpectedSyntax::Keyword(Keyword::Func));
             parser.recover_to_line_end();

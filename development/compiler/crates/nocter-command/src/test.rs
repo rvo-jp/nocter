@@ -7,12 +7,12 @@ use nocter_discovery::DiscoveryFailure;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_native_session::{
     NativeTestCompileRequest, NativeTestSessionError, NativeTestTargetOutcome, TestCaseIdentity,
-    compile_native_tests,
+    compile_native_tests, compile_value_access_tests,
 };
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_source::SourceMap;
 
-use crate::compiler::CommandCompiler;
+use crate::compiler::{CheckedCommandUnit, CommandCompiler};
 use crate::failure::command_compilation_failure;
 use crate::source::discover_command_tests;
 use crate::{
@@ -305,8 +305,8 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
                 continue;
             }
         };
-        let target_program = match compiler.compile(&unit) {
-            Ok(target_program) => target_program,
+        let checked = match compiler.check(&unit) {
+            Ok(checked) => checked,
             Err(failure) => {
                 let code = failure
                     .error()
@@ -318,16 +318,28 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
                 continue;
             }
         };
-        let request = NativeTestCompileRequest::new(
-            target_program,
-            nocter_session::TestTargetSelector::Named(target.name().into()),
-            case.clone(),
-        );
-        match compile_native_tests(request) {
-            Ok(test_program) => runs.extend(
-                run_compiled_target(test_program, &target, &working_directory)
-                    .map_err(TestCommandExecutionError::Integrity)?,
+        let native_outcome = match checked {
+            CheckedCommandUnit::Released(program) => {
+                let request = NativeTestCompileRequest::new(
+                    *program,
+                    nocter_session::TestTargetSelector::Named(target.name().into()),
+                    case.clone(),
+                );
+                match compile_native_tests(request) {
+                    Ok(suite) => Ok(selected_test_outcome(suite, &target)
+                        .map_err(TestCommandExecutionError::Integrity)?),
+                    Err(error) => Err(error),
+                }
+            }
+            CheckedCommandUnit::ValueAccess(analysis) => compile_value_access_tests(
+                &analysis,
+                target.package(),
+                target.name(),
+                case.as_deref(),
             ),
+        };
+        match native_outcome {
+            Ok(outcome) => runs.extend(run_test_outcome(outcome, &target, &working_directory)),
             Err(error @ NativeTestSessionError::Selection(_)) => {
                 return Err(TestCommandExecutionError::Compile {
                     presentation: presentation.clone(),
@@ -349,51 +361,50 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
     Ok(finish_test_result(package, presentation, runs))
 }
 
-fn run_compiled_target(
+fn selected_test_outcome(
     compiled: nocter_native_session::CompiledNativeTestSet,
     target: &TestRunTarget,
-    working_directory: &Path,
-) -> Result<Vec<TestRunResult>, TestCommandIntegrityError> {
+) -> Result<NativeTestTargetOutcome, TestCommandIntegrityError> {
     let (targets, _) = compiled.into_parts();
-    if targets.len() != 1 {
+    let Ok([compilation]): Result<[_; 1], _> = targets.into_vec().try_into() else {
         return Err(TestCommandIntegrityError::UnexpectedTargetCount);
+    };
+    let (identity, outcome) = compilation.into_parts();
+    if identity.package() != target.package() || identity.name() != target.name() {
+        return Err(TestCommandIntegrityError::MismatchedTarget);
     }
-    let mut runs = Vec::new();
-    for compilation in targets {
-        let (identity, outcome) = compilation.into_parts();
-        if identity.package() != target.package() || identity.name() != target.name() {
-            return Err(TestCommandIntegrityError::MismatchedTarget);
-        }
-        match outcome {
-            NativeTestTargetOutcome::Compiled(cases) => {
-                for case in cases {
-                    let (test, image) = case.into_parts();
-                    runs.push(run_test_case(
-                        target.clone(),
-                        test,
-                        &image,
-                        working_directory,
-                    ));
-                }
-            }
-            NativeTestTargetOutcome::CompileFailed(error) => runs.push(TestRunResult {
-                target: target.clone(),
-                test: None,
-                outcome: TestRunOutcome::CompileFailed,
-                exit_code: None,
-                signal: None,
-                stdout: Box::new([]),
-                stderr: Box::new([]),
-                diagnostics: Box::new([TestRunDiagnostic::new(
-                    DiagnosticCode::E0900,
-                    error.to_string(),
-                )]),
-                source_diagnostics: Box::new([]),
-                sources: None,
-            }),
-        }
+    Ok(outcome)
+}
+
+fn run_test_outcome(
+    outcome: NativeTestTargetOutcome,
+    target: &TestRunTarget,
+    working_directory: &Path,
+) -> Vec<TestRunResult> {
+    match outcome {
+        NativeTestTargetOutcome::Compiled(cases) => cases
+            .into_iter()
+            .map(|case| {
+                let (test, image) = case.into_parts();
+                run_test_case(target.clone(), test, &image, working_directory)
+            })
+            .collect(),
+        NativeTestTargetOutcome::CompileFailed(error) => vec![TestRunResult {
+            target: target.clone(),
+            test: None,
+            outcome: TestRunOutcome::CompileFailed,
+            exit_code: None,
+            signal: None,
+            stdout: Box::new([]),
+            stderr: Box::new([]),
+            diagnostics: Box::new([TestRunDiagnostic::new(
+                DiagnosticCode::E0900,
+                error.to_string(),
+            )]),
+            source_diagnostics: Box::new([]),
+            sources: None,
+        }],
     }
-    Ok(runs)
 }
 
 fn discovery_failure(

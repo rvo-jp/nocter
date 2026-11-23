@@ -7,13 +7,13 @@ use nocter_machine::MachineProgram;
 use nocter_macho::MachOImage;
 use nocter_mir::lower_executable;
 use nocter_model::PackageTargetKind;
-use nocter_model::{PackageIdentity, PackageTargetId, TestId};
+use nocter_model::{AccessCodeId, PackageIdentity, PackageTargetId, TestId};
 use nocter_source_index::SourceIndex;
 use nocter_target_program::{
     ExecutableProgram, TargetProgram, select_test_case, select_test_target,
 };
 
-use nocter_session::{CompiledTarget, TestTargetSelector};
+use nocter_session::{AnalyzedUnit, CompiledTarget, TestTargetSelector, ValueAccessTestError};
 
 use crate::{NativeImage, NativeImageError};
 
@@ -45,13 +45,20 @@ impl TestTargetIdentity {
 /// Semantic identity of one source-declared test case.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TestCaseIdentity {
-    declaration: TestId,
+    declaration: TestDeclaration,
     name: Box<str>,
+}
+
+/// The original test declaration identity inside the selected language profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TestDeclaration {
+    Released(TestId),
+    ValueAccess(AccessCodeId),
 }
 
 impl TestCaseIdentity {
     #[must_use]
-    pub const fn declaration(&self) -> TestId {
+    pub const fn declaration(&self) -> TestDeclaration {
         self.declaration
     }
 
@@ -237,7 +244,7 @@ pub fn compile_native_tests(
                         )
                     })?;
                 Ok(TestCaseIdentity {
-                    declaration: test.declaration(),
+                    declaration: TestDeclaration::Released(test.declaration()),
                     name: name.into(),
                 })
             })
@@ -248,6 +255,47 @@ pub fn compile_native_tests(
     Ok(CompiledNativeTestSet {
         targets: compiled_targets.into_boxed_slice(),
         source_index,
+    })
+}
+
+/// Compile the selected v2 target through the ordinary checked native lowering path.
+/// # Errors
+/// Reports invalid selection or broken semantic evidence before emitting any images.
+pub fn compile_value_access_tests(
+    analysis: &AnalyzedUnit,
+    package: &PackageIdentity,
+    target: &str,
+    case: Option<&str>,
+) -> Result<NativeTestTargetOutcome, NativeTestSessionError> {
+    let tests = nocter_session::select_value_access_tests(analysis, package, target, case)
+        .map_err(|error| match error {
+            ValueAccessTestError::MissingCase => TestTargetSelectionError::Case(
+                nocter_target_program::TestCaseSelectionError::UnknownCase,
+            )
+            .into(),
+            error => NativeTestSessionError::Integrity(error.to_string().into()),
+        })?;
+    let images = tests
+        .cases()
+        .map(|(declaration, name)| {
+            let image = crate::value_access::lower_root_image(tests.target(), || {
+                nocter_target_program::value_access::InstanceProgram::prepare(
+                    tests.unit(),
+                    declaration,
+                )
+            })?;
+            Ok(NativeTestImage {
+                identity: TestCaseIdentity {
+                    declaration: TestDeclaration::ValueAccess(declaration),
+                    name: name.into(),
+                },
+                image,
+            })
+        })
+        .collect::<Result<Box<[_]>, NativeImageError>>();
+    Ok(match images {
+        Ok(images) => NativeTestTargetOutcome::Compiled(images),
+        Err(error) => NativeTestTargetOutcome::CompileFailed(error),
     })
 }
 
