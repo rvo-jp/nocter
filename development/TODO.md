@@ -18,8 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Reserve ordered generic parameter identities on canonical v2 callable headers. Carry the same
-identities across contract and implementation headers for later argument elaboration and body checking.
+Bind v2 generic annotations to their required constant domain and bind dependent types to their
+reserved parameter identities. Keep generic body proof and executable admission closed until
+their own obligations are met.
 
 ## Remaining Contextual Representation Qualification
 
@@ -669,6 +670,9 @@ not a language restriction derived from the current realization boundary.
   from incomplete input. Reject unresolved applications at the original argument list.
 - [x] Retain the ordered lexical type and constant parameter list of named v2 functions. Diagnose
   duplicate names across parameter kinds at the repeated name and point to the original binder.
+- [x] Reserve one ordered generic parameter identity list for a named callable and its paired
+  implementation. Qualify reversed parameter order, failed reservations and rejection of an
+  ordinary callable definition over generic slots.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

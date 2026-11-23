@@ -7,10 +7,11 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use nocter_model::{
     AccessCodeId, AccessParameterId, Arena, ArenaBuilder, BuiltinType, CompileTimeGuarantee,
-    NominalTypeId, SparseArena, Symbol, SymbolTable, TypeAuthority, TypeId, ValueInputOperation,
+    GenericParameterId, NominalTypeId, SparseArena, Symbol, SymbolTable, TypeAuthority, TypeId,
+    ValueInputOperation,
 };
 
-use crate::DefinitionError;
+use crate::{DefinitionError, GenericParameter, GenericParameterDomain};
 
 mod body_types;
 mod closures;
@@ -28,6 +29,7 @@ mod data;
 mod data_instances;
 pub use data_instances::{DataDomainJoinFailure, DataInstanceKey, InstanceSchema};
 mod functions;
+mod generic_parameters;
 pub use code_bindings::{
     CodeBindingError, CodeInstanceKey, CodeTemplateKey, ConcreteWitness, InputBindingError,
 };
@@ -288,6 +290,7 @@ pub struct Program {
     codes: SparseArena<AccessCodeId, Code>,
     destructors: Arc<BTreeMap<NominalTypeId, AccessCodeId>>,
     parameters: SparseArena<AccessParameterId, Parameter>,
+    generic_parameters: Arc<generic_parameters::Parameters>,
     namespace: std::sync::Arc<namespace::Names>,
     nominals: nominals::Schemas,
     aliases: SparseArena<nocter_model::TypeAliasId, TypeAlias>,
@@ -298,6 +301,23 @@ pub struct Program {
 }
 
 impl Program {
+    /// Reserved compile-time slots in declaration order, independently of typed readiness.
+    #[must_use]
+    pub fn generic_parameter_ids(&self, code: AccessCodeId) -> Option<&[GenericParameterId]> {
+        self.codes
+            .is_reserved(code)
+            .then(|| self.generic_parameters.ids(code))
+    }
+
+    /// One compile-time slot in the closed declaration domain.
+    #[must_use]
+    pub fn generic_parameter(
+        &self,
+        id: GenericParameterId,
+    ) -> Option<GenericParameter<AccessCodeId>> {
+        self.generic_parameters.get(id)
+    }
+
     /// The original execution mode and, for a deferred callable, its body output.
     #[must_use]
     pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {
@@ -684,6 +704,7 @@ pub struct Reservations {
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     destructors: BTreeMap<NominalTypeId, AccessCodeId>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
+    generic_parameters: generic_parameters::Reservations,
     nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
 }
@@ -702,6 +723,7 @@ impl Reservations {
             codes: ArenaBuilder::new(),
             destructors: BTreeMap::new(),
             parameters: ArenaBuilder::new(),
+            generic_parameters: generic_parameters::Reservations::default(),
             nominals: nominals::Builder::default(),
             aliases: ArenaBuilder::new(),
         }
@@ -865,6 +887,24 @@ impl Reservations {
             parameters,
             definition: None,
         })
+    }
+
+    /// Reserve a named callable's authored compile-time slots before closing the namespace.
+    /// # Errors
+    /// Rejects unknown code or names, duplicate names, and a second list without reserving slots.
+    pub fn reserve_callable_generics(
+        &mut self,
+        code: AccessCodeId,
+        parameters: Vec<(Symbol, GenericParameterDomain)>,
+    ) -> Result<(), DefinitionError> {
+        if self.codes.get(code).is_none_or(|slot| slot.name.is_none())
+            || parameters
+                .iter()
+                .any(|(name, _)| self.symbols.spelling(*name).is_none())
+        {
+            return Err(DefinitionError::UnknownId);
+        }
+        self.generic_parameters.reserve(code, parameters)
     }
 
     /// Reserve a test root in the authored source scope with its implicit `void!` result.
@@ -1065,6 +1105,7 @@ impl Reservations {
             codes: self.codes,
             destructors: Arc::new(self.destructors),
             parameters: self.parameters.finish(),
+            generic_parameters: Arc::new(self.generic_parameters.finish()),
             nominals: self.nominals,
             aliases: self.aliases,
             namespace: namespace.into(),
@@ -1081,6 +1122,7 @@ pub struct Builder {
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     destructors: Arc<BTreeMap<NominalTypeId, AccessCodeId>>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
+    generic_parameters: Arc<generic_parameters::Parameters>,
     nominals: nominals::Builder,
     aliases: ArenaBuilder<nocter_model::TypeAliasId, aliases::Slot>,
     namespace: Arc<namespace::Names>,
@@ -1145,8 +1187,8 @@ impl Builder {
     }
 
     /// # Errors
-    /// Rejects a missing reservation, a mismatched reserved input count, or a second definition
-    /// without replacing the first one.
+    /// Rejects a missing reservation, a mismatched reserved input count, generic slots or a
+    /// second definition without replacing the first one.
     pub fn define(
         &mut self,
         id: AccessCodeId,
@@ -1155,6 +1197,9 @@ impl Builder {
         result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
         let reservation = self.codes.get_mut(id).ok_or(DefinitionError::UnknownId)?;
+        if !self.generic_parameters.ids(id).is_empty() {
+            return Err(DefinitionError::RequiresGenericDefinition);
+        }
         if reservation.definition.is_some() {
             return Err(DefinitionError::AlreadyDefined);
         }

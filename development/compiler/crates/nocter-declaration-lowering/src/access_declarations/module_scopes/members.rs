@@ -397,6 +397,7 @@ pub(super) fn comparison_header(
         name,
         kind: headers::immediate_function(syntax, declaration),
         deferred_modifier: None,
+        generics: None,
         parameters: vec![
             receiver_header(syntax, owner, declaration)?,
             headers::parameter(syntax, operand)?,
@@ -440,6 +441,7 @@ pub(super) fn conversion_header(
         name,
         kind: headers::immediate_function(syntax, declaration),
         deferred_modifier: None,
+        generics: None,
         parameters: vec![receiver_header(syntax, owner, declaration)?],
         result_syntax,
         result_data,

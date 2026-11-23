@@ -876,17 +876,15 @@ fn reserve_canonical(
     for &(_, _, name, id) in &ordered[first_code..] {
         let declaration = paired.inventory.declarations()[id.index()];
         let semantic = match parsed.get(&id).ok_or_else(integrity)? {
-            ParsedHeader::Code(header) => {
-                let name = name.ok_or_else(integrity)?;
-                let count = header.parameters.len();
-                match members.get(&id) {
-                    Some(member) => reservations.reserve_type_member(member.lookup, name, count),
-                    None => {
-                        reservations.reserve_in(scopes[declaration.source().index()], name, count)
-                    }
-                }
-                .map(DeclarationId::Code)
-            }
+            ParsedHeader::Code(header) => Ok(DeclarationId::Code(reserve_callable(
+                paired,
+                declaration.source(),
+                header,
+                name.ok_or_else(integrity)?,
+                scopes[declaration.source().index()],
+                members.get(&id),
+                reservations,
+            )?)),
             ParsedHeader::Record(_) | ParsedHeader::Enumeration(_) => return Err(integrity()),
             ParsedHeader::Alias(_) => reservations
                 .reserve_alias(
@@ -929,6 +927,30 @@ fn reserve_canonical(
         declarations[id.index()] = Some(semantic);
     }
     Ok(members)
+}
+
+fn reserve_callable(
+    paired: &PairedModuleSources<'_>,
+    source: SurfaceSourceId,
+    header: &headers::Header,
+    name: Symbol,
+    scope: ScopeId,
+    member: Option<&members::MemberOccurrence>,
+    reservations: &mut Reservations,
+) -> Result<AccessCodeId, ModuleSourcesFailure> {
+    let count = header.parameters.len();
+    let code = match member {
+        Some(member) => reservations.reserve_type_member(member.lookup, name, count),
+        None => reservations.reserve_in(scope, name, count),
+    }
+    .map_err(|_| integrity())?;
+    if let Some(generics) = &header.generics {
+        let bindings = generics.bindings(|token| symbol(paired, source, token))?;
+        reservations
+            .reserve_callable_generics(code, bindings)
+            .map_err(|_| integrity())?;
+    }
+    Ok(code)
 }
 
 fn reserve_nominal(

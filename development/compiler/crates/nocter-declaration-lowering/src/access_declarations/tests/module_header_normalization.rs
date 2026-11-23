@@ -23,6 +23,59 @@ fn advance(
 }
 
 #[test]
+fn paired_generic_headers_reserve_one_ordered_slot_list() {
+    let index = "see ./body.nct\nfunc decode<T, const N: usize>(take item: T): T";
+    let body = "see ./index.nct\nfunc decode<T, const N: usize>(take item: T): T { item^ }";
+    let mut scoped = inventory(
+        &[
+            ("/app/index.nct", Root, index),
+            ("/app/body.nct", Implementation, body),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair()
+    .unwrap()
+    .reserve_names()
+    .unwrap();
+    let code_at = |path| {
+        let raw = declaration(&scoped, path, Kind::Function, "decode");
+        scoped.declaration(raw).unwrap()
+    };
+    let DeclarationId::Code(code) = code_at("/app/index.nct") else {
+        panic!("callable contract");
+    };
+    assert_eq!(code_at("/app/body.nct"), DeclarationId::Code(code));
+    let program = scoped.program();
+    let slots = program.generic_parameter_ids(code).unwrap();
+    assert_eq!(slots.len(), 2);
+    assert!(
+        slots
+            .iter()
+            .all(|&slot| program.generic_parameter(slot).unwrap().owner() == code)
+    );
+    assert!(matches!(
+        advance(&mut scoped, code),
+        Err(ModuleSourcesFailure::Access(Failure::Syntax(diagnostics)))
+            if diagnostics[0].code() == "E0291"
+    ));
+
+    let reordered = "see ./index.nct\nfunc decode<const N: usize, T>(take item: T): T { item^ }";
+    let Err(ModuleSourcesFailure::Contract(diagnostic)) = inventory(
+        &[
+            ("/app/index.nct", Root, index),
+            ("/app/body.nct", Implementation, reordered),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair() else {
+        panic!("a different generic order must reject the pair");
+    };
+    assert_eq!(diagnostic.rule(), DeclarationContractRule::MismatchedBody);
+}
+
+#[test]
 fn scalar_enum_pairs_keep_copy_policy_and_original_variant_audience() {
     let mut scoped = inventory(
         &[

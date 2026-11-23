@@ -71,6 +71,7 @@ pub enum DefinitionError {
     UnknownId,
     AlreadyDefined,
     WrongArity { expected: usize, actual: usize },
+    RequiresGenericDefinition,
 }
 
 impl fmt::Display for DefinitionError {
@@ -87,6 +88,9 @@ impl fmt::Display for DefinitionError {
                     formatter,
                     "definition has {actual} slots, but {expected} were reserved"
                 )
+            }
+            Self::RequiresGenericDefinition => {
+                formatter.write_str("reserved generic slots require a generic definition")
             }
         }
     }

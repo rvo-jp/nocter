@@ -3,6 +3,61 @@ use crate::value_access::{ScopeId, ValueDefinition};
 use nocter_model::{ModuleAudience, ModuleIdentity, PackageIdentity, ValueInputOperation};
 use std::sync::Arc;
 
+#[test]
+fn reserved_generic_slots_cannot_admit_an_ordinary_definition() {
+    let symbols = SymbolTable::from_spellings(["decode", "T", "N"]);
+    let name = |text| symbols.get(text).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let decode = reservations.reserve(name("decode"), 0);
+    let ty = (name("T"), crate::GenericParameterDomain::Type);
+    let size = (name("N"), crate::GenericParameterDomain::UsizeConstant);
+    assert_eq!(
+        reservations.reserve_callable_generics(decode, vec![ty, ty]),
+        Err(crate::DefinitionError::AlreadyDefined)
+    );
+    reservations
+        .reserve_callable_generics(decode, vec![ty, size])
+        .unwrap();
+    assert_eq!(
+        reservations.reserve_callable_generics(decode, vec![size]),
+        Err(crate::DefinitionError::AlreadyDefined)
+    );
+    let mut headers = reservations.finish().unwrap().into_publication();
+    let reserved = headers.snapshot();
+    let slots = reserved.generic_parameter_ids(decode).unwrap();
+    assert_eq!(
+        slots
+            .iter()
+            .map(|&id| reserved.generic_parameter(id).unwrap().position())
+            .collect::<Vec<_>>(),
+        [0, 1]
+    );
+    assert_eq!(
+        headers.define(
+            decode,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::I32,
+        ),
+        Err(crate::DefinitionError::RequiresGenericDefinition)
+    );
+    assert_eq!(headers.is_defined(decode), Some(false));
+    assert!(!headers.snapshot().header_ready(decode));
+
+    let mut plain = Reservations::new(symbols.clone());
+    let decode = plain.reserve(name("decode"), 0);
+    let mut plain = plain.finish().unwrap();
+    plain
+        .define(
+            decode,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::I32,
+        )
+        .unwrap();
+    assert!(!headers.has_same_reserved_layout(&plain.finish().unwrap()));
+}
+
 fn publication(
     parameters: [usize; 2],
     fields: [usize; 2],

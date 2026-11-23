@@ -13,23 +13,55 @@ mod source_roles;
 
 #[test]
 fn generic_function_parameters_share_one_name_domain_across_kinds() {
-    for (text, code) in [
-        ("func run<T, const N: usize>(): i32 { 42 }", "E0291"),
-        ("func run<T, const T: usize>(): i32 { 42 }", "E0241"),
-    ] {
-        let (sources, tree) = input(text, ParseGoal::V2CoreUnit);
-        assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
-        let Err(Failure::Syntax(diagnostics)) = Preparation::prepare(bound(&sources, &tree)) else {
-            panic!("a generic header must retain its authored parameter list");
-        };
-        let [diagnostic] = diagnostics.as_ref() else {
-            panic!("expected one generic header diagnostic");
-        };
-        assert_eq!(diagnostic.code(), code);
-        if code == "E0241" {
-            assert_eq!(diagnostic.notes().len(), 1);
-        }
-    }
+    let (sources, tree) = input(
+        "func run<T, const T: usize>(): i32 { 42 }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    let Err(Failure::Syntax(diagnostics)) = Preparation::prepare(bound(&sources, &tree)) else {
+        panic!("duplicate generic name must be rejected before reservation");
+    };
+    let [diagnostic] = diagnostics.as_ref() else {
+        panic!("expected one generic header diagnostic");
+    };
+    assert_eq!(diagnostic.code(), "E0241");
+    assert_eq!(diagnostic.notes().len(), 1);
+}
+
+#[test]
+fn generic_slots_are_reserved_before_any_typed_callable_contract() {
+    use nocter_declarations::GenericParameterDomain::{Type, UsizeConstant};
+    let (sources, tree) = input(
+        "func run<T, const N: usize>(take input: T): T { input^ }",
+        ParseGoal::V2CoreUnit,
+    );
+    let mut preparation = Preparation::prepare(bound(&sources, &tree)).unwrap();
+    let id = preparation.code_ids().next().unwrap();
+    let current = preparation.current();
+    let program = current.program();
+    let slots = program.generic_parameter_ids(id).unwrap();
+    let authored = slots
+        .iter()
+        .map(|&slot| {
+            let slot = program.generic_parameter(slot).unwrap();
+            assert_eq!(slot.owner(), id);
+            (
+                slot.position(),
+                program.symbols().spelling(slot.name()).unwrap(),
+                slot.domain(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(authored, [(0, "T", Type), (1, "N", UsizeConstant)]);
+    assert!(!program.header_ready(id));
+
+    let Err(Failure::Syntax(diagnostics)) = preparation.advance(id) else {
+        panic!("incomplete generic support must reject the header");
+    };
+    assert_eq!(diagnostics[0].code(), "E0291");
+    let later = preparation.current();
+    assert_eq!(later.program().generic_parameter_ids(id), Some(slots));
+    assert!(!later.program().header_ready(id));
 }
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();

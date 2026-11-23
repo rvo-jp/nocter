@@ -171,6 +171,11 @@ impl<'source> Preparation<'source> {
             .into_iter()
             .map(|h| {
                 let id = reservations.reserve(symbol(h.name)?, h.parameters.len());
+                if let Some(generics) = &h.generics {
+                    reservations
+                        .reserve_callable_generics(id, generics.bindings(symbol)?)
+                        .map_err(|_| Failure::InconsistentSyntax)?;
+                }
                 primitives.select(syntax, authority, id, &h)?;
                 Ok((id, h))
             })

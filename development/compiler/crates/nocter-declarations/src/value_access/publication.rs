@@ -75,6 +75,7 @@ impl HeaderPublication {
             && self.definitions.namespace.as_ref() == retained.namespace.as_ref()
             && self.definitions.codes.len() == retained.codes.len()
             && self.definitions.destructors == retained.destructors
+            && self.definitions.generic_parameters == retained.generic_parameters
             && self.definitions.parameters.len() == retained.parameters.len()
             && self.definitions.aliases.len() == retained.aliases.len()
             && self.definitions.codes.iter().all(|(id, slot)| {
@@ -138,7 +139,8 @@ impl HeaderPublication {
     }
     /// Load one define-once raw callable, preserving all reserved slots and ready views.
     /// # Errors
-    /// Rejects unknown IDs, mismatched arity or a second definition without replacement.
+    /// Rejects unknown IDs, mismatched arity, generic slots or a second definition without
+    /// replacement.
     pub fn define(
         &mut self,
         id: AccessCodeId,
@@ -413,6 +415,7 @@ impl HeaderPublication {
             codes: self.codes.snapshot(),
             destructors: self.definitions.destructors.clone(),
             parameters: self.parameters.snapshot(),
+            generic_parameters: self.definitions.generic_parameters.clone(),
             namespace: self.definitions.namespace.clone(),
             nominals: self.nominals.snapshot(),
             aliases: self.aliases.snapshot(),

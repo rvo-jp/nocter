@@ -4,9 +4,11 @@ use super::{
     source::{AliasSource, EnumSource, FieldSource, ParameterSource, RecordSource, VariantSource},
     text,
 };
+use crate::generics::ExplicitParameterSyntax;
+use nocter_declarations::GenericParameterDomain;
 use nocter_declarations::value_access::{CodeKind, ParameterBinding};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
+use nocter_model::{CompileTimeGuarantee, Symbol, SymbolTable, ValueInputOperation};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxOrigin, SyntaxToken, child_node_iter,
@@ -25,10 +27,34 @@ pub(super) struct Header {
     pub name: SyntaxToken,
     pub kind: CodeKind,
     pub deferred_modifier: Option<NodeId>,
+    pub generics: Option<GenericParameters>,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: TypeSyntax,
     pub body: Option<NodeId>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct GenericParameters {
+    pub origin: NodeId,
+    slots: Box<[ExplicitParameterSyntax]>,
+}
+impl GenericParameters {
+    pub fn bindings<E>(
+        &self,
+        mut resolve: impl FnMut(SyntaxToken) -> Result<Symbol, E>,
+    ) -> Result<Vec<(Symbol, GenericParameterDomain)>, E> {
+        self.slots
+            .iter()
+            .map(|slot| {
+                let domain = if slot.annotation.is_some() {
+                    GenericParameterDomain::UsizeConstant
+                } else {
+                    GenericParameterDomain::Type
+                };
+                Ok((resolve(slot.name)?, domain))
+            })
+            .collect()
+    }
 }
 #[derive(Clone, Debug)]
 pub(super) struct RecordHeader {
@@ -144,9 +170,9 @@ pub(super) fn parameter_binding(
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
-    if let Some(parameters) = direct_node(tree, declaration, NodeKind::GenericParameters) {
-        return Err(generic_function_failure(syntax, parameters));
-    }
+    let generics = direct_node(tree, declaration, NodeKind::GenericParameters)
+        .map(|parameters| generic_parameters(syntax, parameters))
+        .transpose()?;
     let deferred_modifier = direct_node(tree, declaration, NodeKind::AsyncModifier);
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
     let tail = direct_node(tree, declaration, NodeKind::CallableTail)
@@ -168,6 +194,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
             immediate_function(syntax, declaration)
         },
         deferred_modifier,
+        generics,
         parameters,
         result_syntax,
         result_data: project_type_syntax(syntax, result_syntax)?,
@@ -175,21 +202,23 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     })
 }
 
-fn generic_function_failure(syntax: BoundSyntax<'_>, parameters: NodeId) -> Failure {
+fn generic_parameters(
+    syntax: BoundSyntax<'_>,
+    parameters: NodeId,
+) -> Result<GenericParameters, Failure> {
     let tree = syntax.tree();
-    let Ok(slots) = crate::generics::explicit_parameter_syntax(tree, parameters) else {
-        return Failure::InconsistentSyntax;
-    };
+    let slots = crate::generics::explicit_parameter_syntax(tree, parameters)
+        .map_err(|_| Failure::InconsistentSyntax)?;
     let mut names = BTreeMap::new();
-    for slot in slots {
+    for slot in &slots {
         if let Some(first) = names.insert(text(syntax, slot.name), slot.name) {
             let (Ok(origin), Ok(previous)) = (
                 SourceOrigin::from_token(tree, slot.name),
                 SourceOrigin::from_token(tree, first),
             ) else {
-                return Failure::InconsistentSyntax;
+                return Err(Failure::InconsistentSyntax);
             };
-            return Failure::Syntax(Box::new([SourceDiagnostic::new(
+            return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
                 DiagnosticCode::E0241,
                 "duplicate generic parameter",
                 origin,
@@ -198,19 +227,13 @@ fn generic_function_failure(syntax: BoundSyntax<'_>, parameters: NodeId) -> Fail
                     previous,
                 )],
                 None::<&str>,
-            )]));
+            )])));
         }
     }
-    let Ok(origin) = SourceOrigin::from_node(tree, parameters) else {
-        return Failure::InconsistentSyntax;
-    };
-    Failure::Syntax(Box::new([SourceDiagnostic::new(
-        DiagnosticCode::E0291,
-        "this generic callable does not have a qualified specialization",
-        origin,
-        [],
-        None::<&str>,
-    )]))
+    Ok(GenericParameters {
+        origin: parameters,
+        slots: slots.into(),
+    })
 }
 
 pub(super) fn immediate_function(syntax: BoundSyntax<'_>, declaration: NodeId) -> CodeKind {
@@ -239,6 +262,7 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
             CodeKind::ConstantInitializer
         },
         deferred_modifier: None,
+        generics: None,
         parameters: Vec::new(),
         result_syntax,
         result_data: project_type_syntax(syntax, result_syntax)?,
@@ -366,11 +390,18 @@ pub(super) fn symbols(
         functions
             .iter()
             .flat_map(|h| {
-                std::iter::once(h.name).chain(h.result_data.tokens()).chain(
-                    h.parameters
-                        .iter()
-                        .flat_map(|p| p.source.names().chain(p.data.tokens())),
-                )
+                std::iter::once(h.name)
+                    .chain(
+                        h.generics
+                            .iter()
+                            .flat_map(|list| list.slots.iter().map(|slot| slot.name)),
+                    )
+                    .chain(h.result_data.tokens())
+                    .chain(
+                        h.parameters
+                            .iter()
+                            .flat_map(|p| p.source.names().chain(p.data.tokens())),
+                    )
             })
             .chain(records.iter().flat_map(|r| {
                 std::iter::once(r.source.name).chain(

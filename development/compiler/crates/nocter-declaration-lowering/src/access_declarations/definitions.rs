@@ -1,7 +1,7 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
     CallableTypeSyntax, CodeSource, Failure, TypeSyntax,
-    headers::{AliasHeader, EnumHeader, Header, RecordHeader},
+    headers::{AliasHeader, EnumHeader, GenericParameters, Header, RecordHeader},
     source::{FieldSource, Sources},
     text,
 };
@@ -10,10 +10,12 @@ use nocter_declarations::value_access::{
     FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
     TupleData, ValueDefinition, VariantDefinition,
 };
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, TypeAliasId,
     ValueInputOperation,
 };
+use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, SyntaxOrigin, SyntaxToken};
 use std::collections::BTreeMap;
 
@@ -21,6 +23,7 @@ use std::collections::BTreeMap;
 #[derive(Debug)]
 pub(super) struct Recipe {
     kind: nocter_declarations::value_access::CodeKind,
+    generics: Option<GenericParameters>,
     parameters: Box<[(ValueInputOperation, TypeSyntax)]>,
     result: TypeSyntax,
 }
@@ -28,6 +31,7 @@ impl From<Header> for Recipe {
     fn from(header: Header) -> Self {
         Self {
             kind: header.kind,
+            generics: header.generics,
             parameters: header
                 .parameters
                 .into_iter()
@@ -144,6 +148,17 @@ pub(super) fn project_code<'v>(
     sources: &Sources,
     values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
 ) -> Result<Projection<CodeDefinition>, Failure> {
+    if let Some(generics) = &header.generics {
+        let origin = SourceOrigin::from_node(scope.syntax.tree(), generics.origin)
+            .map_err(|_| Failure::InconsistentSyntax)?;
+        return Err(Failure::Syntax(Box::new([SourceDiagnostic::new(
+            DiagnosticCode::E0291,
+            "this generic callable does not have a qualified specialization",
+            origin,
+            [],
+            None::<&str>,
+        )])));
+    }
     let mut definitions = Definitions {
         program,
         scope,
