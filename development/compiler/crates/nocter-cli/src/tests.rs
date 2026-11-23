@@ -1098,10 +1098,7 @@ fn installed_v2_payload_enums_use_checked_construction_and_tag_dispatch() {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[test]
-fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
-    use std::os::unix::process::ExitStatusExt;
-
+fn installed_v2_user_destruction_fixture() -> (TempTree, PathBuf, PathBuf) {
     let tree = TempTree::new("user-destruction");
     let home = tree.value_access_installation();
     let package = tree.0.join("app");
@@ -1110,6 +1107,15 @@ fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
             .join("development/compiler/tests/fixtures/value-modules/user-destruction"),
         &package,
     );
+    (tree, home, package)
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let (_tree, home, package) = installed_v2_user_destruction_fixture();
     let run = || {
         let outcome = execute_invocation(invocation(
             ["run", "--offline"],
@@ -1148,12 +1154,113 @@ fn installed_v2_user_destructors_run_before_ordered_component_cleanup() {
             "func clean_marker(): void { let _ = 1 / 0 }",
         ),
         ("PendingTicket { state: 42 }", "PendingTicket { state: 41 }"),
+        (
+            "callback: clean_first, marker: 40",
+            "callback: clean_first, marker: 42",
+        ),
+        (
+            "callback: clean_second, marker: 42",
+            "callback: clean_second, marker: 40",
+        ),
+        ("marker: 36,", "marker: 37,"),
+        (
+            "captured_ticket = Ticket { state: 42 }",
+            "captured_ticket = Ticket { state: 41 }",
+        ),
     ] {
         assert!(source.contains(original));
         fs::write(&main, source.replace(original, replacement)).unwrap();
         // Darwin reports the native arithmetic trap instruction as SIGTRAP.
         assert_eq!(run().signal(), Some(5), "{replacement}");
     }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn installed_v2_user_destructors_report_contextual_effects() {
+    let (_tree, home, package) = installed_v2_user_destruction_fixture();
+    let main = package.join("main.nct");
+    let source = fs::read_to_string(&main).unwrap();
+    let rejected = || {
+        execute_invocation(invocation(
+            ["run", "--offline"],
+            &package,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap_err()
+        .render_source_diagnostics()
+        .unwrap()
+        .unwrap()
+    };
+    fs::write(
+        &main,
+        source.replace("self.callback(self.marker)", "self.callback = clean_first"),
+    )
+    .unwrap();
+    let diagnostics = rejected();
+    assert!(
+        diagnostics.contains("different cleanup representation"),
+        "{diagnostics}"
+    );
+
+    let waiting = source
+        .replace("see ./index.nct", "see ./index.nct\nuse std/io")
+        .replace(
+            "if marker != 42 { let _ = 1 / 0 }",
+            "let _ = io.print(\"cleanup\")",
+        );
+    fs::write(&main, &waiting).unwrap();
+    let diagnostics = rejected();
+    assert!(diagnostics.contains("E0291"), "{diagnostics}");
+    assert!(
+        diagnostics.contains("may wait for external progress"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("this destructor requires verified cleanup"),
+        "{diagnostics}"
+    );
+
+    let index = package.join("index.nct");
+    let contract = fs::read_to_string(&index).unwrap();
+    fs::write(
+        index,
+        contract.replace(
+            "see ./main.nct",
+            "#test: { name: \"cleanup\", module: \".\" }\nsee ./main.nct",
+        ),
+    )
+    .unwrap();
+    fs::write(
+        main,
+        format!("{waiting}\ntest waiting_cleanup {{ let handler = Handler {{ callback: clean_second, marker: 42 }}\ndrop handler }}\n"),
+    ).unwrap();
+    let outcome = execute_invocation(invocation(
+        ["test", "--offline"],
+        &package,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    let InvocationOutcome::Test(result) = outcome else {
+        panic!("expected a case-scoped compilation failure");
+    };
+    let [run] = result.runs() else {
+        panic!("expected one selected test case: {result:?}");
+    };
+    assert_eq!(run.test().unwrap().name(), "waiting_cleanup");
+    assert_eq!(run.outcome(), nocter_command::TestRunOutcome::CompileFailed);
+    let [diagnostic] = run.source_diagnostics() else {
+        panic!("expected a source-bound destructor diagnostic: {run:?}");
+    };
+    assert_eq!(diagnostic.code(), "E0291");
+    assert!(
+        run.sources()
+            .unwrap()
+            .get(diagnostic.primary().source())
+            .is_some()
+    );
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

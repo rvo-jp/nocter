@@ -52,6 +52,25 @@ impl Marker {
 
 func clean_marker(): void {}
 
+struct Handler {
+    callback: func(i32): void
+    marker: i32
+}
+
+impl Handler {
+    drop {
+        self.callback(self.marker)
+    }
+}
+
+func clean_first(marker: i32): void {
+    if marker != 40 { let _ = 1 / 0 }
+}
+
+func clean_second(marker: i32): void {
+    if marker != 42 { let _ = 1 / 0 }
+}
+
 struct PendingTicket {
     state: i32
 }
@@ -90,6 +109,20 @@ func main(): i32 {
 
     let marker = Marker {}
     drop marker
+
+    let first = Handler { callback: clean_first, marker: 40 }
+    let second = Handler { callback: clean_second, marker: 42 }
+    drop second
+    drop first
+
+    let captured_ticket = Ticket { state: 42 }
+    let captured = Handler {
+        callback: (captured_ticket^; marker: i32): void {
+            if marker != 36 || captured_ticket.state > 42 { let _ = 1 / 0 }
+        },
+        marker: 36,
+    }
+    drop captured
 
     let pending = delayed(PendingTicket { state: 42 })
     drop pending

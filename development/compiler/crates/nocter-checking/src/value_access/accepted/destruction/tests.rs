@@ -4,6 +4,8 @@ use nocter_compile_input::{
     ModuleSourceKind::{Implementation, Root},
     PrimitiveRoleLocator, ToolchainInput,
 };
+use nocter_constant_evaluation::state::WorkBudget;
+use nocter_declarations::value_access::CodeKind;
 use nocter_model::PackageIdentity;
 use nocter_runtime_contract::PrimitiveRole;
 use nocter_test_support::ValueModuleFixture;
@@ -64,6 +66,94 @@ fn destructor_checks_a_reached_callees_authorized_wait() {
                 .any(|note| note.message().contains("this destructor"))
         );
     }
+}
+
+#[test]
+fn destructor_effects_follow_the_receiver_callback_not_the_nominal_schema() {
+    let package = PackageIdentity::new("workspace:app");
+    let module = ModuleIdentity::new(package.clone(), [] as [&str; 0]);
+    let toolchain = ToolchainInput::new(package, module.clone(), Vec::new(), Vec::new())
+        .with_primitive_roles(vec![PrimitiveRoleLocator::new(
+            PrimitiveRole::StandardOutputWrite,
+            module,
+            "output",
+        )]);
+    let body = "see ./index.nct\n\
+                struct Handler { callback: func(): void }\n\
+                impl Handler { drop { self.callback() } }\n\
+                func safe(): void {}\n\
+                func waiting(): void { let _ = output(\"from callback\") }";
+    let fixture = ValueModuleFixture::new(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\nstruct Handler\nprimitive func output(text: str): bool",
+            ),
+            ("/app/body.nct", Implementation, body),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let input = fixture.input().with_toolchain(toolchain);
+    let prepared = ModuleSourceUnit::prepare(&input).unwrap();
+    let unit = prepared.unit();
+    let program = unit.program();
+    assert_eq!(unit.destructor_frames().count(), 0);
+    let owner = program
+        .codes()
+        .iter()
+        .find_map(|(_, code)| match code.kind() {
+            CodeKind::Destructor(owner) => Some(owner),
+            _ => None,
+        })
+        .unwrap();
+    let data = program.nominal_type_identity(owner).unwrap();
+    let receiver = |name| {
+        let symbol = program.symbols().get(name).unwrap();
+        let (code, _) = program
+            .codes()
+            .iter()
+            .find(|(_, code)| code.name() == Some(symbol))
+            .unwrap();
+        let witness = program.concrete_witness(code.into()).unwrap();
+        program
+            .instantiate_callable_domains(data, |_, _| Ok(Some(witness.clone())))
+            .unwrap()
+    };
+    let mut work = WorkBudget::new(std::num::NonZeroU64::new(10_000).unwrap());
+    let safe = receiver("safe");
+    let frame = program.bind_destructor(&safe).unwrap();
+    assert_eq!(
+        unit.qualify_destructor(safe, &mut work).unwrap(),
+        [frame].into()
+    );
+    let error = unit
+        .qualify_destructor(receiver("waiting"), &mut work)
+        .unwrap_err();
+    let unrelated = ModuleSourceUnit::prepare(&input).unwrap();
+    assert!(matches!(
+        error.bind(
+            unrelated.unit(),
+            &unrelated.declarations().current().unwrap()
+        ),
+        Failure::Integrity(_)
+    ));
+    let current = prepared.declarations().current().unwrap();
+    let Failure::Flow { diagnostics, .. } = error.bind(unit, &current) else {
+        panic!("contextual destruction rejection must bind to its checked source: {error:?}");
+    };
+    let [error] = diagnostics.as_ref() else {
+        panic!("one failed destructor obligation");
+    };
+    assert!(
+        error.message().contains("may wait for external progress"),
+        "{error:?}"
+    );
+    assert_eq!(error.primary().source(), fixture.tree(1).source());
+    assert_eq!(
+        error.primary().span().range().start().get() as usize,
+        body.find("output(").unwrap(),
+    );
 }
 
 #[test]

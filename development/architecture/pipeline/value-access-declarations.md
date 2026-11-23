@@ -209,12 +209,16 @@ immediately retire. For owners that remain in scope, the resource ledger checks 
 at each reached cleanup. The ancestry check covers incomplete user-destructible descendants of
 partially moved ordinary records, tuples and arrays. Restoring a moved field resumes ordinary
 cleanup of that same owner. Copy snapshots leave the owning carrier complete.
-For closed receivers, effect checking follows reached invocation instances and ordered
-retirement steps. A consuming callable adapter is checked against its completed environment.
-Primitive effects and backend release require target certificates. The checked unit retains
-the exact anonymous frames qualified for non-waiting, non-suspending destruction.
+Effect checking follows reached invocation instances and ordered retirement steps. A consuming
+callable adapter is checked against its completed environment. Primitive effects and backend
+release require target certificates. The checked unit qualifies closed receiver frames.
+For a receiver whose fields depend on supplied callables, the concrete lifecycle qualifies the
+actual represented value from the retired payload, including callable environments. It adds the
+qualified destructor and its reached invocation bodies through the existing instance builder.
+Each contextual receiver must preserve its cleanup representation through normal body completion.
 The check uses the accepted bodies and their instance metadata. Rejected operations retain their
 body and operation identities until source locations are bound against the original source.
+Native command diagnostics report the rejected operation together with the destructor that requires it.
 The declaration binder retains an exact receiver context in the ordinary explicit input slot.
 Effect analysis projects structural components through the shared declaration schema and
 follows callable environments through their selected witness.

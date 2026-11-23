@@ -21,12 +21,86 @@ struct Reservation {
     key: InstanceKey,
     definition: Option<Instance>,
 }
-struct Builder {
+#[derive(Default)]
+pub(super) struct Builder {
     instances: ArenaBuilder<AccessInstanceId, Reservation>,
     keys: BTreeMap<InstanceKey, AccessInstanceId>,
     pending: Vec<AccessInstanceId>,
+    destructors: BTreeSet<AccessInstanceId>,
 }
 impl Builder {
+    pub(super) fn retain(program: &InstanceProgram) -> Self {
+        let mut builder = Self {
+            destructors: program.destructors.clone(),
+            ..Self::default()
+        };
+        for (_, instance) in program.instances.iter() {
+            let key = instance.key().clone();
+            let id = builder.instances.insert(Reservation {
+                key: key.clone(),
+                definition: Some(instance.clone()),
+            });
+            builder.keys.insert(key, id);
+        }
+        builder
+    }
+
+    pub(super) fn add_destructor(&mut self, frame: InstanceKey) {
+        let id = self.intern(frame);
+        self.destructors.insert(id);
+    }
+
+    pub(super) fn next(
+        &mut self,
+        unit: &Arc<Unit>,
+        work: &mut WorkBudget,
+    ) -> Result<Option<(AccessInstanceId, &Instance)>, Failure> {
+        let Some(id) = self.pending.pop() else {
+            return Ok(None);
+        };
+        self.define(unit, id, work)?;
+        let definition = self
+            .instances
+            .get(id)
+            .and_then(|instance| instance.definition.as_ref())
+            .ok_or(Failure::InvalidAcceptedUnit)?;
+        Ok(Some((id, definition)))
+    }
+
+    pub(super) fn finish(
+        self,
+        unit: Arc<Unit>,
+        root: AccessInstanceId,
+    ) -> Result<InstanceProgram, Failure> {
+        let instances = self.instances.try_finish_with(|_, reservation| {
+            reservation.definition.ok_or(Failure::InvalidAcceptedUnit)
+        })?;
+        for (_, instance) in instances.iter() {
+            for call in instance.calls.values() {
+                if call.cases().is_empty() {
+                    validate_edge(&unit, &instances, call.target(), call.environment(), call)?;
+                } else {
+                    for case in call.cases() {
+                        validate_edge(
+                            &unit,
+                            &instances,
+                            case.target,
+                            case.environment.clone(),
+                            call,
+                        )?;
+                    }
+                }
+            }
+            validate_drives(&unit, &instances, instance)?;
+        }
+        Ok(InstanceProgram {
+            unit,
+            root,
+            instances,
+            destructors: self.destructors,
+        })
+    }
+
     fn intern(&mut self, key: InstanceKey) -> AccessInstanceId {
         if let Some(&id) = self.keys.get(&key) {
             return id;
@@ -221,53 +295,17 @@ pub(super) fn close(
             return Err(Failure::UnboundRoot(id));
         }
     }
-    let mut builder = Builder {
-        instances: ArenaBuilder::new(),
-        keys: BTreeMap::new(),
-        pending: Vec::new(),
-    };
+    let mut builder = Builder::default();
     let root = builder.intern(
         unit.program()
             .bind_code(nocter_model::ValueCode::Declaration(root), [])
             .map_err(|_| Failure::InvalidAcceptedUnit)?,
     );
-    let destructors = unit
-        .destructor_frames()
-        .map(|frame| builder.intern(frame.clone()))
-        .collect();
-    while let Some(id) = builder.pending.pop() {
-        builder.define(&unit, id, work)?;
+    for frame in unit.destructor_frames() {
+        builder.add_destructor(frame.clone());
     }
-    let instances = builder.instances.finish().try_map(|_, reservation| {
-        reservation
-            .definition
-            .clone()
-            .ok_or(Failure::InvalidAcceptedUnit)
-    })?;
-    for (_, instance) in instances.iter() {
-        for call in instance.calls.values() {
-            if call.cases().is_empty() {
-                validate_edge(&unit, &instances, call.target(), call.environment(), call)?;
-            } else {
-                for case in call.cases() {
-                    validate_edge(
-                        &unit,
-                        &instances,
-                        case.target,
-                        case.environment.clone(),
-                        call,
-                    )?;
-                }
-            }
-        }
-        validate_drives(&unit, &instances, instance)?;
-    }
-    Ok(InstanceProgram {
-        unit,
-        root,
-        instances,
-        destructors,
-    })
+    while builder.next(&unit, work)?.is_some() {}
+    builder.finish(unit, root)
 }
 
 fn validate_drives(

@@ -254,9 +254,10 @@ admission obligations.
 ## Private Lifecycle Schedules
 
 `value_access::lifecycle::Program` freezes derived schedules over one retained InstanceProgram;
-it has no parts constructor. `lower` enumerates reachable checked graph locations and merges only
+it has no parts constructor. Each body uses reachable checked graph locations and merges only
 identical guard/schedule pairs. A projected condition admitting different schedules rejects
 explicitly, rather than selecting by report order. No second CFG or runtime-state store is built.
+Reached retirements can extend that graph through the [user destructor handoff](../../../architecture/pipeline/value-access-declarations.md#user-destructor-headers).
 
 `lifecycle::payloads` consumes checking's
 [ordered resource-data projection](../nocter-checking/README.md#shared-flow-access-and-resource-validation)

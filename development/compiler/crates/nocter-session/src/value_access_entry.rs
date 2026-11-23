@@ -1,7 +1,7 @@
 //! Selects an entry from one sealed v2 analysis and its exact discovery input.
 use std::{fmt, sync::Arc};
 
-use nocter_checking::value_access::accepted::Unit;
+use nocter_checking::value_access::accepted::{DestructorFailure, Failure, Unit};
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
 };
@@ -277,6 +277,22 @@ fn accepted_input(
         .compile_input()
         .map_err(ValueAccessEntryError::CompileInput)?;
     Ok((accepted, input))
+}
+
+impl AnalyzedUnit {
+    /// Project a target-selected destructor effect failure onto this accepted source snapshot.
+    #[must_use]
+    pub fn value_access_destructor_diagnostics(
+        &self,
+        failure: &DestructorFailure,
+    ) -> Option<Box<[SourceDiagnostic]>> {
+        let (accepted, input) = accepted_input(self).ok()?;
+        let declarations = accepted.headers().bind(input).ok()?;
+        match failure.bind(accepted.unit(), &declarations.current().ok()?) {
+            Failure::Flow { diagnostics, .. } => Some(diagnostics),
+            _ => None,
+        }
+    }
 }
 
 /// Cases selected from one accepted package target and its authored test identities.

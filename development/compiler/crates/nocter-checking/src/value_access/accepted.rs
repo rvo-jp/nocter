@@ -6,6 +6,7 @@ mod destruction;
 mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required_const};
+pub use destruction::DestructorFailure;
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{CodeInstanceKey, Program};
@@ -95,6 +96,7 @@ pub struct Unit {
     local_futures: deferred::LocalFutures,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
+    destruction_abi: Option<nocter_runtime_contract::RuntimeAbiIdentity>,
     destructor_frames: BTreeSet<CodeInstanceKey>,
 }
 impl Unit {
@@ -191,6 +193,9 @@ impl Unit {
             const_templates,
             deferred_drives,
             local_futures,
+            destruction_abi: context
+                .target()
+                .and_then(nocter_runtime_contract::RuntimeAbiIdentity::for_target),
             destructor_frames: BTreeSet::new(),
         };
         unit.destructor_frames = destruction::qualify(context, &unit, &mut definition_work)?;
@@ -199,6 +204,17 @@ impl Unit {
     /// Exact anonymous lifecycle frames with verified destruction effects.
     pub fn destructor_frames(&self) -> impl Iterator<Item = &CodeInstanceKey> {
         self.destructor_frames.iter()
+    }
+    /// Qualify destruction of a retired nominal receiver using its actual represented inputs.
+    /// Returns the qualified root and any destructor frames required by its reached effects.
+    /// # Errors
+    /// Rejects an invalid receiver or a reached effect without a non-waiting certificate.
+    pub fn qualify_destructor(
+        &self,
+        receiver: nocter_declarations::value_access::DataInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<BTreeSet<CodeInstanceKey>, DestructorFailure> {
+        destruction::qualify_receiver(self, receiver, work)
     }
     /// The checked deferred body can run its admitted activation without suspension.
     #[must_use]

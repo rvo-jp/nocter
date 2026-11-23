@@ -283,14 +283,10 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
     let mut runs = Vec::new();
     for source in sources {
         let (source_package, target_name, discovery) = source.into_parts();
-        if let Some(package) = &package {
-            if package != &source_package {
-                return Err(TestCommandExecutionError::Integrity(
-                    TestCommandIntegrityError::MultiplePackages,
-                ));
-            }
-        } else {
-            package = Some(source_package.clone());
+        if package.get_or_insert_with(|| source_package.clone()) != &source_package {
+            return Err(TestCommandExecutionError::Integrity(
+                TestCommandIntegrityError::MultiplePackages,
+            ));
         }
         let target = TestRunTarget::new(source_package, target_name);
         let unit = match discovery {
@@ -339,7 +335,12 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
             ),
         };
         match native_outcome {
-            Ok(outcome) => runs.extend(run_test_outcome(outcome, &target, &working_directory)),
+            Ok(outcome) => runs.extend(run_test_outcome(
+                outcome,
+                &target,
+                &working_directory,
+                unit.unit().sources(),
+            )),
             Err(error @ NativeTestSessionError::Selection(_)) => {
                 return Err(TestCommandExecutionError::Compile {
                     presentation: presentation.clone(),
@@ -380,6 +381,7 @@ fn run_test_outcome(
     outcome: NativeTestTargetOutcome,
     target: &TestRunTarget,
     working_directory: &Path,
+    sources: &SourceMap,
 ) -> Vec<TestRunResult> {
     match outcome {
         NativeTestTargetOutcome::Cases(cases) => cases
@@ -388,12 +390,12 @@ fn run_test_outcome(
                 let (test, image) = case.into_parts();
                 match image {
                     Ok(image) => run_test_case(target.clone(), test, &image, working_directory),
-                    Err(error) => native_test_compile_failure(target, Some(test), &error),
+                    Err(error) => native_test_compile_failure(target, Some(test), &error, sources),
                 }
             })
             .collect(),
         NativeTestTargetOutcome::CompileFailed(error) => {
-            vec![native_test_compile_failure(target, None, &error)]
+            vec![native_test_compile_failure(target, None, &error, sources)]
         }
     }
 }
@@ -402,22 +404,17 @@ fn native_test_compile_failure(
     target: &TestRunTarget,
     test: Option<TestCaseIdentity>,
     error: &NativeImageError,
+    sources: &SourceMap,
 ) -> TestRunResult {
-    TestRunResult {
-        target: target.clone(),
-        test,
-        outcome: TestRunOutcome::CompileFailed,
-        exit_code: None,
-        signal: None,
-        stdout: Box::new([]),
-        stderr: Box::new([]),
-        diagnostics: Box::new([TestRunDiagnostic::new(
-            DiagnosticCode::E0900,
-            error.to_string(),
-        )]),
-        source_diagnostics: Box::new([]),
-        sources: None,
-    }
+    let mut result = compile_failure(
+        target.clone(),
+        DiagnosticCode::E0900,
+        error.to_string(),
+        error.source_diagnostics().into(),
+        sources.clone(),
+    );
+    result.test = test;
+    result
 }
 
 fn discovery_failure(

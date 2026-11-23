@@ -277,7 +277,7 @@ pub fn compile_value_access_tests(
         })?;
     let mut cases = Vec::with_capacity(tests.cases().len());
     for (declaration, name) in tests.cases() {
-        let image = crate::value_access::lower_root_image(tests.target(), || {
+        let image = crate::value_access::lower_root_image(analysis, tests.target(), || {
             nocter_target_program::value_access::InstanceProgram::prepare(tests.unit(), declaration)
         });
         if let Err(error @ NativeImageError::Target(_)) = image {

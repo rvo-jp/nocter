@@ -150,20 +150,30 @@ impl DataInstanceKey {
         }
         program.instantiate_closed_data(data)
     }
-    /// Project the declaration's ordered structural components with their retained contexts.
-    /// A homogeneous array contributes one element schema. Inactive alternatives are metadata;
-    /// this supplies no active-case evidence, storage or access grant.
+    /// Project the potential owned components of a complete value with their retained contexts.
+    /// A homogeneous array contributes one element schema. A callable contributes its owned
+    /// environment, and a callable domain contributes each represented alternative. This supplies
+    /// no active-case evidence, storage or access grant.
     /// # Errors
     /// Rejects absent schemas and unresolved positive components.
-    pub fn component_instances(&self, program: &Program) -> Result<Vec<Self>, CodeBindingError> {
-        if self.is_uninhabited() {
-            return Ok(Vec::new());
+    pub fn cleanup_components(&self, program: &Program) -> Result<Vec<Self>, CodeBindingError> {
+        match self.schema(program)? {
+            InstanceSchema::Uninhabited | InstanceSchema::Builtin(_) => Ok(Vec::new()),
+            InstanceSchema::Function(_) => Ok(self.environment(program)?.into_iter().collect()),
+            InstanceSchema::FunctionAlternatives(_) => self
+                .function_representations(program)?
+                .map(Vec::from)
+                .ok_or(CodeBindingError::InvalidWitness),
+            InstanceSchema::Aggregate(_)
+            | InstanceSchema::Enumeration(_)
+            | InstanceSchema::Array(_)
+            | InstanceSchema::Optional(_)
+            | InstanceSchema::Fallible(_) => program
+                .instance_fields(self.data)?
+                .into_iter()
+                .map(|(field, _)| self.component(program, field))
+                .collect(),
         }
-        program
-            .instance_fields(self.data)?
-            .into_iter()
-            .map(|(field, _)| self.component(program, field))
-            .collect()
     }
     /// Follow validated component metadata without replacing context by a source type lookup.
     /// This supplies no source access, numeric-index relation or initialization proof.

@@ -9,16 +9,14 @@ use flow::{
     resources::{Disposal, Holder, Step},
 };
 use nocter_constant_evaluation::state::WorkBudget;
-use nocter_declarations::value_access::{
-    CodeInstanceKey, CodeKind, DataInstanceKey, InstanceSchema,
-};
+use nocter_declarations::value_access::{CodeInstanceKey, CodeKind, DataInstanceKey};
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessLocalId, BuiltinType, ValueApplication, ValueCode,
     ValueInputOperation,
 };
 use nocter_runtime_contract::RuntimeAbiIdentity;
-use std::{borrow::Cow, collections::BTreeSet};
+use std::{borrow::Cow, collections::BTreeSet, fmt, sync::Arc};
 
 mod protection;
 use protection::Protected;
@@ -38,43 +36,93 @@ pub(super) fn qualify(
     if !unit.program.has_destructors() {
         return Ok(BTreeSet::new());
     }
-    let mut proof = Proof {
-        unit,
-        abi: context.target().and_then(RuntimeAbiIdentity::for_target),
-        frames: BTreeSet::new(),
-        retired: BTreeSet::new(),
-        pending: Vec::new(),
-        work,
-    };
+    let mut proof = Proof::new(unit, work);
     for (root, declaration) in unit.program.codes().iter() {
         let CodeKind::Destructor(owner) = declaration.kind() else {
             continue;
         };
         let data = unit.program.nominal_type_identity(owner).ok_or(INVALID)?;
-        let receiver = unit.program.instantiate_closed_data(data).map_err(|_| {
-            rejection(
-                context,
-                unit,
-                root,
-                CheckFailure::at_entry(
-                    root.into(),
-                    "the destructor receiver has no closed cleanup context",
-                ),
-            )
-        })?;
+        let Ok(receiver) = unit.program.instantiate_closed_data(data) else {
+            // A compound receiver can contain a callable whose representation is supplied by
+            // the actual value at retirement. Neither a nominal identity nor a signature
+            // represents that witness. Concrete lifecycle admission checks the exact instance.
+            continue;
+        };
         proof
             .require(root, receiver)
             .map_err(|error| rejection(context, unit, root, error))?;
     }
-    Ok(proof.frames.into_iter().map(|frame| frame.key).filter(|key| {
-        matches!(key.code(), ValueCode::Declaration(code)
-            if unit.program.codes().get(code).is_some_and(|declaration| matches!(declaration.kind(), CodeKind::Destructor(_))))
-    }).collect())
+    Ok(proof.destructors())
+}
+
+/// The checked code and operation that made an exact receiver's destruction ineligible.
+#[derive(Clone)]
+pub struct DestructorFailure {
+    root: Option<AccessCodeId>,
+    failure: CheckFailure,
+    evidence: Arc<results::Evidence>,
+}
+
+impl fmt::Debug for DestructorFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DestructorFailure")
+            .field("root", &self.root)
+            .field("failure", &self.failure)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for DestructorFailure {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.evidence, &other.evidence)
+            && self.root == other.root
+            && self.failure == other.failure
+    }
+}
+impl Eq for DestructorFailure {}
+
+impl DestructorFailure {
+    /// Bind this rejection against the exact current declaration sources.
+    #[must_use]
+    pub fn bind(&self, unit: &Unit, context: &DeclarationContext<'_>) -> Failure {
+        if !Arc::ptr_eq(&self.evidence, &unit.result_evidence) {
+            return INVALID;
+        }
+        self.root
+            .map_or(INVALID, |root| rejection(context, unit, root, self.failure))
+    }
+}
+
+pub(super) fn qualify_receiver(
+    unit: &Unit,
+    receiver: DataInstanceKey,
+    work: &mut WorkBudget,
+) -> Result<BTreeSet<CodeInstanceKey>, DestructorFailure> {
+    let Some(root) = unit
+        .program
+        .data_destructor(receiver.data())
+        .filter(|_| !receiver.is_uninhabited())
+    else {
+        return Err(DestructorFailure {
+            root: None,
+            failure: CheckFailure::Integrity(flow::IntegrityError::InconsistentTypedBody),
+            evidence: Arc::clone(&unit.result_evidence),
+        });
+    };
+    let mut proof = Proof::new(unit, work);
+    proof
+        .require(root, receiver)
+        .map_err(|failure| DestructorFailure {
+            root: Some(root),
+            failure,
+            evidence: Arc::clone(&unit.result_evidence),
+        })?;
+    Ok(proof.destructors())
 }
 
 struct Proof<'a, 'work> {
     unit: &'a Unit,
-    abi: Option<RuntimeAbiIdentity>,
     frames: BTreeSet<Frame>,
     retired: BTreeSet<DataInstanceKey>,
     pending: Vec<Frame>,
@@ -87,7 +135,7 @@ struct Frame {
     protected: BTreeSet<AccessLocalId>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CheckFailure {
     Integrity(flow::IntegrityError),
     Rejected {
@@ -107,7 +155,36 @@ impl CheckFailure {
     }
 }
 
-impl Proof<'_, '_> {
+impl<'a, 'work> Proof<'a, 'work> {
+    fn new(unit: &'a Unit, work: &'work mut WorkBudget) -> Self {
+        Self {
+            unit,
+            frames: BTreeSet::new(),
+            retired: BTreeSet::new(),
+            pending: Vec::new(),
+            work,
+        }
+    }
+
+    fn destructors(self) -> BTreeSet<CodeInstanceKey> {
+        self.frames
+            .into_iter()
+            .filter_map(|Frame { key, .. }| {
+                let ValueCode::Declaration(code) = key.code() else {
+                    return None;
+                };
+                self.unit
+                    .program
+                    .codes()
+                    .get(code)
+                    .is_some_and(|declaration| {
+                        matches!(declaration.kind(), CodeKind::Destructor(_))
+                    })
+                    .then_some(key)
+            })
+            .collect()
+    }
+
     fn require(&mut self, code: AccessCodeId, data: DataInstanceKey) -> Result<(), CheckFailure> {
         self.retire(data)
             .map_err(|message| CheckFailure::at_entry(code.into(), message))?;
@@ -142,6 +219,29 @@ impl Proof<'_, '_> {
                         at: Some(at),
                         message,
                     })?;
+            }
+        }
+        if let Some(received) = frame.key.input_data(0)
+            && let ValueCode::Declaration(id) = code
+            && self.unit.program.data_destructor(received.data()) == Some(id)
+            && body.graph().points().iter().any(|(point, _)| {
+                matches!(control.terminator(point), Some(flow::Terminator::Return))
+            })
+        {
+            let [receiver] = body.typed().body().inputs().explicit() else {
+                return Err(CheckFailure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ));
+            };
+            let completed = self
+                .unit
+                .instantiate_completed_input_data(&frame.key, receiver.local, self.work)
+                .map_err(|failure| CheckFailure::at_entry(code, metadata_failure(failure)))?;
+            if !received.has_same_representation(&self.unit.program, &completed) {
+                return Err(CheckFailure::at_entry(
+                    code,
+                    "the completed receiver has a different cleanup representation",
+                ));
             }
         }
         Ok(())
@@ -289,7 +389,8 @@ impl Proof<'_, '_> {
             // These certificates cover the actual selected backing and access to stable input
             // or process snapshots. Unknown observations cannot justify a non-waiting cycle.
             if self
-                .abi
+                .unit
+                .destruction_abi
                 .is_none_or(|abi| role.value_drive_backing(abi).is_none())
             {
                 return Err("this primitive has no non-waiting certificate on the selected target");
@@ -383,9 +484,6 @@ impl Proof<'_, '_> {
             }
             self.work.step().map_err(|_| WORK)?;
             if program.data_destructor(data.data()).is_some() {
-                if !data.is_context_free() {
-                    return Err("context-dependent destructor cleanup is unresolved");
-                }
                 let key = program.bind_destructor(&data).map_err(|_| CLEANUP)?;
                 let body = self
                     .unit
@@ -401,34 +499,15 @@ impl Proof<'_, '_> {
                     protected: BTreeSet::from([receiver.local]),
                 });
             }
-            match data.schema(program).map_err(|_| CLEANUP)? {
-                InstanceSchema::Builtin(BuiltinType::Error) => {
-                    if !self
-                        .abi
-                        .is_some_and(RuntimeAbiIdentity::can_release_error_during_drive)
-                    {
-                        return Err(CLEANUP);
-                    }
-                }
-                InstanceSchema::Uninhabited | InstanceSchema::Builtin(_) => {}
-                InstanceSchema::Aggregate(_)
-                | InstanceSchema::Enumeration(_)
-                | InstanceSchema::Array(_)
-                | InstanceSchema::Optional(_)
-                | InstanceSchema::Fallible(_) => {
-                    pending.extend(data.component_instances(program).map_err(|_| CLEANUP)?);
-                }
-                InstanceSchema::Function(_) => {
-                    pending.extend(data.environment(program).map_err(|_| CLEANUP)?);
-                }
-                InstanceSchema::FunctionAlternatives(_) => {
-                    let cases = data
-                        .function_representations(program)
-                        .map_err(|_| CLEANUP)?
-                        .ok_or(CLEANUP)?;
-                    pending.extend(cases);
-                }
+            if program.data_type(BuiltinType::Error) == Some(data.data())
+                && !self
+                    .unit
+                    .destruction_abi
+                    .is_some_and(RuntimeAbiIdentity::can_release_error_during_drive)
+            {
+                return Err(CLEANUP);
             }
+            pending.extend(data.cleanup_components(program).map_err(|_| CLEANUP)?);
         }
         Ok(())
     }
@@ -445,12 +524,12 @@ fn rejection(
         CheckFailure::Integrity(error) => return Failure::Integrity(error),
     };
     let project = || {
+        let verified = unit.result_evidence.verify(context).ok()?;
         let destructor = context
             .source_origin(context.code_source(root)?.origin())
             .ok()?;
         let mut notes = Vec::new();
         let primary = if let Some(at) = at {
-            let verified = unit.result_evidence.verify(context).ok()?;
             let bound = unit.code_body(code)?.bind_verified(&verified).ok()?;
             let origin = bound.origin(at).ok()?;
             notes.push(DiagnosticNote::new(

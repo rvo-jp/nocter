@@ -105,6 +105,14 @@ pub enum NativeImageError {
 }
 
 impl NativeImageError {
+    #[must_use]
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        match self {
+            Self::ValueAccess(error) => error.source_diagnostics(),
+            _ => &[],
+        }
+    }
+
     const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Target(_) => Some(DiagnosticCode::E0701),
@@ -166,7 +174,8 @@ impl NativeImageSetError {
     pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
             Self::ValueAccessSelection(error) => error.source_diagnostics(),
-            _ => &[],
+            Self::Image { error, .. } => error.source_diagnostics(),
+            Self::NoExecutable => &[],
         }
     }
 
@@ -217,7 +226,8 @@ impl NativeSessionError {
     pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
             Self::ValueAccessSelection(error) => error.source_diagnostics(),
-            _ => &[],
+            Self::Image(error) => error.source_diagnostics(),
+            Self::Executable(_) => &[],
         }
     }
 

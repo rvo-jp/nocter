@@ -1,4 +1,5 @@
 //! Concrete lifecycle schedules and initialization bits. No payload layout, ABI or native admission.
+mod destruction;
 pub mod flags;
 mod payloads;
 use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
@@ -196,9 +197,11 @@ struct Draft {
     after: Box<[Step]>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Failure {
     InvalidInstanceProgram,
+    Body(super::Failure),
+    Destructor(nocter_checking::value_access::accepted::DestructorFailure),
     Payload {
         instance: AccessInstanceId,
         at: Location,
@@ -237,7 +240,11 @@ impl Program {
         instances: Arc<InstanceProgram>,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<Self, Failure> {
-        let bodies = lower(&instances, work)?;
+        let mut bodies = BTreeMap::new();
+        for (id, instance) in instances.instances().iter() {
+            bodies.insert(id, lower_body(instances.unit(), id, instance, work)?);
+        }
+        let instances = destruction::extend(instances, &mut bodies, work)?;
         Ok(Self { instances, bodies })
     }
     #[must_use]
@@ -310,60 +317,57 @@ impl Program {
 
 const INVALID: Failure = Failure::InvalidInstanceProgram;
 
-fn lower(
-    program: &InstanceProgram,
+fn lower_body(
+    unit: &nocter_checking::value_access::accepted::Unit,
+    id: AccessInstanceId,
+    instance: &Instance,
     work: &mut nocter_constant_evaluation::state::WorkBudget,
-) -> Result<BTreeMap<AccessInstanceId, Body>, Failure> {
-    let mut bodies = BTreeMap::new();
-    for (id, instance) in program.instances().iter() {
-        let checked = program.body(id).ok_or(INVALID)?;
-        let mut actions = BTreeMap::new();
-        for (point, block) in checked.graph().points().iter() {
-            if !instance.control().reachable(point) {
-                continue;
-            }
-            for (action, event) in block.actions.iter().enumerate() {
-                let at = Location { point, action };
-                let completion = completion(instance, &event.operation)?;
-                let mut alternatives = BTreeMap::new();
-                for transition in checked.access().resources().at(at) {
-                    let condition = transition.condition();
-                    let mut projection =
-                        payloads::Projection::new(instance, id, at, transition, work)?;
-                    let before = projection.steps(transition.before_steps())?;
-                    let mut after = completion.clone().into_iter().collect::<Vec<_>>();
-                    after.extend(projection.after_steps(transition.after_steps())?);
-                    let candidate = Draft {
-                        condition: condition.clone(),
-                        operation_state: transition.operation_condition().clone(),
-                        final_state: transition.after_condition(),
-                        before: before.into(),
-                        after: after.into(),
-                    };
-                    match alternatives.entry(condition) {
-                        Entry::Occupied(previous) if previous.get() != &candidate => {
-                            return Err(Failure::UnresolvedResourceChoice { instance: id, at });
-                        }
-                        Entry::Occupied(_) => {}
-                        Entry::Vacant(entry) => {
-                            entry.insert(candidate);
-                        }
+) -> Result<Body, Failure> {
+    let checked = unit.code_body(instance.key().code()).ok_or(INVALID)?;
+    let mut actions = BTreeMap::new();
+    for (point, block) in checked.graph().points().iter() {
+        if !instance.control().reachable(point) {
+            continue;
+        }
+        for (action, event) in block.actions.iter().enumerate() {
+            let at = Location { point, action };
+            let completion = completion(instance, &event.operation)?;
+            let mut alternatives = BTreeMap::new();
+            for transition in checked.access().resources().at(at) {
+                let condition = transition.condition();
+                let mut projection = payloads::Projection::new(instance, id, at, transition, work)?;
+                let before = projection.steps(transition.before_steps())?;
+                let mut after = completion.clone().into_iter().collect::<Vec<_>>();
+                after.extend(projection.after_steps(transition.after_steps())?);
+                let candidate = Draft {
+                    condition: condition.clone(),
+                    operation_state: transition.operation_condition().clone(),
+                    final_state: transition.after_condition(),
+                    before: before.into(),
+                    after: after.into(),
+                };
+                match alternatives.entry(condition) {
+                    Entry::Occupied(previous) if previous.get() != &candidate => {
+                        return Err(Failure::UnresolvedResourceChoice { instance: id, at });
+                    }
+                    Entry::Occupied(_) => {}
+                    Entry::Vacant(entry) => {
+                        entry.insert(candidate);
                     }
                 }
-                if alternatives.is_empty() {
-                    return Err(INVALID);
-                }
-                actions.insert(at, alternatives.into_values().collect());
             }
+            if alternatives.is_empty() {
+                return Err(INVALID);
+            }
+            actions.insert(at, alternatives.into_values().collect());
         }
-        let entry = checked
-            .access()
-            .resources()
-            .entry_condition()
-            .ok_or(INVALID)?;
-        bodies.insert(id, flags::lower(actions, entry)?);
     }
-    Ok(bodies)
+    let entry = checked
+        .access()
+        .resources()
+        .entry_condition()
+        .ok_or(INVALID)?;
+    flags::lower(actions, entry)
 }
 
 fn completion(instance: &Instance, operation: &Operation) -> Result<Option<Step>, Failure> {

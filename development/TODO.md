@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify exact contextual receivers selected by the concrete lifecycle. Close their body edges
-with the ordinary invocation graph and preserve original operation identities on rejection.
+Qualify consuming enum decomposition with user destructors. Verify that copied fields survive
+their original carrier's normal destruction and that an incomplete carrier cannot reach it.
 
 ## Remaining Contextual Representation Qualification
 
@@ -789,8 +789,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Permit component transfers with complete restoration on every reached cleanup path.
   Diagnose live partial owners at retirement, including nested owners, replacement and early
   return. Run a restored owner through its ordinary native cleanup.
-- [ ] Extend destructor effect and cleanup qualification to context-dependent receivers and
-  remaining target backing and release contracts.
+- [ ] Extend destructor effect and cleanup qualification to receivers whose completed cleanup
+  representation changes, and to remaining target backing and release contracts. Qualify effects
+  fixed by the contextual definition before a concrete retirement when the source evidence allows.
 - [x] Close executable destructor bodies from reached retirement schemas, including completed
   adapter environments and local-future cancellation. Remove unused destructor bodies and their
   dependencies from executable MIR. Qualify zero-size receivers and cancellation without drive.
@@ -800,6 +801,9 @@ not a language restriction derived from the current realization boundary.
   obligation through stored data projection even when no executable body is ready.
 - [x] Run lifecycle effect analysis on accepted bodies and their canonical instance metadata.
   Resolve source locations separately from the semantic proof.
+- [x] Close reached contextual destructor frames whose receiver preserves its completed cleanup
+  representation. Verify distinct stored functions, captured values and source-bound effect errors
+  through installed native execution and test commands.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
