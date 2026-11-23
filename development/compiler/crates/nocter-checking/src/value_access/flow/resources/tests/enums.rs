@@ -130,15 +130,37 @@ fn partial_enum_cleanup_skips_moved_leaves_and_all_inactive_fields() {
     };
     let [head, pair, tail] = fields(0).try_into().unwrap();
     let [inactive] = fields(1).try_into().unwrap();
-    let root = Holder::Local(ArenaBuilder::<AccessLocalId, ()>::new().insert(()));
+    let mut locals = ArenaBuilder::<AccessLocalId, ()>::new();
+    let root = Holder::Local(locals.insert(()));
+    let binding = Holder::Local(locals.insert(()));
     let place = root.place();
     let pair = place.project(pair);
+    let leaf = pair.project(nocter_model::ValueField::Tuple(0));
     let mut state = State::default();
     state
         .construct(root, payload(program, data).unwrap(), &mut Vec::new())
         .unwrap();
-    let owner = state.owned.get_mut(&root).unwrap();
-    owner.remove(pair.project(nocter_model::ValueField::Tuple(0)).fields());
+    let mut steps = Vec::new();
+    for case in [None, Some(1)] {
+        let mut wrong = state.clone();
+        if let Some(tag) = case {
+            wrong.refine_enum_case(program, root, tag).unwrap();
+        }
+        let before = wrong.clone();
+        assert!(
+            wrong
+                .move_to(program, &leaf, &binding.place(), false, &mut steps)
+                .is_err()
+        );
+        assert_eq!(wrong, before);
+        assert!(steps.is_empty());
+    }
+    state.refine_enum_case(program, root, 0).unwrap();
+    state
+        .move_to(program, &leaf, &binding.place(), false, &mut steps)
+        .unwrap();
+    assert!(matches!(&steps[..], [Step::Move {source, ..}] if source == &leaf));
+    steps.clear();
 
     // The retained holes describe one proven physical case. An impossible mixed frontier
     // must fail without retiring the owner or publishing any cleanup actions.
@@ -149,7 +171,6 @@ fn partial_enum_cleanup_skips_moved_leaves_and_all_inactive_fields() {
         .unwrap()
         .remove(place.project(inactive).fields());
     let before = inconsistent.clone();
-    let mut steps = Vec::new();
     assert!(inconsistent.dispose(program, &place, &mut steps).is_err());
     assert_eq!(inconsistent, before);
     assert!(steps.is_empty());
@@ -177,4 +198,5 @@ fn partial_enum_cleanup_skips_moved_leaves_and_all_inactive_fields() {
         matches!(steps.last(), Some(Step::ReleaseContainer { source, .. }) if source == &place)
     );
     assert!(!state.contains(root));
+    assert!(state.initialized_root(binding));
 }

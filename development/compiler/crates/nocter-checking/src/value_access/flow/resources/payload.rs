@@ -4,7 +4,7 @@ use super::{
     payload,
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
-use nocter_model::{BuiltinType, ValueField, ValueProjection};
+use nocter_model::{BuiltinType, ValueField, ValueProjection, VariantId};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -12,6 +12,7 @@ use std::sync::Arc;
 pub(super) struct OwnedValue {
     pub payload: Payload,
     pub retained_accesses: Option<Arc<[super::ActivationAccess]>>,
+    case: Option<VariantId>,
     // Prefix-free unavailable selections. Do not merge missing siblings into their parent:
     // the parent container still exists and permits restoring an individual child.
     pub missing: BTreeSet<Missing>,
@@ -25,11 +26,27 @@ impl OwnedValue {
         Self {
             payload,
             retained_accesses: None,
+            case: None,
             missing: BTreeSet::new(),
         }
     }
     pub fn complete(&self, path: &Path) -> bool {
         !self.missing.iter().any(|hole| hole.overlaps(path))
+    }
+    pub(super) fn refine_enum_case(&mut self, program: &Program, tag: u64) -> Result<()> {
+        let Some(PayloadSchema::Enumeration(schema)) = program.data_schema(self.payload.data())
+        else {
+            return Err(INVALID);
+        };
+        if !self.missing.is_empty() {
+            return Err(INVALID);
+        }
+        let case = *schema
+            .variants()
+            .get(usize::try_from(tag).map_err(|_| INVALID)?)
+            .ok_or(INVALID)?;
+        self.case = Some(case);
+        Ok(())
     }
     pub fn selected(&self, program: &Program, path: &Path) -> Result<Payload> {
         if path.is_root() && matches!(self.payload.disposal(), Disposal::UnstartedFuture(_)) {
@@ -37,7 +54,8 @@ impl OwnedValue {
         }
         payload(
             program,
-            path.data(program, self.payload.data()).ok_or(INVALID)?,
+            path.data_in_case(program, self.payload.data(), self.case)
+                .ok_or(INVALID)?,
         )
     }
     pub fn container(&self, program: &Program, path: &Path) -> Result<Payload> {

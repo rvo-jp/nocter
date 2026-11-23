@@ -61,6 +61,18 @@ impl State {
             .get(&holder)
             .is_some_and(|value| value.missing.is_empty())
     }
+    /// Retain the matched nominal variant for an owned carrier on a selected outgoing edge.
+    pub(in crate::value_access::flow) fn refine_enum_case(
+        &mut self,
+        program: &Program,
+        carrier: Holder,
+        tag: u64,
+    ) -> Result<()> {
+        if let Some(value) = self.owned.get_mut(&carrier) {
+            value.refine_enum_case(program, tag)?;
+        }
+        Ok(())
+    }
     pub fn initialized(&self, program: &Program, place: &Place) -> Result<bool> {
         let Some(value) = self.owned.get(&place.holder()) else {
             return Ok(false);

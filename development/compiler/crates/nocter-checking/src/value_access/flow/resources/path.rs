@@ -3,7 +3,7 @@ use super::{Program, TypedQuery};
 use crate::value_access::{ExpressionKind, IndexAction};
 use nocter_model::{
     AccessExpressionId, FieldPath, IndexRelation, PathRelation, TypeId, ValueField, ValuePath,
-    ValueProjection,
+    ValueProjection, VariantId,
 };
 
 /// Names reusable backing within one body. Equality is meaningful only while the associated
@@ -284,12 +284,19 @@ impl Path {
     }
     #[must_use]
     pub fn data(&self, program: &Program, root: TypeId) -> Option<TypeId> {
-        // Ordinary ownership paths carry no receipt of an active enum case.
-        if self
-            .fields()
-            .iter()
-            .any(|field| matches!(field, ValueProjection::EnumField { .. }))
-        {
+        self.data_in_case(program, root, None)
+    }
+    /// A case receipt authorizes the first projection of this exact enum owner.
+    pub(super) fn data_in_case(
+        &self,
+        program: &Program,
+        root: TypeId,
+        case: Option<VariantId>,
+    ) -> Option<TypeId> {
+        if self.fields().iter().enumerate().any(|(position, field)| {
+            matches!(field, ValueProjection::EnumField { variant, .. }
+                if position != 0 || Some(*variant) != case)
+        }) {
             return None;
         }
         program.project_data_by(root, &self.0, |index, length| match *index {

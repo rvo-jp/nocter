@@ -7,10 +7,10 @@ mod state;
 #[cfg(test)]
 mod tests;
 
-use super::{Graph, Initialization, IntegrityError, Location, Terminator};
+use super::{Graph, Initialization, IntegrityError, Location, Terminator, resources::Holder};
 use crate::value_access::Query as TypedQuery;
 pub use liveness::{Carrier, Liveness};
-use nocter_model::{AccessLocalId, FieldPath, PathRelation, ValueAccessMode};
+use nocter_model::{AccessFlowPointId, AccessLocalId, FieldPath, PathRelation, ValueAccessMode};
 pub use projection::AccessDiagnostic;
 use state::World;
 use std::collections::{BTreeMap, BTreeSet};
@@ -260,11 +260,13 @@ pub(super) fn analyze(
                     return Err(INVALID);
                 }
             } else {
-                for successor in block.terminator.successors() {
-                    if initialization.reachable(successor) {
-                        pending.insert((successor, world.clone()));
-                    }
-                }
+                queue_successors(
+                    typed,
+                    initialization,
+                    &block.terminator,
+                    &world,
+                    &mut pending,
+                )?;
             }
         }
     }
@@ -275,5 +277,43 @@ pub(super) fn analyze(
         resources,
         retained_regions,
     })
+}
+
+fn queue_successors(
+    typed: &TypedQuery,
+    initialization: &Initialization,
+    terminator: &Terminator,
+    world: &World,
+    pending: &mut BTreeSet<(AccessFlowPointId, World)>,
+) -> Result<(), IntegrityError> {
+    if let Terminator::EnumSwitch {
+        source,
+        cases,
+        fallback,
+    } = terminator
+    {
+        let carrier = Holder::Expression(*source);
+        for &(tag, successor) in cases.iter() {
+            if initialization.reachable(successor) {
+                let mut selected = world.clone();
+                selected
+                    .resources
+                    .refine_enum_case(typed.program(), carrier, tag)?;
+                pending.insert((successor, selected));
+            }
+        }
+        if initialization.reachable(*fallback) {
+            pending.insert((*fallback, world.clone()));
+        }
+    } else {
+        pending.extend(
+            terminator
+                .successors()
+                .into_iter()
+                .filter(|&next| initialization.reachable(next))
+                .map(|next| (next, world.clone())),
+        );
+    }
+    Ok(())
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;

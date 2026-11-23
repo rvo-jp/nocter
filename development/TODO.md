@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry the matched enum case into the ownership ledger for the prepared take owner. Use that
-case to qualify non-Copy payload moves, then lower the active remainder cleanup and verify
-transfers through ordinary source and native execution.
+Connect non-Copy take leaves to the qualified prepared enum owner. Lower their moves and the
+active remainder cleanup using the same case edge that qualifies read/edit bindings. Verify
+mixed Copy and moved leaves, cleanup order, and interrupted branch exits.
 
 ## Remaining Contextual Representation Qualification
 
@@ -762,6 +762,8 @@ not a language restriction derived from the current realization boundary.
   nominal case and visit only its initialized fields in reverse order.
 - [x] Stage Copy leaves of named take patterns before retiring the entire received enum.
   Qualify both explicit transfer and an unmarked Copy scrutinee through the selected edge.
+- [x] Retain the matched case in the prepared owner's ledger entry. Remove only fields of that
+  exact case and reject unqualified or different-case transfers without changing ownership.
 - [ ] Qualify take decomposition of named enum payloads. Preserve ownership ordering, active-case
   remainder cleanup, and complete initialization for user-destructible carriers.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
