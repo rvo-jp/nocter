@@ -9,8 +9,8 @@ mod module_scopes;
 pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
 pub use module_scopes::{
-    ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources, TypeMember,
-    TypeMemberKind,
+    ConversionSelection, ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources,
+    TypeMember, TypeMemberKind,
 };
 mod primitives;
 mod projection;
@@ -468,6 +468,17 @@ impl<'source> Context<'source> {
         let name = self.program().symbols().get(name)?;
         self.module?
             .type_member(self.syntax.tree().source(), owner, name)
+    }
+    /// Select a conversion through its source owner and normalized target data.
+    #[must_use]
+    pub fn conversion(
+        &self,
+        owner: nocter_declarations::value_access::BehaviorOwner,
+        target: nocter_model::TypeId,
+    ) -> ConversionSelection {
+        self.module.map_or(ConversionSelection::Missing, |binding| {
+            binding.conversion(self.syntax.tree().source(), self.program(), owner, target)
+        })
     }
     /// Returns the unit's selected target when the context came from a physical source inventory.
     #[must_use]

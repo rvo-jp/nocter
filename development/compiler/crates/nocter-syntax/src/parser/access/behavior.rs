@@ -16,6 +16,13 @@ pub(super) fn declaration(parser: &mut Parser<'_>) {
 fn member(parser: &mut Parser<'_>) {
     let declaration = parser.start();
     directives::prefix(parser, false);
+    if parser.contextual_at(
+        parser.cursor + usize::from(parser.at_keyword(Keyword::Const)),
+        ContextualSpelling::Coerce,
+    ) {
+        coercion(parser, declaration);
+        return;
+    }
     let head = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Const | Keyword::Async) => parser.nth_kind(1),
         head => head,
@@ -54,6 +61,29 @@ fn structural_grant(parser: &mut Parser<'_>, declaration: crate::parser::Marker)
 fn method(parser: &mut Parser<'_>, method: crate::parser::Marker) {
     callable_modifier(parser);
     parser.expect_keyword(Keyword::Method);
+    receiver(parser);
+    parser.expect_punctuation(Punctuation::Dot);
+    parser.expect_name();
+    callable_tail(parser);
+    if parser.at_punctuation(Punctuation::LeftBrace) {
+        required_block(parser);
+    }
+    parser.complete(method, NodeKind::InherentMethod);
+}
+
+fn coercion(parser: &mut Parser<'_>, declaration: crate::parser::Marker) {
+    callable_modifier(parser);
+    parser.expect_contextual(ContextualSpelling::Coerce);
+    receiver(parser);
+    parser.expect_keyword(Keyword::As);
+    super::type_(parser);
+    if parser.at_punctuation(Punctuation::LeftBrace) {
+        required_block(parser);
+    }
+    parser.complete(declaration, NodeKind::CoercionDeclaration);
+}
+
+fn receiver(parser: &mut Parser<'_>) {
     let receiver = parser.start();
     if parser.at_contextual(ContextualSpelling::Edit)
         || parser.at_contextual(ContextualSpelling::Take)
@@ -64,11 +94,4 @@ fn method(parser: &mut Parser<'_>, method: crate::parser::Marker) {
     }
     parser.expect_contextual(ContextualSpelling::LowerSelf);
     parser.complete(receiver, NodeKind::Receiver);
-    parser.expect_punctuation(Punctuation::Dot);
-    parser.expect_name();
-    callable_tail(parser);
-    if parser.at_punctuation(Punctuation::LeftBrace) {
-        required_block(parser);
-    }
-    parser.complete(method, NodeKind::InherentMethod);
 }

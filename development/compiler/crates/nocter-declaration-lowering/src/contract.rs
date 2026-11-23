@@ -22,7 +22,7 @@ enum CallableLabel {
     LiteralSequence,
     LiteralString,
     Coercion {
-        receiver: SyntaxStructure,
+        receiver: Option<SyntaxStructure>,
         target: SyntaxStructure,
     },
     Operator,
@@ -730,16 +730,23 @@ fn callable_label(
                 Some(CallableLabel::LiteralString)
             }
         }
-        SurfaceDeclarationKind::Coercion => Some(CallableLabel::Coercion {
-            receiver: project_syntax_structure(
-                syntax,
-                direct_node(tree, declaration.node(), NodeKind::Receiver)?,
-            )?,
-            target: project_syntax_structure(
-                syntax,
-                direct_node(tree, declaration.node(), NodeKind::Type)?,
-            )?,
-        }),
+        SurfaceDeclarationKind::Coercion => {
+            let receiver = if tree.root().kind() == NodeKind::V2CoreUnit {
+                None
+            } else {
+                Some(project_syntax_structure(
+                    syntax,
+                    direct_node(tree, declaration.node(), NodeKind::Receiver)?,
+                )?)
+            };
+            Some(CallableLabel::Coercion {
+                receiver,
+                target: project_syntax_structure(
+                    syntax,
+                    direct_node(tree, declaration.node(), NodeKind::Type)?,
+                )?,
+            })
+        }
         SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
         | SurfaceDeclarationKind::Index

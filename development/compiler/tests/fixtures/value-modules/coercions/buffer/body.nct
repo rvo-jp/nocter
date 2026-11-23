@@ -1,0 +1,18 @@
+see ./index.nct
+
+struct Output { value: i32 }
+
+struct Buffer { value: i32 }
+impl Buffer {
+    const func create(value: i32): Self { Self { value: value } }
+    const coerce self as i32 { self.value }
+    coerce self as i32? { self.value }
+    coerce edit self as bool {
+        self.value = self.value + 1
+        true
+    }
+    coerce take self as Output! {
+        if self.value < 0 { throw error.new("test.buffer.negative", "negative value") }
+        Output { value: self.value }
+    }
+}

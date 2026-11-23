@@ -63,6 +63,12 @@ An explicit identity conversion resolves its exact target in the ordinary body t
 It evaluates the operand once and constructs the result through the existing value-supply
 operation. A callable target constrains the selected witness and requires the same invocation
 view. Outcome injection and callable adaptation remain separate from identity construction.
+Type-owned conversions use the same callable path and audience as methods. The owner's
+conversion inventory selects a complete header by its normalized result data. Unresolved
+structurally incompatible recipes supply no prerequisite, and final declaration publication
+checks target uniqueness across all fragments. The selected receiver operation guides
+projection before input preparation. The current fragment supports targets with exact data
+identity, including outcome and fixed-array data.
 
 ### Structural Record Literals
 

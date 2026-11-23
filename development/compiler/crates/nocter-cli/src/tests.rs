@@ -412,6 +412,96 @@ fn installed_v2_print_delivers_exact_text_and_reports_output_failure() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_coercions_use_exact_contracts_and_receiver_operations() {
+    let tree = TempTree::new("coercions");
+    let home = tree.value_access_installation();
+    let package = tree.0.join("app");
+    copy_directory(
+        &nocter_test_support::repository_root()
+            .join("development/compiler/tests/fixtures/value-modules/coercions"),
+        &package,
+    );
+    let source = package.join("main.nct");
+    let contract = package.join("buffer/index.nct");
+    let implementation = package.join("buffer/body.nct");
+    let program = fs::read_to_string(&source).unwrap();
+    let header = fs::read_to_string(&contract).unwrap();
+    let body = fs::read_to_string(&implementation).unwrap();
+    let execute = |args| execute_invocation(invocation(args, &package, &home, "arm64-darwin"));
+    let run = || {
+        let args = vec!["run", "--offline"];
+        match execute(args).unwrap_or_else(|error| {
+            panic!(
+                "{}",
+                error
+                    .render_source_diagnostics()
+                    .unwrap()
+                    .unwrap_or_else(|| format!("{error:#?}"))
+            )
+        }) {
+            InvocationOutcome::Run(executed) => executed.status().code(),
+            outcome => panic!("expected execution, found {outcome:?}"),
+        }
+    };
+    assert_eq!(run(), Some(42));
+    fs::write(&source, program.replace("found * 2", "0 - found")).unwrap();
+    assert_eq!(run(), Some(1));
+
+    let reject = |needle| {
+        let error = execute(vec!["check", "--offline"]).unwrap_err();
+        let diagnostic = error.render_source_diagnostics().unwrap().unwrap();
+        assert!(diagnostic.contains(needle), "{diagnostic}");
+    };
+    for (old, new, diagnostic) in [
+        ("owner^ as", "owner as", "E0371"),
+        ("var pending", "let pending", "E0387"),
+        ("as buffer.Output!", "as buffer.Output", "no conversion"),
+        ("output.value", "owner as i32", "E0378"),
+    ] {
+        fs::write(&source, program.replace(old, new)).unwrap();
+        reject(diagnostic);
+    }
+    fs::write(
+        &source,
+        format!("{program}\nconst CHANGED: bool = buffer.Buffer.create(0) as bool\n"),
+    )
+    .unwrap();
+    reject("runtime-only function `coerce`");
+    fs::write(&source, &program).unwrap();
+    fs::write(
+        &contract,
+        header.replace(
+            "coerce edit self as bool",
+            "#visibility: \"./\"\n    coerce edit self as bool",
+        ),
+    )
+    .unwrap();
+    reject("E0412");
+    fs::write(&contract, &header).unwrap();
+    fs::write(
+        &implementation,
+        body.replace("coerce edit self as bool", "coerce self as bool"),
+    )
+    .unwrap();
+    reject("E0251");
+    for (entry, diagnostic) in [
+        ("coerce self as (i32) { self.value }", "same target data"),
+        (
+            "coerce take self as Self { self^ }",
+            "cannot redefine its identity",
+        ),
+    ] {
+        fs::write(
+            &implementation,
+            format!("{body}\nimpl Buffer {{ {entry} }}\n"),
+        )
+        .unwrap();
+        reject(diagnostic);
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_type_members_select_the_exact_owner_and_receive_ordinary_inputs() {
     let tree = TempTree::new("type-members");
     let home = tree.value_access_installation();

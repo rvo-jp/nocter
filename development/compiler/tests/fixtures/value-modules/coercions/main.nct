@@ -1,0 +1,27 @@
+see ./index.nct
+use ./buffer
+
+const BASE: i32 = buffer.Buffer.create(20) as i32
+
+copy struct Sizing { value: usize }
+impl Sizing {
+    const coerce self as [usize; LENGTH] { [self.value; LENGTH] }
+    const coerce self as usize { self.value }
+}
+
+const LENGTH: usize = Sizing { value: 2 } as usize
+const VALUES: [usize; LENGTH] = Sizing { value: 21 } as [usize; LENGTH]
+
+func main(): i32! {
+    if VALUES[0] + VALUES[1] != 42 { return 3 }
+    var pending: buffer.Buffer? = buffer.Buffer.create(BASE)
+    let changed = (pending!) as bool
+    let value = (pending!) as i32
+    if !changed || value != BASE + 1 { return 2 }
+
+    let nested = (pending!) as i32?
+    let found = nested otherwise { 0 }
+    let owner = buffer.Buffer.create(found * 2)
+    let output = (owner^ as buffer.Output!)?
+    output.value
+}

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify source-owned `coerce` entry selection by exact target data. Pair complete source
-contracts, select receiver access before outcome projection, and use the existing call
-preparation, required evaluation and native path.
+Resolve conversion-header prerequisites without turning an unresolved candidate into a
+mandatory dependency. Qualify a fixed-array length supplied by a conversion to a different
+length of the same element data. Preserve original diagnostics when every path is cyclic.
 
 ## Remaining Contextual Representation Qualification
 
@@ -674,6 +674,10 @@ not a language restriction derived from the current realization boundary.
   construction, compile-time evaluation, empty schemas and native initializer order.
 - [x] Qualify exact-data `as` construction through ordinary value supply. Verify precedence,
   single evaluation, access and retirement, outcome layers and selected callable identity.
+- [x] Qualify nongeneric source-owned `coerce` with closed, exact data targets. Verify complete
+  header pairing, audiences, duplicate normalized targets, read/edit/take preparation, actual
+  guarded receiver mutation, failure and const execution. Origin relations, callable/future
+  targets, alias declarations and unresolved same-shape target dependencies remain open.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
@@ -920,6 +924,10 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Resolve same-shape conversion-header dependencies through the current required-value query.
+  A length computation can depend on a different fixed-array conversion of the same owner.
+  Preserve exact target equality, successful prerequisites, and genuine cycles and failures.
 
 - [x] Admit direct v2 Boolean equality in ARM64 instruction selection. Use the ordinary
   comparison emission with no integer arithmetic contract. Qualify actual dynamic results

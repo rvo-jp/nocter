@@ -14,6 +14,7 @@ use nocter_model::{
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken, TokenKind};
 
+mod conversion;
 mod receiver;
 
 struct Callee {
@@ -295,15 +296,17 @@ impl Checker<'_, '_> {
         self.require_declaration(member.code.into(), token)
     }
     fn member_for(&self, data: TypeId, token: SyntaxToken) -> Result<Option<TypeMember>, Failure> {
-        let program = self.program();
-        let Some(owner) = program
-            .data_kind(data)
-            .map(BehaviorOwner::Builtin)
-            .or_else(|| program.record_identity(data).map(BehaviorOwner::Record))
-        else {
+        let Some(owner) = self.behavior_owner(data) else {
             return Ok(None);
         };
         Ok(self.context.type_member(owner, self.text(token)?))
+    }
+    fn behavior_owner(&self, data: TypeId) -> Option<BehaviorOwner> {
+        let program = self.program();
+        program
+            .data_kind(data)
+            .map(BehaviorOwner::Builtin)
+            .or_else(|| program.record_identity(data).map(BehaviorOwner::Record))
     }
     fn member_callee(
         &mut self,
@@ -346,7 +349,7 @@ impl Checker<'_, '_> {
             return Err(Failure::InconsistentSyntax);
         };
         let selected = self.callee(*callee, reachable)?;
-        self.selected_call(node, *suffix, &selected, reachable)
+        self.selected_call(node, &self.children(*suffix), &selected, reachable)
     }
     pub(super) fn call_value(
         &mut self,
@@ -356,7 +359,7 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let selected = self.value_callee(node, value)?;
-        self.selected_call(node, suffix, &selected, reachable)
+        self.selected_call(node, &self.children(suffix), &selected, reachable)
     }
     pub(super) fn call_member_value(
         &mut self,
@@ -372,7 +375,7 @@ impl Checker<'_, '_> {
         };
         let token = self.member_token(*member)?;
         let selected = self.member_callee(selection, *base, receiver, token)?;
-        self.selected_call(call, arguments, &selected, reachable)
+        self.selected_call(call, &self.children(arguments), &selected, reachable)
     }
     fn local_future_argument(&self, input: FunctionInput, plan: &Argument) -> bool {
         use nocter_model::ValueInputOperation;
@@ -398,7 +401,7 @@ impl Checker<'_, '_> {
     fn selected_call(
         &mut self,
         node: NodeId,
-        suffix: NodeId,
+        arguments: &[NodeId],
         selected: &Callee,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
@@ -406,7 +409,6 @@ impl Checker<'_, '_> {
             .program()
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
-        let arguments = self.children(suffix);
         let (receiver, inputs) = match selected.source {
             CalleeSource::Declared {
                 receiver: Some(receiver),
@@ -434,7 +436,7 @@ impl Checker<'_, '_> {
             } else {
                 (CallKind::Direct, true)
             };
-        for (syntax, expected) in arguments.into_iter().zip(inputs.iter().copied()) {
+        for (syntax, expected) in arguments.iter().copied().zip(inputs.iter().copied()) {
             let value = self.input_expression(syntax, expected, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);

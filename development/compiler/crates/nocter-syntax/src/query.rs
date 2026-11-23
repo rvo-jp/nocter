@@ -115,12 +115,14 @@ pub fn declaration_contextual_keyword_token(
     declaration: NodeId,
 ) -> Option<SyntaxToken> {
     match tree.node(declaration)?.kind() {
-        NodeKind::StaticDeclaration => tree.children(declaration).iter().find_map(|element| {
-            let crate::SyntaxElement::Token(token) = element else {
-                return None;
-            };
-            (token.kind() == TokenKind::Identifier).then_some(*token)
-        }),
+        NodeKind::StaticDeclaration | NodeKind::CoercionDeclaration => {
+            tree.children(declaration).iter().find_map(|element| {
+                let crate::SyntaxElement::Token(token) = element else {
+                    return None;
+                };
+                (token.kind() == TokenKind::Identifier).then_some(*token)
+            })
+        }
         _ => None,
     }
 }

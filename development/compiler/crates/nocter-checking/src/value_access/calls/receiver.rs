@@ -1,5 +1,8 @@
 //! A receiver's data selects the method before contextual access through outcomes.
-use super::{Callee, Checker, Failure, NodeId, NodeKind, PayloadSchema, SyntaxToken, TypeId};
+use super::{
+    AccessExpressionId, Callee, Checker, Failure, NodeId, NodeKind, PayloadSchema, SyntaxToken,
+    TypeId,
+};
 use crate::value_access::ir::Projection;
 
 #[derive(Clone, Copy)]
@@ -10,6 +13,11 @@ enum Step {
     Index { node: NodeId, suffix: NodeId },
 }
 
+pub(super) struct Receiver {
+    root: AccessExpressionId,
+    path: Vec<Step>,
+}
+
 impl Checker<'_, '_> {
     pub(super) fn prepare_member_callee(
         &mut self,
@@ -18,32 +26,61 @@ impl Checker<'_, '_> {
         name: SyntaxToken,
         reachable: bool,
     ) -> Result<Callee, Failure> {
-        let Some((root, path)) = self.outcome_receiver_path(base)? else {
-            let value = self.expression(base, None, reachable)?;
-            return self.member_callee(selection, base, value, name);
-        };
-
-        let mut value = self.expression(root, None, reachable)?;
-        let data = self.ty(value).access().map(nocter_model::ValueAccess::data);
-        let member = match self.receiver_data(data, &path)? {
+        let receiver = self.prepare_receiver(base, reachable)?;
+        let member = match self.receiver_data(&receiver)? {
             Some(data) => self.member_for(data, name)?,
             None => None,
         };
         let projection = if let Some(member) = member {
             self.require_type_member(member, name, true)?;
-            let program = self.program();
-            let input = program
-                .codes()
-                .get(member.code)
-                .and_then(|code| code.parameters().first())
-                .and_then(|&id| program.parameters().get(id))
-                .ok_or(Failure::InconsistentSyntax)?;
-            Some(Projection::input(input.operation().access_mode()))
+            Some(self.receiver_projection(member.code)?)
         } else {
             None
         };
+        let value = self.receiver_value(receiver, projection, reachable)?;
+        if let Some(member) = member {
+            return Ok(Callee::direct(member.code, name, Some((base, value))));
+        }
+        let selected = self.component_value(selection, value, &[name])?;
+        self.value_callee(selection, selected)
+    }
 
-        for step in path {
+    pub(super) fn prepare_receiver(
+        &mut self,
+        base: NodeId,
+        reachable: bool,
+    ) -> Result<Receiver, Failure> {
+        let (root, path) = self
+            .outcome_receiver_path(base)?
+            .unwrap_or((base, Vec::new()));
+        Ok(Receiver {
+            root: self.expression(root, None, reachable)?,
+            path,
+        })
+    }
+
+    pub(super) fn receiver_projection(
+        &self,
+        code: nocter_model::AccessCodeId,
+    ) -> Result<Projection, Failure> {
+        let program = self.program();
+        let input = program
+            .codes()
+            .get(code)
+            .and_then(|code| code.parameters().first())
+            .and_then(|&id| program.parameters().get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        Ok(Projection::input(input.operation().access_mode()))
+    }
+
+    pub(super) fn receiver_value(
+        &mut self,
+        receiver: Receiver,
+        projection: Option<Projection>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let mut value = receiver.root;
+        for step in receiver.path {
             value = match step {
                 Step::Outcome(node) => self.outcome_from_source(node, value, projection)?,
                 Step::Recovery(node) => {
@@ -55,11 +92,7 @@ impl Checker<'_, '_> {
                 }
             };
         }
-        if let Some(member) = member {
-            return Ok(Callee::direct(member.code, name, Some((base, value))));
-        }
-        let selected = self.component_value(selection, value, &[name])?;
-        self.value_callee(selection, selected)
+        Ok(value)
     }
 
     fn outcome_receiver_path(&self, base: NodeId) -> Result<Option<(NodeId, Vec<Step>)>, Failure> {
@@ -105,12 +138,12 @@ impl Checker<'_, '_> {
         Ok(Some((carrier, path)))
     }
 
-    fn receiver_data(
-        &self,
-        mut data: Option<TypeId>,
-        path: &[Step],
-    ) -> Result<Option<TypeId>, Failure> {
-        for step in path {
+    pub(super) fn receiver_data(&self, receiver: &Receiver) -> Result<Option<TypeId>, Failure> {
+        let mut data = self
+            .ty(receiver.root)
+            .access()
+            .map(nocter_model::ValueAccess::data);
+        for step in &receiver.path {
             let Some(current) = data else { return Ok(None) };
             data = match *step {
                 Step::Outcome(_) | Step::Recovery(_) => match self.program().data_schema(current) {

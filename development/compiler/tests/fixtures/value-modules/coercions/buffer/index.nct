@@ -1,0 +1,14 @@
+see ./body.nct
+
+struct Output {
+    value: i32
+}
+
+struct Buffer
+impl Buffer {
+    const func create(value: i32): Self
+    const coerce self as i32
+    coerce self as i32?
+    coerce edit self as bool
+    coerce take self as Output!
+}

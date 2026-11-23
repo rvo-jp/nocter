@@ -17,7 +17,7 @@ use std::{
 
 mod catalog;
 mod members;
-pub use members::{TypeMember, TypeMemberKind};
+pub use members::{ConversionSelection, TypeMember, TypeMemberKind};
 mod normalization;
 mod primitives;
 mod record_views;
@@ -348,6 +348,9 @@ impl<'syntax> ScopedModuleSources<'syntax> {
         }
         let program = self.headers.finish().map_err(|_| integrity())?;
         self.binding
+            .members
+            .verify_conversions(&self.binding, &program)?;
+        self.binding
             .paired
             .inventory
             .audiences
@@ -383,6 +386,17 @@ impl ModuleSourceBinding<'_> {
         name: Symbol,
     ) -> Option<TypeMember> {
         self.members.lookup(self, caller, owner, name)
+    }
+
+    pub(super) fn conversion(
+        &self,
+        caller: nocter_source::SourceId,
+        program: &Program,
+        owner: BehaviorOwner,
+        target: nocter_model::TypeId,
+    ) -> ConversionSelection {
+        self.members
+            .conversion(self, caller, program, owner, target)
     }
 
     fn physical_source(&self, source: nocter_source::SourceId) -> Option<SurfaceSourceId> {
@@ -659,14 +673,20 @@ fn collect_headers(
                             .map_err(ModuleSourcesFailure::Access)
                     })
                 }
-                SurfaceDeclarationKind::InherentMethod => syntax(paired, declaration.source())
-                    .and_then(|s| {
+                SurfaceDeclarationKind::InherentMethod | SurfaceDeclarationKind::Coercion => {
+                    syntax(paired, declaration.source()).and_then(|s| {
                         let owner = declaration.owner().ok_or_else(integrity)?;
                         let physical = paired.inventory.declarations()[owner.index()];
-                        members::method_header(s, physical.node(), declaration.node())
+                        let project = if declaration.kind() == SurfaceDeclarationKind::Coercion {
+                            members::conversion_header
+                        } else {
+                            members::method_header
+                        };
+                        project(s, physical.node(), declaration.node())
                             .map(ParsedHeader::Code)
                             .map_err(ModuleSourcesFailure::Access)
-                    }),
+                    })
+                }
                 SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static => {
                     syntax(paired, declaration.source()).and_then(|s| {
                         headers::initializer(s, declaration.node())

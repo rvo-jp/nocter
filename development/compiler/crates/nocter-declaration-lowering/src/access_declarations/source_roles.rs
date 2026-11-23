@@ -16,6 +16,9 @@ pub enum SourceRoleRule {
     MissingRepresentation,
     TypeBehaviorOwner,
     ConstructionResult,
+    IdentityConversion,
+    DuplicateConversion,
+    UnqualifiedConversionTarget,
     VisibilityOutsideContract,
     PackageMetadataOutsideContract,
 }
@@ -99,7 +102,9 @@ pub fn validate_source_role(
                             tree.node(node).is_some_and(|node| {
                                 matches!(
                                     node.kind(),
-                                    NodeKind::ConstructionFunction | NodeKind::InherentMethod
+                                    NodeKind::ConstructionFunction
+                                        | NodeKind::InherentMethod
+                                        | NodeKind::CoercionDeclaration
                                 )
                             })
                         }),
@@ -108,7 +113,8 @@ pub fn validate_source_role(
             }
             NodeKind::FunctionDeclaration
             | NodeKind::ConstructionFunction
-            | NodeKind::InherentMethod => {
+            | NodeKind::InherentMethod
+            | NodeKind::CoercionDeclaration => {
                 let body = declaration_body(syntax.tree(), declaration);
                 match (root, body) {
                     (true, Some(body)) => Some((SourceRoleRule::BodyInContract, body)),
@@ -188,6 +194,18 @@ pub(super) fn role_failure(
         SourceRoleRule::ConstructionResult => (
             DiagnosticCode::E0370,
             "a type-owned func must deliver its Self type, optionally wrapped in an outcome",
+        ),
+        SourceRoleRule::IdentityConversion => (
+            DiagnosticCode::E0370,
+            "a type cannot redefine its identity conversion",
+        ),
+        SourceRoleRule::DuplicateConversion => (
+            DiagnosticCode::E0370,
+            "this type already declares a conversion to the same target data",
+        ),
+        SourceRoleRule::UnqualifiedConversionTarget => (
+            DiagnosticCode::E0370,
+            "callable and future conversion targets need qualified exact target matching",
         ),
     };
     Failure::SourceRole(Box::new(SourceRoleDiagnostic {

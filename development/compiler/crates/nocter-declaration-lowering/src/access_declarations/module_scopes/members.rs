@@ -6,9 +6,10 @@ use crate::access_declarations::{
 };
 use crate::{SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceSourceId};
 use nocter_declarations::value_access::{
-    BehaviorOwner, DataReference, DeclarationId, Reservations, ScopeId, ValueDefinition,
+    AggregateForm, BehaviorOwner, DataReference, DeclarationId, PayloadSchema, Program,
+    Reservations, ScopeId, ValueDefinition,
 };
-use nocter_model::{AccessCodeId, BuiltinType, Symbol};
+use nocter_model::{AccessCodeId, BuiltinType, Symbol, TypeId};
 use nocter_syntax::{
     BoundSyntax, NodeId, NodeKind, direct_identifier, direct_node, type_behavior_owner,
 };
@@ -25,6 +26,7 @@ pub(super) struct MemberOccurrence {
 pub enum TypeMemberKind {
     Construction,
     Method,
+    Conversion,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,10 +36,19 @@ pub struct TypeMember {
     pub accessible: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConversionSelection {
+    Missing,
+    Require(AccessCodeId),
+    Selected(TypeMember),
+    Ambiguous,
+}
+
 #[derive(Debug)]
 pub(super) struct Members {
     pub occurrences: BTreeMap<SurfaceDeclarationId, MemberOccurrence>,
     names: BTreeMap<(BehaviorOwner, Symbol), SurfaceDeclarationId>,
+    conversions: BTreeMap<BehaviorOwner, Vec<SurfaceDeclarationId>>,
 }
 
 impl Members {
@@ -47,6 +58,7 @@ impl Members {
     ) -> Result<Self, ModuleSourcesFailure> {
         let inventory = &paired.inventory;
         let mut names = BTreeMap::new();
+        let mut conversions = BTreeMap::<_, Vec<_>>::new();
         for (&id, member) in &occurrences {
             let declaration = inventory.declarations()[id.index()];
             let canonical = paired.contracts.representative(id);
@@ -67,6 +79,10 @@ impl Members {
                 }
                 continue;
             }
+            if declaration.kind() == SurfaceDeclarationKind::Coercion {
+                conversions.entry(member.owner).or_default().push(id);
+                continue;
+            }
             let token = declaration.name().ok_or_else(integrity)?;
             let name = symbol(paired, declaration.source(), token)?;
             if let Some(first) = names.insert((member.owner, name), id) {
@@ -85,7 +101,11 @@ impl Members {
                 ))));
             }
         }
-        Ok(Self { occurrences, names })
+        Ok(Self {
+            occurrences,
+            names,
+            conversions,
+        })
     }
 
     pub fn constrain_audiences(
@@ -144,6 +164,92 @@ impl Members {
         name: Symbol,
     ) -> Option<TypeMember> {
         let &id = self.names.get(&(owner, name))?;
+        Self::member(binding, caller, id)
+    }
+
+    pub fn conversion(
+        &self,
+        binding: &super::ModuleSourceBinding<'_>,
+        caller: nocter_source::SourceId,
+        program: &Program,
+        owner: BehaviorOwner,
+        target: TypeId,
+    ) -> ConversionSelection {
+        let mut pending = None;
+        let mut selected = None;
+        let target_schema = program.data_schema(target);
+        for &id in self.conversions.get(&owner).into_iter().flatten() {
+            let Some(member) = Self::member(binding, caller, id) else {
+                continue;
+            };
+            match program.codes().get(member.code) {
+                None if binding.catalog.parsed.get(&id).is_some_and(|header| {
+                    let super::ParsedHeader::Code(header) = header else {
+                        return false;
+                    };
+                    target_schema
+                        .as_ref()
+                        .is_none_or(|schema| could_name_target(&header.result_data, schema))
+                }) =>
+                {
+                    pending.get_or_insert(member.code);
+                }
+                Some(code) if code.result() == target => {
+                    if selected.replace(member).is_some() {
+                        return ConversionSelection::Ambiguous;
+                    }
+                }
+                Some(_) | None => {}
+            }
+        }
+        // Every completed unit validates uniqueness, including entries whose target still
+        // requires a constant computed through a known, exact conversion.
+        selected.map_or_else(
+            || pending.map_or(ConversionSelection::Missing, ConversionSelection::Require),
+            ConversionSelection::Selected,
+        )
+    }
+
+    pub fn verify_conversions(
+        &self,
+        binding: &super::ModuleSourceBinding<'_>,
+        program: &Program,
+    ) -> Result<(), ModuleSourcesFailure> {
+        for entries in self.conversions.values() {
+            let mut targets = BTreeSet::new();
+            for &id in entries {
+                let declaration = binding.paired.inventory.declarations()[id.index()];
+                let bound = syntax(&binding.paired, declaration.source())?;
+                let Some(DeclarationId::Code(code)) = binding.declarations[id.index()] else {
+                    return Err(integrity());
+                };
+                let code = program.codes().get(code).ok_or_else(integrity)?;
+                let &[receiver] = code.parameters() else {
+                    return Err(integrity());
+                };
+                let receiver = program.parameters().get(receiver).ok_or_else(integrity)?;
+                let rule = if receiver.data() == code.result() {
+                    super::super::SourceRoleRule::IdentityConversion
+                } else if !targets.insert(code.result()) {
+                    super::super::SourceRoleRule::DuplicateConversion
+                } else {
+                    continue;
+                };
+                let result = direct_node(bound.tree(), declaration.node(), NodeKind::Type)
+                    .ok_or_else(integrity)?;
+                return Err(ModuleSourcesFailure::Access(
+                    super::super::source_roles::role_failure(bound, rule, result),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn member(
+        binding: &super::ModuleSourceBinding<'_>,
+        caller: nocter_source::SourceId,
+        id: SurfaceDeclarationId,
+    ) -> Option<TypeMember> {
         let caller = binding.physical_source(caller)?;
         let inventory = &binding.paired.inventory;
         let declaration = inventory.declarations()[id.index()];
@@ -160,6 +266,7 @@ impl Members {
         let kind = match declaration.kind() {
             SurfaceDeclarationKind::ConstructionFunction => TypeMemberKind::Construction,
             SurfaceDeclarationKind::InherentMethod => TypeMemberKind::Method,
+            SurfaceDeclarationKind::Coercion => TypeMemberKind::Conversion,
             _ => return None,
         };
         Some(TypeMember {
@@ -170,28 +277,90 @@ impl Members {
     }
 }
 
+// Excluding a structurally impossible recipe never supplies a target identity. In particular,
+// an unrelated fixed-array count must not become a dependency of a scalar conversion.
+fn could_name_target(recipe: &TypeSyntax, target: &PayloadSchema<'_>) -> bool {
+    match recipe {
+        TypeSyntax::Named(_) => true,
+        TypeSyntax::Callable(_) => matches!(target, PayloadSchema::Function(_)),
+        TypeSyntax::Future { .. } => matches!(target, PayloadSchema::Future(_)),
+        TypeSyntax::Optional { .. } => matches!(target, PayloadSchema::Optional(_)),
+        TypeSyntax::Fallible { .. } => matches!(target, PayloadSchema::Fallible(_)),
+        TypeSyntax::Array { .. } => matches!(target, PayloadSchema::Array(_)),
+        TypeSyntax::Tuple(_) => matches!(target, PayloadSchema::Aggregate(shape)
+            if matches!(shape.form(), AggregateForm::Tuple(_))),
+    }
+}
+
 pub(super) fn method_header(
     syntax: BoundSyntax<'_>,
     owner: NodeId,
     declaration: NodeId,
 ) -> Result<Header, Failure> {
     let mut header = headers::function(syntax, declaration)?;
+    header
+        .parameters
+        .insert(0, receiver_header(syntax, owner, declaration)?);
+    Ok(header)
+}
+
+pub(super) fn conversion_header(
+    syntax: BoundSyntax<'_>,
+    owner: NodeId,
+    declaration: NodeId,
+) -> Result<Header, Failure> {
+    let tree = syntax.tree();
+    let name = nocter_syntax::declaration_contextual_keyword_token(tree, declaration)
+        .ok_or(Failure::InconsistentSyntax)?;
+    let result_syntax =
+        direct_node(tree, declaration, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    let result_data = super::super::project_type_syntax(syntax, result_syntax)?;
+    let mut pending = vec![&result_data];
+    while let Some(ty) = pending.pop() {
+        match ty {
+            TypeSyntax::Callable(_) | TypeSyntax::Future { .. } => {
+                return Err(super::super::source_roles::role_failure(
+                    syntax,
+                    super::super::SourceRoleRule::UnqualifiedConversionTarget,
+                    result_syntax,
+                ));
+            }
+            TypeSyntax::Optional { payload, .. } | TypeSyntax::Fallible { payload, .. } => {
+                pending.push(payload);
+            }
+            TypeSyntax::Array { element, .. } => pending.push(element),
+            TypeSyntax::Tuple(fields) => pending.extend(fields.iter()),
+            TypeSyntax::Named(_) => {}
+        }
+    }
+    Ok(Header {
+        name,
+        kind: headers::immediate_function(syntax, declaration),
+        deferred_modifier: None,
+        parameters: vec![receiver_header(syntax, owner, declaration)?],
+        result_syntax,
+        result_data,
+        body: nocter_syntax::declaration_body(tree, declaration),
+    })
+}
+
+fn receiver_header(
+    syntax: BoundSyntax<'_>,
+    owner: NodeId,
+    declaration: NodeId,
+) -> Result<ParameterHeader, Failure> {
     let tree = syntax.tree();
     let receiver =
         direct_node(tree, declaration, NodeKind::Receiver).ok_or(Failure::InconsistentSyntax)?;
     let name = direct_identifier(tree, receiver).ok_or(Failure::InconsistentSyntax)?;
     let operation = crate::access_declarations::input_operation(syntax, receiver)?;
     let (ty, owner_name) = type_behavior_owner(tree, owner).ok_or(Failure::InconsistentSyntax)?;
-    header.parameters.insert(
-        0,
-        ParameterHeader {
-            name,
-            data: TypeSyntax::Named(Box::new([owner_name])),
-            ty,
-            operation,
-        },
-    );
-    Ok(header)
+    Ok(ParameterHeader {
+        name,
+        data: TypeSyntax::Named(Box::new([owner_name])),
+        ty,
+        operation,
+    })
 }
 
 fn result_owner(result: &ValueDefinition) -> Option<BehaviorOwner> {
@@ -294,7 +463,8 @@ pub(super) fn occurrences(
                 );
             }
             SurfaceDeclarationKind::ConstructionFunction
-            | SurfaceDeclarationKind::InherentMethod => {
+            | SurfaceDeclarationKind::InherentMethod
+            | SurfaceDeclarationKind::Coercion => {
                 let owner = declaration
                     .owner()
                     .and_then(|id| owners.get(&id))

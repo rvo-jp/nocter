@@ -60,11 +60,6 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         .collect::<Result<_, _>>()?;
     let result_syntax =
         direct_node(tree, tail, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-    let compile_time = if direct_node(tree, declaration, NodeKind::CompileTimeModifier).is_some() {
-        CompileTimeGuarantee::Evaluatable
-    } else {
-        CompileTimeGuarantee::RuntimeOnly
-    };
     Ok(Header {
         name,
         kind: if is_primitive(syntax, declaration) {
@@ -72,7 +67,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         } else if deferred_modifier.is_some() {
             CodeKind::DeferredFunction
         } else {
-            CodeKind::Function(compile_time)
+            immediate_function(syntax, declaration)
         },
         deferred_modifier,
         parameters,
@@ -81,6 +76,17 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         body: direct_node(tree, declaration, NodeKind::Block),
     })
 }
+
+pub(super) fn immediate_function(syntax: BoundSyntax<'_>, declaration: NodeId) -> CodeKind {
+    CodeKind::Function(
+        if direct_node(syntax.tree(), declaration, NodeKind::CompileTimeModifier).is_some() {
+            CompileTimeGuarantee::Evaluatable
+        } else {
+            CompileTimeGuarantee::RuntimeOnly
+        },
+    )
+}
+
 pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
