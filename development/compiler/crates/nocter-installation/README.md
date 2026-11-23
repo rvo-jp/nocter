@@ -15,7 +15,10 @@ themselves. This crate neither downloads artifacts nor chooses which digest to t
 ## Internal Responsibilities
 
 - real executable and Nocter-home resolution
-- exact manifest v2 decoding and component digest validation
+- exact manifest decoding and component digest validation
+- standalone source profile selection from the same manifest decoder, with released syntax when
+  no manifest exists. Source-only operations read metadata without opening the compiler or
+  standard-library artifacts.
 - compiler/standard-package compatibility
 - installed package-root location
 - exact archive-byte verification and candidate-home validation

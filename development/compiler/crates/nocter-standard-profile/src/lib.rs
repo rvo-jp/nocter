@@ -20,15 +20,13 @@ pub struct StandardSourceProfile {
 impl StandardSourceProfile {
     #[must_use]
     pub fn for_kind(kind: StandardSourceKind, package: &PackageIdentity) -> Self {
-        match kind {
-            StandardSourceKind::Released => Self {
-                goal: ParseGoal::SourceFile,
-                input: bundled_standard_toolchain(package),
-            },
-            StandardSourceKind::ValueAccessV2 => Self {
-                goal: ParseGoal::V2CoreUnit,
-                input: development_value_access_toolchain(package),
-            },
+        let input = match kind {
+            StandardSourceKind::Released => bundled_standard_toolchain(package),
+            StandardSourceKind::ValueAccessV2 => development_value_access_toolchain(package),
+        };
+        Self {
+            goal: source_goal(kind),
+            input,
         }
     }
 
@@ -42,7 +40,7 @@ impl StandardSourceProfile {
             return Err(ValueAccessProfileMismatch);
         }
         Ok(Self {
-            goal: ParseGoal::V2CoreUnit,
+            goal: source_goal(StandardSourceKind::ValueAccessV2),
             input,
         })
     }
@@ -55,6 +53,15 @@ impl StandardSourceProfile {
     #[must_use]
     pub const fn input(&self) -> &ToolchainInput {
         &self.input
+    }
+}
+
+/// Selects source grammar without loading or constructing standard declarations.
+#[must_use]
+pub const fn source_goal(kind: StandardSourceKind) -> ParseGoal {
+    match kind {
+        StandardSourceKind::Released => ParseGoal::SourceFile,
+        StandardSourceKind::ValueAccessV2 => ParseGoal::V2CoreUnit,
     }
 }
 

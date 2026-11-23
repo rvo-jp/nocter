@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Format and inspect v2 source using the exact selected grammar. Preserve postfix transfer binding,
-capture separators, outcome/await precedence, comments and syntax on every rewrite. Connect source
-tooling to the ordinary v2 invocation and qualify both source profiles without changing release
-artifacts.
+Give v2 `test` declarations a compiler-owned executable identity outside the callable/export
+namespace. Reuse ordinary checks and checked native lowering for the implicit `void!` body,
+then qualify target and case selection, result reporting, and isolated execution through the
+installed command.
 
 ## Remaining Contextual Representation Qualification
 
@@ -755,6 +755,10 @@ not a language restriction derived from the current realization boundary.
   Qualify ordinary installed check, build and run with the physical development standard package,
   and installed LSP diagnostics, recovery and named navigation. Keep release manifest rendering
   byte-identical and stage verification outside qualified outputs.
+- [x] Select the manifest's grammar for ordinary v2 format, token and AST commands without loading
+  package or native artifacts. Preserve exact parsed structure and comment attachment; qualify
+  postfix transfer composition, full accepted source-corpus idempotence and no rewrite on invalid
+  installation metadata. Preserve standalone released syntax when the manifest is absent.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.

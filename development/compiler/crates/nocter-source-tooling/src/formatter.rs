@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use nocter_diagnostics::syntax_diagnostics;
 use nocter_source::{SourceFile, SourceMap, SourceName};
 use nocter_syntax::{
-    Keyword, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
+    Keyword, NodeKind, ParseGoal, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
 };
 
 use crate::{FormatError, syntax_tokens};
@@ -16,17 +16,18 @@ mod rewrite;
 use comments::{CommentLayout, FormatElement};
 use layout::LayoutPlan;
 
-pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String, FormatError> {
-    if syntax.root().kind() != NodeKind::SourceFile {
-        return Err(FormatError::ChangedSyntax);
-    }
+pub(super) fn format(
+    source: &SourceFile,
+    syntax: &SyntaxTree,
+    goal: ParseGoal,
+) -> Result<String, FormatError> {
     if syntax.has_errors() {
         return Err(FormatError::Diagnostics(syntax_diagnostics(
             std::slice::from_ref(syntax),
         )));
     }
     let formatted = Formatter::new(source, syntax).run();
-    let candidate = parse_candidate(source, &formatted)?;
+    let candidate = parse_candidate(source, &formatted, goal)?;
     if !equivalence::same_tree(source, syntax, candidate.source(), &candidate.syntax)
         || !equivalence::same_comments(source, syntax, candidate.source(), &candidate.syntax)
     {
@@ -36,7 +37,7 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
     let Some(rewritten) = rewrites.apply(candidate.source()) else {
         return Ok(formatted);
     };
-    let rewritten_candidate = parse_candidate(candidate.source(), &rewritten)?;
+    let rewritten_candidate = parse_candidate(candidate.source(), &rewritten, goal)?;
     if !rewrites.preserves_tokens(
         candidate.source(),
         &candidate.syntax,
@@ -66,7 +67,11 @@ impl ParsedCandidate {
     }
 }
 
-fn parse_candidate(source: &SourceFile, formatted: &str) -> Result<ParsedCandidate, FormatError> {
+fn parse_candidate(
+    source: &SourceFile,
+    formatted: &str,
+    goal: ParseGoal,
+) -> Result<ParsedCandidate, FormatError> {
     let mut sources = SourceMap::new();
     let formatted_id = sources
         .add_bytes(
@@ -77,8 +82,7 @@ fn parse_candidate(source: &SourceFile, formatted: &str) -> Result<ParsedCandida
     let formatted_source = sources
         .get(formatted_id)
         .ok_or(FormatError::ChangedSyntax)?;
-    let formatted_tree =
-        nocter_syntax::parse(formatted_source, nocter_syntax::ParseGoal::SourceFile);
+    let formatted_tree = nocter_syntax::parse(formatted_source, goal);
     if formatted_tree.has_errors() {
         return Err(FormatError::ChangedSyntax);
     }
@@ -402,9 +406,6 @@ fn space_before_punctuation(
     parent: Option<NodeKind>,
 ) -> bool {
     match punctuation {
-        Punctuation::Caret => {
-            unreachable!("future-only punctuation cannot enter the released formatter")
-        }
         Punctuation::LeftParen => {
             !is_attached_left_parenthesis(parent) && !is_prefix_parent(previous_parent)
         }
@@ -465,6 +466,7 @@ fn space_before_punctuation(
         | Punctuation::Comma
         | Punctuation::Colon
         | Punctuation::Semicolon
+        | Punctuation::Caret
         | Punctuation::Question
         | Punctuation::Range
         | Punctuation::Hash
@@ -560,6 +562,7 @@ const fn space_after_punctuation(punctuation: Punctuation, parent: Option<NodeKi
             | Punctuation::RightBracket
             | Punctuation::Question
             | Punctuation::Bang
+            | Punctuation::Caret
             | Punctuation::Comma
             | Punctuation::Colon
             | Punctuation::Semicolon
@@ -637,13 +640,14 @@ mod tests {
 
     use nocter_source::SourceName;
 
-    use crate::{InspectionGoal, SourceInspection};
+    use crate::SourceInspection;
+    use nocter_syntax::ParseGoal;
 
     fn format(source: &str) -> String {
-        format_with_goal(source, InspectionGoal::SourceFile)
+        format_with_goal(source, ParseGoal::SourceFile)
     }
 
-    fn format_with_goal(source: &str, goal: InspectionGoal) -> String {
+    fn format_with_goal(source: &str, goal: ParseGoal) -> String {
         SourceInspection::new(SourceName::new("test.nct"), source.as_bytes(), goal)
             .unwrap()
             .format()
@@ -661,6 +665,40 @@ mod tests {
             "func first(value: i32): i32 {\n    return value + 1\n}\n\nfunc second(): i32 {\n    return if true { 1 } else { 2 }\n}\n"
         );
         assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn preserves_v2_transfer_captures_calls_and_await() {
+        let source = concat!(
+            "func consume(take value:error):error {\n",
+            "let action=(value^;):error {value^}\n",
+            "return action^()\n",
+            "}\n",
+            "async func finish(take pending:future i32!):i32! {\n",
+            "// Keep the operation on its original operand.\n",
+            "let result=await pending^?\n",
+            "return result\n",
+            "}\n",
+        );
+        let formatted = format_with_goal(source, ParseGoal::V2CoreUnit);
+        assert_eq!(
+            formatted,
+            concat!(
+                "func consume(take value: error): error {\n",
+                "    let action = (value^;): error { value^ }\n",
+                "    return action^()\n",
+                "}\n\n",
+                "async func finish(take pending: future i32!): i32! {\n",
+                "    // Keep the operation on its original operand.\n",
+                "    let result = await pending^?\n",
+                "    return result\n",
+                "}\n",
+            ),
+        );
+        assert_eq!(
+            format_with_goal(&formatted, ParseGoal::V2CoreUnit),
+            formatted
+        );
     }
 
     #[test]
@@ -888,7 +926,7 @@ mod tests {
         assert_eq!(
             format_with_goal(
                 "#dependencies: { json:\"https://example.test/json\", http:\"https://example.test/http\"\n}\n",
-                InspectionGoal::SourceFile,
+                ParseGoal::SourceFile,
             ),
             "#dependencies: {\n    json: \"https://example.test/json\",\n    http: \"https://example.test/http\",\n}\n"
         );
@@ -1052,7 +1090,7 @@ mod tests {
             let inspection = SourceInspection::new(
                 SourceName::new(path.to_string_lossy()),
                 &bytes,
-                InspectionGoal::SourceFile,
+                ParseGoal::SourceFile,
             )
             .unwrap();
             let formatted = inspection.format().unwrap();
@@ -1064,14 +1102,14 @@ mod tests {
     fn complete_accepted_syntax_corpus_formats_idempotently() {
         let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/syntax");
         for (name, goal) in [
-            ("g001-package.nct", InspectionGoal::SourceFile),
-            ("g002-g006-module.nct", InspectionGoal::SourceFile),
-            ("g007-g012-declarations.nct", InspectionGoal::SourceFile),
-            ("g013-g018-types.nct", InspectionGoal::SourceFile),
-            ("g001-g018-semantic.nct", InspectionGoal::SourceFile),
-            ("g019-g024-executable.nct", InspectionGoal::SourceFile),
-            ("g025-g033-expressions.nct", InspectionGoal::SourceFile),
-            ("g019-g033-semantic.nct", InspectionGoal::SourceFile),
+            ("g001-package.nct", ParseGoal::SourceFile),
+            ("g002-g006-module.nct", ParseGoal::SourceFile),
+            ("g007-g012-declarations.nct", ParseGoal::SourceFile),
+            ("g013-g018-types.nct", ParseGoal::SourceFile),
+            ("g001-g018-semantic.nct", ParseGoal::SourceFile),
+            ("g019-g024-executable.nct", ParseGoal::SourceFile),
+            ("g025-g033-expressions.nct", ParseGoal::SourceFile),
+            ("g019-g033-semantic.nct", ParseGoal::SourceFile),
         ] {
             let path = fixtures.join(name);
             let bytes = fs::read(&path).unwrap();
@@ -1082,6 +1120,37 @@ mod tests {
                 SourceInspection::new(SourceName::new(name), formatted.as_bytes(), goal).unwrap();
             assert_eq!(reparsed.format().unwrap(), formatted, "{name}");
         }
+    }
+
+    #[test]
+    fn accepted_v2_corpus_formats_idempotently() {
+        let fixtures =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/value-bindings");
+        let mut sources = Vec::new();
+        collect_sources(&fixtures, &mut sources);
+        sources.sort();
+        let mut count = 0;
+        for path in sources {
+            let bytes = fs::read(&path).unwrap();
+            let goal = ParseGoal::V2CoreUnit;
+            let inspection =
+                SourceInspection::new(SourceName::new(path.to_string_lossy()), &bytes, goal)
+                    .unwrap();
+            if !inspection.ast_succeeded() {
+                continue;
+            }
+            count += 1;
+            let formatted = inspection
+                .format()
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+            assert_eq!(
+                format_with_goal(&formatted, goal),
+                formatted,
+                "{}",
+                path.display()
+            );
+        }
+        assert!(count > 0);
     }
 
     fn collect_sources(directory: &Path, output: &mut Vec<PathBuf>) {
@@ -1096,28 +1165,5 @@ mod tests {
                 output.push(path);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod future_boundary_tests {
-    use super::*;
-
-    #[test]
-    fn future_goal_is_rejected_before_released_spacing_rules_run() {
-        let mut sources = SourceMap::new();
-        let source = sources
-            .add_bytes(
-                SourceName::new("core.nct"),
-                b"func f(take value: i32): i32 { value }\n",
-            )
-            .unwrap();
-        let source = sources.get(source).unwrap();
-        let tree = nocter_syntax::parse(source, nocter_syntax::ParseGoal::V2CoreUnit);
-        assert!(!tree.has_errors());
-        assert!(matches!(
-            format(source, &tree),
-            Err(FormatError::ChangedSyntax)
-        ));
     }
 }

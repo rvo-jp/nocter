@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::Path;
 
 use nocter_diagnostics::DiagnosticRenderError;
+use nocter_model::StandardSourceKind;
 
 use crate::standalone_source::{StandaloneSourceError, load_standalone_source};
 use crate::{ParsedSourceInspectionCommand, SourceInspectionKind};
@@ -25,7 +26,7 @@ impl SourceInspectionCommandResult {
     }
 }
 
-/// Reads and inspects exactly one `.nct` file without installation, package, or target state.
+/// Reads and inspects exactly one `.nct` file using the selected grammar.
 ///
 /// # Errors
 ///
@@ -33,9 +34,10 @@ impl SourceInspectionCommandResult {
 pub fn execute_source_inspection(
     command: ParsedSourceInspectionCommand,
     current_directory: impl AsRef<Path>,
+    source_kind: StandardSourceKind,
 ) -> Result<SourceInspectionCommandResult, SourceInspectionCommandError> {
     let (source, kind) = command.into_parts();
-    let source = load_standalone_source(source, current_directory)
+    let source = load_standalone_source(source, current_directory, source_kind)
         .map_err(SourceInspectionCommandError::Source)?;
     let inspection = source.inspection();
     let (json, succeeded) = match kind {

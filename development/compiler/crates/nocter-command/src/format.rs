@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_diagnostics::DiagnosticCode;
+use nocter_model::StandardSourceKind;
 use nocter_source::SourceMap;
 
 use crate::ParsedFormatCommand;
@@ -18,7 +19,7 @@ pub enum FormatCommandResult {
     Rewritten,
 }
 
-/// Formats exactly one `.nct` source without installation, package, or target state.
+/// Formats exactly one `.nct` source using the selected grammar.
 ///
 /// Publication uses a same-directory temporary file and one final rename, so a failed formatter
 /// or write never truncates the authored source.
@@ -29,10 +30,11 @@ pub enum FormatCommandResult {
 pub fn execute_format(
     command: ParsedFormatCommand,
     current_directory: impl AsRef<Path>,
+    source_kind: StandardSourceKind,
 ) -> Result<FormatCommandResult, FormatCommandError> {
     let (source, check) = command.into_parts();
-    let source =
-        load_standalone_source(source, current_directory).map_err(FormatCommandError::Source)?;
+    let source = load_standalone_source(source, current_directory, source_kind)
+        .map_err(FormatCommandError::Source)?;
     let path = source.path();
     let bytes = source.bytes();
     let inspection = source.inspection();

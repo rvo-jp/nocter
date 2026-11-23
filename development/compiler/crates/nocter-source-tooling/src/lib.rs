@@ -45,25 +45,12 @@ impl fmt::Display for FormatError {
 
 impl std::error::Error for FormatError {}
 
-/// The grammar root selected for one standalone inspection.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum InspectionGoal {
-    SourceFile,
-}
-
-impl From<InspectionGoal> for ParseGoal {
-    fn from(goal: InspectionGoal) -> Self {
-        match goal {
-            InspectionGoal::SourceFile => Self::SourceFile,
-        }
-    }
-}
-
 /// One immutable lexer/parser snapshot used by every source-inspection projection.
 #[derive(Clone, Debug)]
 pub struct SourceInspection {
     sources: SourceMap,
     syntax: SyntaxTree,
+    goal: ParseGoal,
 }
 
 impl SourceInspection {
@@ -76,16 +63,20 @@ impl SourceInspection {
     /// # Panics
     ///
     /// Panics only if `SourceMap` violates its contract by losing the identity it just allocated.
-    pub fn new(name: SourceName, bytes: &[u8], goal: InspectionGoal) -> Result<Self, SourceError> {
+    pub fn new(name: SourceName, bytes: &[u8], goal: ParseGoal) -> Result<Self, SourceError> {
         let mut sources = SourceMap::new();
         let source = sources.add_bytes(name, bytes)?;
         let syntax = parse(
             sources
                 .get(source)
                 .expect("new inspection source remains in its source map"),
-            goal.into(),
+            goal,
         );
-        Ok(Self { sources, syntax })
+        Ok(Self {
+            sources,
+            syntax,
+            goal,
+        })
     }
 
     #[must_use]
@@ -123,7 +114,7 @@ impl SourceInspection {
             .sources
             .get(self.syntax.source())
             .expect("inspection source remains in its source map");
-        formatter::format(source, &self.syntax)
+        formatter::format(source, &self.syntax, self.goal)
     }
 
     /// Renders the `nocter.tokens` version-1 envelope from the retained lexer snapshot.
@@ -390,14 +381,14 @@ fn token_expected_parts(token: TokenKind) -> (&'static str, Option<&'static str>
 mod tests {
     use nocter_source::SourceName;
 
-    use super::{InspectionGoal, SourceInspection};
+    use super::{ParseGoal, SourceInspection};
 
     #[test]
     fn tokens_preserve_comments_text_jointness_and_lexer_diagnostics() {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"let x=1 // note\n@",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 
@@ -418,7 +409,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"func main(: void\n",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 
@@ -439,7 +430,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/app.nct"),
             b"//! Module API.\n\n/// Starts the application.\nfunc main(): void { return }\n",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 
@@ -455,7 +446,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/index.nct"),
             b"#package: { name: \"demo\", version: \"0.0.0\", }\n",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 
@@ -470,7 +461,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/scalars.nct"),
             b"const FACE: char = '\\u{1F600}'\n",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 
@@ -489,7 +480,7 @@ mod tests {
         let inspection = SourceInspection::new(
             SourceName::new("/tmp/scalars.nct"),
             b"func scalar(): char { return '\\u{D800}' }\n",
-            InspectionGoal::SourceFile,
+            ParseGoal::SourceFile,
         )
         .unwrap();
 

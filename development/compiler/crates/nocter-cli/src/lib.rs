@@ -181,21 +181,20 @@ pub fn execute_invocation(invocation: Invocation) -> Result<InvocationOutcome, I
         InvocationError::new(InvocationErrorKind::Arguments(failure), presentation)
     })?;
     let requested_target = command.requested_target();
+    let home_request = NocterHomeRequest::new(configured_home, executable);
     let command = match dispatch::route(command) {
         dispatch::CommandRoute::Direct(command) => {
-            return dispatch::execute_direct_command(command, &current_directory);
+            return dispatch::execute_direct_command(command, &current_directory, home_request);
         }
         dispatch::CommandRoute::Installed(command) => command,
     };
     let mut presentation = InvocationDiagnosticPresentation::from_command(&command);
-    let home = NocterHome::resolve(NocterHomeRequest::new(configured_home, executable)).map_err(
-        |error| {
-            InvocationError::new(
-                InvocationErrorKind::Installation(error),
-                presentation.clone(),
-            )
-        },
-    )?;
+    let home = NocterHome::resolve(home_request).map_err(|error| {
+        InvocationError::new(
+            InvocationErrorKind::Installation(error),
+            presentation.clone(),
+        )
+    })?;
     let installation = home.for_compiler(&compiler_host).map_err(|error| {
         InvocationError::new(
             InvocationErrorKind::InstallationCompatibility(error),

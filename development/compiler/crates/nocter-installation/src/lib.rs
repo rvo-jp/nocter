@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use nocter_content_integrity::{
     ContentDigest, ContentIntegrityError, TreeHashOptions, sha256_file, sha256_regular_tree,
 };
-use nocter_model::PackageIdentity;
+use nocter_model::{PackageIdentity, StandardSourceKind};
 use nocter_package::StandardPackage;
 
 mod compatibility;
@@ -41,6 +41,50 @@ impl NocterHomeRequest {
         Self {
             configured_home,
             executable: executable.into(),
+        }
+    }
+
+    fn selected_home(
+        self,
+        compiler: impl FnOnce(PathBuf) -> Result<PathBuf, NocterHomeError>,
+    ) -> Result<(PathBuf, NocterHomeOrigin), NocterHomeError> {
+        match self.configured_home {
+            Some(path) if path.is_empty() => Err(NocterHomeError::EmptyConfiguredHome),
+            Some(path) => Ok((PathBuf::from(path), NocterHomeOrigin::Configured)),
+            None => {
+                let executable = compiler(self.executable)?;
+                let root = executable
+                    .parent()
+                    .ok_or_else(|| NocterHomeError::ExecutableWithoutParent(executable.clone()))?;
+                Ok((root.to_path_buf(), NocterHomeOrigin::Executable))
+            }
+        }
+    }
+
+    /// Reads a configured or adjacent source profile for standalone source tools.
+    /// An absent manifest permits standalone released syntax. A present manifest uses the same
+    /// exact decoder and version validation as compilation, without loading installed artifacts.
+    /// # Errors
+    /// Returns a filesystem, version or manifest error when the selection cannot be read.
+    pub fn standalone_source_kind(self) -> Result<StandardSourceKind, NocterHomeError> {
+        let (selected, _) = self.selected_home(|executable| {
+            canonicalize("canonicalize compiler executable", &executable)
+        })?;
+        let path = selected.join("MANIFEST.json");
+        match fs::symlink_metadata(&path) {
+            Ok(_) => {
+                let root = canonicalize("canonicalize Nocter home", &selected)?;
+                let (_, manifest) = read_manifest(&root)?;
+                Ok(manifest.source_kind())
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                Ok(StandardSourceKind::Released)
+            }
+            Err(error) => Err(NocterHomeError::Filesystem {
+                operation: "inspect MANIFEST.json",
+                path,
+                error,
+            }),
         }
     }
 }
@@ -77,16 +121,7 @@ impl NocterHome {
         if !executable.is_file() {
             return Err(NocterHomeError::ExecutableNotFile(executable));
         }
-        let (selected, origin) = match request.configured_home {
-            Some(path) if path.is_empty() => return Err(NocterHomeError::EmptyConfiguredHome),
-            Some(path) => (PathBuf::from(path), NocterHomeOrigin::Configured),
-            None => {
-                let root = executable
-                    .parent()
-                    .ok_or_else(|| NocterHomeError::ExecutableWithoutParent(executable.clone()))?;
-                (root.to_path_buf(), NocterHomeOrigin::Executable)
-            }
-        };
+        let (selected, origin) = request.selected_home(|_| Ok(executable.clone()))?;
         let root = canonicalize("canonicalize Nocter home", &selected)?;
         let home = Self::validate_root(root, origin)?;
         let installed_compiler_digest = home.manifest.compiler().digest();
@@ -111,22 +146,7 @@ impl NocterHome {
         if !root.is_dir() {
             return Err(NocterHomeError::HomeNotDirectory(root));
         }
-        let version = required_file(&root, "VERSION")?;
-        let manifest_path = required_file(&root, "MANIFEST.json")?;
-        let release = read_release(&version)?;
-        let manifest_bytes =
-            fs::read(&manifest_path).map_err(|error| NocterHomeError::Filesystem {
-                operation: "read MANIFEST.json",
-                path: manifest_path.clone(),
-                error,
-            })?;
-        let manifest =
-            InstallationManifest::decode(&manifest_bytes, &release).map_err(|error| {
-                NocterHomeError::Manifest {
-                    path: manifest_path.clone(),
-                    error,
-                }
-            })?;
+        let (manifest_path, manifest) = read_manifest(&root)?;
         let compiler = required_relative_file(&root, "compiler.path", manifest.compiler().path())?;
         let installed_compiler_digest =
             sha256_file(&compiler).map_err(|error| NocterHomeError::ContentIntegrity {
@@ -232,6 +252,24 @@ impl NocterHome {
         )
         .with_source_kind(self.manifest.source_kind())
     }
+}
+
+fn read_manifest(root: &Path) -> Result<(PathBuf, InstallationManifest), NocterHomeError> {
+    let version = required_file(root, "VERSION")?;
+    let path = required_file(root, "MANIFEST.json")?;
+    let release = read_release(&version)?;
+    let bytes = fs::read(&path).map_err(|error| NocterHomeError::Filesystem {
+        operation: "read MANIFEST.json",
+        path: path.clone(),
+        error,
+    })?;
+    let manifest = InstallationManifest::decode(&bytes, &release).map_err(|error| {
+        NocterHomeError::Manifest {
+            path: path.clone(),
+            error,
+        }
+    })?;
+    Ok((path, manifest))
 }
 
 fn verify_digest(

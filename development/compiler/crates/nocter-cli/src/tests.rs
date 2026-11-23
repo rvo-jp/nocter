@@ -58,7 +58,6 @@ impl TempTree {
         root
     }
 
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     fn value_access_installation(&self) -> PathBuf {
         let root = self.0.join("home");
         fs::create_dir(&root).unwrap();
@@ -435,6 +434,57 @@ fn source_inspection_diagnostics_remain_in_the_inspection_envelope() {
     let json = outcome.render_standard_output().unwrap();
     assert!(json.starts_with("{\"schema\":\"nocter.tokens\",\"version\":1,\"ok\":false"));
     assert!(json.contains("\"code\":\"E0100\""));
+}
+
+#[test]
+fn v2_standalone_tools_read_only_the_selected_grammar_metadata() {
+    let tree = TempTree::new("standalone-value-access");
+    let home = tree.value_access_installation();
+    fs::remove_dir_all(home.join("std")).unwrap();
+    let source = tree.0.join("app.nct");
+    fs::write(
+        &source,
+        "func finish(take value:error):error {return value^}\n",
+    )
+    .unwrap();
+    let execute = |arguments: Vec<&str>| {
+        execute_invocation(invocation(arguments, &tree.0, &home, "arm64-darwin"))
+    };
+
+    let tokens = execute(vec!["tokens", "app.nct"]).unwrap();
+    assert_eq!(tokens.exit_code(), 0);
+    let ast = execute(vec!["ast", "app.nct"]).unwrap();
+    assert_eq!(ast.exit_code(), 0);
+    assert!(
+        ast.render_standard_output()
+            .unwrap()
+            .contains("\"transfer_expression\"")
+    );
+    let formatted = execute(vec!["fmt", "app.nct"]).unwrap();
+    assert!(matches!(
+        formatted,
+        InvocationOutcome::Format(nocter_command::FormatCommandResult::Rewritten)
+    ));
+    let expected = "func finish(take value: error): error { return value^ }\n";
+    assert_eq!(fs::read_to_string(&source).unwrap(), expected);
+    assert_eq!(
+        execute(vec!["fmt", "--check", "app.nct"])
+            .unwrap()
+            .exit_code(),
+        0
+    );
+
+    let manifest = home.join("MANIFEST.json");
+    let invalid = fs::read_to_string(&manifest)
+        .unwrap()
+        .replace("value-access-v2", "unknown");
+    fs::write(manifest, invalid).unwrap();
+    let failure = execute(vec!["fmt", "app.nct"]).unwrap_err();
+    assert!(matches!(
+        failure.kind(),
+        InvocationErrorKind::Installation(_)
+    ));
+    assert_eq!(fs::read_to_string(source).unwrap(), expected);
 }
 
 #[test]

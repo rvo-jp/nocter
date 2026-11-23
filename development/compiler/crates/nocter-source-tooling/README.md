@@ -19,8 +19,7 @@ analysis and are not reconstructed here.
 - Formatting preserves authored callable execution and guarantees in their canonical modifier
   positions.
 - Source token classification never invents semantic identity.
-- Released inspection/formatting retains its `SourceFile` goal. The future private core root is
-  rejected before released formatting rules run; exposing or formatting that language is a separate
-  migration boundary. Retired access-prefix assertion diagnostics have no formatting/inspection
-  category or source-text reconstruction path.
+- Inspection retains the caller's exact parse goal. Formatting reparses every candidate with
+  that goal. The v2 source projection preserves postfix transfer jointness, capture separators,
+  and the parsed relationships between transfer, calls, await, and outcome propagation.
 - Invalid syntax remains representable and diagnosable after tooling operations.

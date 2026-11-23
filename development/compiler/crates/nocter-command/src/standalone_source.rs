@@ -3,8 +3,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use nocter_model::StandardSourceKind;
 use nocter_source::{SourceError, SourceName};
-use nocter_source_tooling::{InspectionGoal, SourceInspection};
+use nocter_source_tooling::SourceInspection;
 
 use crate::{ProgramInputError, resolve_single_file_input};
 
@@ -31,11 +32,12 @@ impl StandaloneSource {
 
 /// Resolves, reads, normalizes, and parses exactly one explicitly named `.nct` source.
 ///
-/// This is the only command-layer authority that selects the standalone parse goal. It performs
-/// no installation, package, target, import, or semantic work.
+/// The caller supplies the selected source profile. Loading does no package, target, import,
+/// or semantic work.
 pub(super) fn load_standalone_source(
     source: PathBuf,
     current_directory: impl AsRef<Path>,
+    source_kind: StandardSourceKind,
 ) -> Result<StandaloneSource, StandaloneSourceError> {
     let input = resolve_single_file_input(current_directory, source)
         .map_err(StandaloneSourceError::Input)?;
@@ -47,13 +49,14 @@ pub(super) fn load_standalone_source(
     let name = path
         .to_str()
         .ok_or_else(|| StandaloneSourceError::NonUnicodePath(path.clone()))?;
+    let goal = nocter_standard_profile::source_goal(source_kind);
     let inspection =
-        SourceInspection::new(SourceName::new(name), &bytes, InspectionGoal::SourceFile).map_err(
-            |source| StandaloneSourceError::Source {
+        SourceInspection::new(SourceName::new(name), &bytes, goal).map_err(|source| {
+            StandaloneSourceError::Source {
                 path: path.clone(),
                 source,
-            },
-        )?;
+            }
+        })?;
     Ok(StandaloneSource {
         path,
         bytes,

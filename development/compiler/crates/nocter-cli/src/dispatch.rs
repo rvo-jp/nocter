@@ -8,7 +8,7 @@ use nocter_command::{
     execute_prepared_check, execute_prepared_fetch, execute_prepared_graph, execute_prepared_run,
     execute_prepared_test, execute_source_inspection,
 };
-use nocter_installation::CompilerInstallation;
+use nocter_installation::{CompilerInstallation, NocterHomeRequest};
 use nocter_package_acquisition::EmbeddedPackageAcquisition;
 
 use crate::presentation::InvocationDiagnosticPresentation;
@@ -70,22 +70,29 @@ pub(crate) fn route(command: ParsedCommand) -> CommandRoute {
 pub(crate) fn execute_direct_command(
     command: DirectCommand,
     current_directory: &Path,
+    home: NocterHomeRequest,
 ) -> Result<InvocationOutcome, InvocationError> {
+    let source_kind = || {
+        home.standalone_source_kind()
+            .map_err(|error| InvocationError::new(InvocationErrorKind::Installation(error), None))
+    };
     match command {
         DirectCommand::Help(request) => Ok(InvocationOutcome::Help(request)),
         DirectCommand::Init(command) => execute_init(command, current_directory)
             .map(InvocationOutcome::Init)
             .map_err(|error| InvocationError::new(InvocationErrorKind::Init(error), None)),
         DirectCommand::SourceInspection(command) => {
-            execute_source_inspection(command, current_directory)
+            execute_source_inspection(command, current_directory, source_kind()?)
                 .map(InvocationOutcome::SourceInspection)
                 .map_err(|error| {
                     InvocationError::new(InvocationErrorKind::SourceInspection(error), None)
                 })
         }
-        DirectCommand::Format(command) => execute_format(command, current_directory)
-            .map(InvocationOutcome::Format)
-            .map_err(|error| InvocationError::new(InvocationErrorKind::Format(error), None)),
+        DirectCommand::Format(command) => {
+            execute_format(command, current_directory, source_kind()?)
+                .map(InvocationOutcome::Format)
+                .map_err(|error| InvocationError::new(InvocationErrorKind::Format(error), None))
+        }
     }
 }
 
