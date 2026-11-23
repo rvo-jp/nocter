@@ -43,7 +43,7 @@ pub(in crate::value_access) fn inputs(
                 failure,
             })?;
         let payload = contract
-            .instantiate(unit.program(), &key)
+            .instantiate_in_frame(unit.program(), frame, &key)
             .map_err(|_| INVALID)?;
         if payloads.insert(input.local, payload).is_some() {
             return Err(INVALID);
@@ -70,7 +70,7 @@ pub(in crate::value_access) fn result(
                 })?;
             Ok(DataEvidence::Payload(
                 contract
-                    .instantiate(unit.program(), &key)
+                    .instantiate_in_frame(unit.program(), frame, &key)
                     .map_err(|_| INVALID)?,
             ))
         }

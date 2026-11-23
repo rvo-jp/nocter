@@ -251,7 +251,10 @@ pub(super) fn root_data(
     referent: Referent,
     resolution: &mut super::instantiation::Query<'_, '_>,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    let data = root_type(body, referent).ok_or(InstantiationFailure::Unresolved)?;
+    let original = root_type(body, referent).ok_or(InstantiationFailure::Unresolved)?;
+    let data = program
+        .frame_type(frame, original)
+        .map_err(|_| InstantiationFailure::Unresolved)?;
     if let Ok(key) = program.instantiate_closed_data(data) {
         return Ok(key);
     }
@@ -288,6 +291,8 @@ fn payload(
         .data(frame, source, data)
         .map_err(|failure| Failure::Value { at, failure })?;
     Ok(Some(
-        contract.instantiate(program, &key).map_err(|_| INVALID)?,
+        contract
+            .instantiate_in_frame(program, frame, &key)
+            .map_err(|_| INVALID)?,
     ))
 }

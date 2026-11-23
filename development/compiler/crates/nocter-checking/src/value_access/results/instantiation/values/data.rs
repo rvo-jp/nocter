@@ -16,6 +16,9 @@ impl Query<'_, '_> {
         path: &ValuePath<()>,
         target: TypeId,
     ) -> Result {
+        let Ok(target) = self.program.frame_type(frame, target) else {
+            return Ok(Fact::Unavailable);
+        };
         let Some(node) = self.source_node(frame, value, path) else {
             return Ok(Fact::Unavailable);
         };
@@ -76,6 +79,7 @@ impl Query<'_, '_> {
         }
         // Representation only: no seed execution, positive payload or numeric proof is supplied.
         let source_data = node.data.and_then(|data| {
+            let data = self.program.frame_type(frame, data).ok()?;
             self.program
                 .project_data_by(data, path, |(), length| length > 0)
         });

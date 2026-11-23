@@ -1,7 +1,7 @@
 use nocter_model::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId, ValueAccess,
-    ValueAccessMode, ValueBindingKind, ValueField, ValueInputOperation,
+    AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, GenericApplication,
+    TypeId, ValueAccess, ValueAccessMode, ValueBindingKind, ValueField, ValueInputOperation,
 };
 
 /// Known result data/access and normal completion are independent typing facts.
@@ -261,6 +261,7 @@ pub struct Argument {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallArguments {
     formal: Box<[Argument]>,
+    pub(super) application: Option<GenericApplication>,
     reverse_preparation: bool,
     retain_reads: bool,
 }
@@ -268,6 +269,7 @@ impl CallArguments {
     pub(super) fn in_order(formal: impl Into<Box<[Argument]>>) -> Self {
         Self {
             formal: formal.into(),
+            application: None,
             reverse_preparation: false,
             retain_reads: false,
         }
@@ -275,9 +277,15 @@ impl CallArguments {
     pub(super) fn reverse_pair([left, right]: [Argument; 2]) -> Self {
         Self {
             formal: Box::new([right, left]),
+            application: None,
             reverse_preparation: true,
             retain_reads: false,
         }
+    }
+    /// The selected compile-time arguments, separate from the runtime input slots.
+    #[must_use]
+    pub const fn generic_application(&self) -> Option<&GenericApplication> {
+        self.application.as_ref()
     }
     pub(super) fn retain_read_pair(&mut self) -> bool {
         if self.formal.len() != 2

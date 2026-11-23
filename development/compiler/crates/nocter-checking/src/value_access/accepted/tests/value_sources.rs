@@ -255,7 +255,10 @@ fn received_capture_components_keep_distinct_paths_before_prepared_invocation() 
         }
         let bundles = graph.call(id).unwrap();
         assert_eq!(bundles.len(), 1);
-        paths.extend(captured_paths(graph, bundles[0].callee));
+        paths.extend(captured_paths(
+            graph,
+            bundles[0].callee.witness_source().unwrap(),
+        ));
     }
     assert_eq!(
         paths,

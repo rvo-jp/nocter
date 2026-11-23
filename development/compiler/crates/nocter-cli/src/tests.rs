@@ -190,6 +190,71 @@ fn installed_v2_profile_checks_builds_and_runs_the_same_program() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_explicit_generic_calls_preserve_the_original_transfer() {
+    use std::os::unix::process::ExitStatusExt;
+    const SOURCE: &str = r"
+struct Ticket {
+    state: i32
+}
+
+impl Ticket {
+    drop {
+        if self.state != 42 { let _ = 1 / 0 }
+        self.state = 0
+    }
+}
+
+func pass<T>(take value: T): T { value^ }
+func row<T, const N: usize>(take values: [T; N]): [T; N] { values^ }
+func retire<T>(take value: T): void {}
+
+func main(): i32 {
+    let ticket = pass<Ticket>(Ticket { state: 42 })
+    let state = ticket.state
+    retire<Ticket>(ticket^)
+    if state != 42 { return 1 }
+    let first = row<i32, 1>([14])
+    let second = row<i32, 2>([0, 14])
+    let value = first[0]
+    if pass<bool>(true) { pass<i32>(value) + value + second[1] } else { 0 }
+}
+";
+    let tree = TempTree::new("explicit-generic-native");
+    let home = tree.value_access_installation();
+    let path = tree.0.join("main.nct");
+    let run = || {
+        let result = execute_invocation(invocation(
+            ["run", "--file", "main.nct", "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap_or_else(|error| {
+            panic!(
+                "{}",
+                error
+                    .render_source_diagnostics()
+                    .unwrap()
+                    .unwrap_or_else(|| format!("{:?}", error.kind()))
+            )
+        });
+        let InvocationOutcome::Run(executed) = result else {
+            panic!("expected native process execution");
+        };
+        executed.status()
+    };
+    fs::write(&path, SOURCE).unwrap();
+    assert_eq!(run().code(), Some(42));
+    fs::write(
+        &path,
+        SOURCE.replace("Ticket { state: 42 }", "Ticket { state: 41 }"),
+    )
+    .unwrap();
+    assert_eq!(run().signal(), Some(5));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_error_members_require_the_exact_builtin_authority() {
     let tree = TempTree::new("builtin-error-members");
     let home = tree.value_access_installation();

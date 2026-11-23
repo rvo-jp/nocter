@@ -357,6 +357,15 @@ impl Program {
             return Ok(data);
         };
         let owner = frame.code().source_owner();
+        self.applied_type(owner, application, data)
+    }
+
+    fn applied_type(
+        &self,
+        owner: AccessCodeId,
+        application: &GenericApplication,
+        data: TypeId,
+    ) -> Result<TypeId, CodeBindingError> {
         let invalid = CodeBindingError::InvalidGenericApplication(owner);
         let projection = self
             .generic_frames
@@ -369,6 +378,18 @@ impl Program {
         (self.types.store().is_concrete(data) == Some(true))
             .then_some(data)
             .ok_or(invalid)
+    }
+
+    /// Select the projected signature of a named application in the canonical unit.
+    #[must_use]
+    pub fn applied_callable_contract(
+        &self,
+        code: AccessCodeId,
+        application: &GenericApplication,
+    ) -> Option<FunctionConstraint> {
+        self.declaration_contract(self.codes.get(code)?)?
+            .try_map_data(|data| self.applied_type(code, application, data))
+            .ok()
     }
 
     /// Build the identity condition frame for a code's own direct callable formals.

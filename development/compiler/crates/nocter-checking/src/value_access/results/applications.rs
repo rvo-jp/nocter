@@ -32,14 +32,22 @@ pub(super) fn call_result(
     };
     let data = access.data();
     let invocation = kind.invocation(arguments).ok_or(INVALID)?;
-    let template = query
-        .program()
-        .function_contract(FunctionWitness {
-            origin: *target,
-            invocation,
-        })
-        .ok_or(INVALID)?
-        .result;
+    let witness = FunctionWitness {
+        origin: *target,
+        invocation,
+    };
+    let template =
+        crate::value_access::instances::call_contract(query.program(), witness, arguments)
+            .ok_or(INVALID)?
+            .result;
+    if arguments.generic_application().is_some() {
+        return (template == data)
+            .then_some(Some(CallResult {
+                data,
+                created: BTreeSet::new(),
+            }))
+            .ok_or(INVALID);
+    }
     let site = ValueApplication {
         owner: query.code(),
         call: id,
@@ -50,19 +58,13 @@ pub(super) fn call_result(
     }
     let result = query
         .program()
-        .function_result(
-            FunctionWitness {
-                origin: *target,
-                invocation,
-            },
-            |parameter| {
-                arguments
-                    .iter()
-                    .filter_map(|argument| argument.binding.as_ref())
-                    .find(|binding| binding.parameter == parameter)
-                    .map(|binding| binding.witness)
-            },
-        )
+        .function_result(witness, |parameter| {
+            arguments
+                .iter()
+                .filter_map(|argument| argument.binding.as_ref())
+                .find(|binding| binding.parameter == parameter)
+                .map(|binding| binding.witness)
+        })
         .ok_or(INVALID)?;
     if result != data {
         return Err(INVALID);

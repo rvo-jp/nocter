@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind explicit calls to frames for checked generic definitions. Retain the complete application at
-the original call and close the frame's data using the canonical type authority. Preserve the
-checked operations and verify the deferred cleanup for the concrete representation.
+Admit evaluatable generic definitions under their original assumptions. Retain dependent data and
+cleanup conditions, and evaluate a fully applied frame through the ordinary required-evaluation
+path after its concrete obligations are satisfied.
 
 ## Remaining Contextual Representation Qualification
 
@@ -700,9 +700,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain exact generic applications in declaration-owned frame identity and intern specialized
   body descriptors in the canonical type authority. Verify distinct lengths, ordinary data
   instantiation, and refusal to bind an unprojected application.
-- [ ] Connect source calls to concrete frames. Qualify distinct types and lengths, exact
-  input/return rules, original generic moves, and concrete cleanup through the ordinary native
-  path.
+- [x] Connect explicit runtime calls to concrete frames. Qualify distinct types and lengths,
+  exact input/return rules, original generic moves, and concrete cleanup through the ordinary
+  native path. Report invalid body substitutions at the original application.
+- [ ] Admit generic const definitions and evaluate complete explicit applications through the
+  existing condition and plan authorities. Qualify symbolic obligations, precise concrete
+  failures, distinct frames and unchanged authored execution permission.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

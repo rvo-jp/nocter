@@ -112,7 +112,10 @@ impl Requirements {
                     excluded_calls.insert(id);
                     continue;
                 }
-                let template = instances::completed(arguments).then(|| {
+                // Named runtime generic calls have no evaluator condition edge.
+                let template = (instances::completed(arguments)
+                    && arguments.generic_application().is_none())
+                .then(|| {
                     identity
                         .as_ref()
                         .map_err(|error| *error)

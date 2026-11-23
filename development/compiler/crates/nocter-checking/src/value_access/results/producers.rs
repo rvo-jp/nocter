@@ -323,11 +323,7 @@ fn commit(
             );
         }
     }
-    for (index, data) in query
-        .program()
-        .compound_input_contracts(selected)
-        .map_err(|_| INVALID)?
-    {
+    for (index, data) in compound_inputs(query, selected, arguments)? {
         let index = index + usize::from(*kind == CallKind::Value);
         let supplied = *state
             .get(&Key::Argument { call: id, index })
@@ -371,11 +367,7 @@ pub(super) fn application_inputs(
         })
         .collect();
     let mut store = Store::default();
-    for (index, data) in query
-        .program()
-        .compound_input_contracts(selected)
-        .map_err(|_| INVALID)?
-    {
+    for (index, data) in compound_inputs(query, selected, arguments)? {
         let index = index + usize::from(*kind == CallKind::Value);
         let argument = arguments.get(index).ok_or(INVALID)?;
         let actual = expression_data(query, argument.value)?;
@@ -385,6 +377,19 @@ pub(super) fn application_inputs(
         }
     }
     Ok(inputs)
+}
+
+fn compound_inputs(
+    query: &Query,
+    selected: FunctionWitness,
+    arguments: &crate::value_access::CallArguments,
+) -> Result<BTreeMap<usize, nocter_model::TypeId>, flow::IntegrityError> {
+    let program = query.program();
+    let contract = crate::value_access::instances::call_contract(program, selected, arguments)
+        .ok_or(INVALID)?;
+    program
+        .compound_input_schemas(&contract)
+        .map_err(|_| INVALID)
 }
 
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;

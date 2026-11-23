@@ -446,7 +446,9 @@ impl Binding<'_, '_> {
         self.payload(data, &key)
     }
     fn result(&mut self, data: TypeId, bundle: &CallValueSources) -> Result<Payload, Failure> {
-        let key = if let Ok(key) = self.unit.program().instantiate_closed_data(data) {
+        let program = self.unit.program();
+        let projected = program.frame_type(self.frame, data).map_err(|_| INVALID)?;
+        let key = if let Ok(key) = program.instantiate_closed_data(projected) {
             key
         } else {
             let selected = nocter_checking::value_access::ValueSourceSelection {
@@ -473,7 +475,7 @@ impl Binding<'_, '_> {
             .map_err(|_| INVALID)?
             .payload()
             .ok_or(INVALID)?
-            .instantiate(self.unit.program(), key)
+            .instantiate_in_frame(self.unit.program(), self.frame, key)
             .map_err(|_| INVALID)
     }
 }

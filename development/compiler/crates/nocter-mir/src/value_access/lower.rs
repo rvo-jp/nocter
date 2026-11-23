@@ -184,6 +184,9 @@ impl Builder<'_> {
     }
     pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         let program = self.instances.unit().program();
+        let source = program
+            .frame_type(self.instance.key(), source)
+            .map_err(|_| self.invalid())?;
         let key = program
             .instantiate_closed_data(source)
             .map_err(|_| self.invalid())?;

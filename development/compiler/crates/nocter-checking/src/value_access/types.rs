@@ -1,12 +1,13 @@
 //! Canonical body type replay and one complete typed-arena data projection.
 use super::{
     Failure, Query, accepted,
-    ir::{Expression, ValueType},
+    ir::{Expression, ExpressionKind, ValueType},
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_model::{AccessExpressionId, TypeId, ValueAccess};
 use std::{collections::BTreeMap, sync::Arc};
+mod generics;
 
 pub(super) fn canonicalize(
     context: &DeclarationContext<'_>,
@@ -46,7 +47,7 @@ pub(super) fn canonicalize(
             failure,
         })?;
     }
-    let program = Arc::new(canonical.finish());
+    let program = Arc::new(generics::project(context, canonical.finish(), queries)?);
     for query in queries.values_mut() {
         bind_program(query, &program);
     }
@@ -86,6 +87,11 @@ fn visit(
     query.body.expressions = query.body.expressions.try_map(|id, original| {
         let mut value = original.clone();
         value.ty = value_type(value.ty, &mut *data)?;
+        if let ExpressionKind::Call { arguments, .. } = &mut value.kind
+            && let Some(application) = &mut arguments.application
+        {
+            *application = application.try_map_types(&mut *data)?;
+        }
         expression(query, id, &mut value)?;
         Ok::<_, Failure>(value)
     })?;

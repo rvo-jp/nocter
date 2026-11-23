@@ -22,7 +22,7 @@ pub(super) fn bundle(
             point: points.insert(()),
             action: 0,
         },
-        callee: id(callee),
+        callee: crate::value_access::CallCallee::Witness(id(callee)),
         arguments: arguments.iter().copied().map(id).collect(),
     }
 }

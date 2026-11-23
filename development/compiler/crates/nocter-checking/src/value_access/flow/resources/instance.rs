@@ -55,6 +55,24 @@ impl InstantiatedPayload {
     }
 }
 impl Payload {
+    /// Apply the original frame's type substitution before selecting concrete disposal.
+    /// # Errors
+    /// Rejects an unresolved or mismatched data selection.
+    pub fn instantiate_in_frame(
+        self,
+        program: &Program,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        instance: &nocter_declarations::value_access::DataInstanceKey,
+    ) -> Result<InstantiatedPayload> {
+        let data = program.frame_type(frame, self.data).map_err(|_| INVALID)?;
+        let contract = if data == self.data {
+            self
+        } else {
+            payload(program, data)?
+        };
+        contract.instantiate(program, instance)
+    }
+
     /// Preserve complete callable context while specializing this schema's cleanup obligation.
     /// # Errors
     /// Rejects unresolved producers/bindings and unsupported positive payload schemas.

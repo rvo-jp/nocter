@@ -235,7 +235,7 @@ fn input_contract(
     program: &Program,
     target: ValueFunctionOrigin,
     kind: CallKind,
-    arguments: &[super::Argument],
+    arguments: &super::CallArguments,
 ) -> Result<Option<nocter_declarations::value_access::FunctionConstraint>, flow::IntegrityError> {
     if !matches!(
         target,
@@ -243,13 +243,16 @@ fn input_contract(
     ) {
         return Ok(None);
     }
-    program
-        .function_contract(FunctionWitness {
+    super::instances::call_contract(
+        program,
+        FunctionWitness {
             origin: target,
             invocation: kind.invocation(arguments).ok_or(INVALID)?,
-        })
-        .map(Some)
-        .ok_or(INVALID)
+        },
+        arguments,
+    )
+    .map(Some)
+    .ok_or(INVALID)
 }
 
 impl Violation {

@@ -315,36 +315,6 @@ fn explicit_generic_arguments_follow_the_selected_callable_schema() {
         ("i32, 1 / 0", "E0325", "1 / 0", "invalid checked arithmetic"),
         ("i32, local", "E0421", "local", "unavailable"),
         (
-            "i32, WIDTH",
-            "E0291",
-            "<i32, WIDTH>",
-            "checked body and specialization",
-        ),
-        (
-            "i32, (WIDTH)",
-            "E0291",
-            "<i32, (WIDTH)>",
-            "checked body and specialization",
-        ),
-        (
-            "WIDTH, WIDTH",
-            "E0291",
-            "<WIDTH, WIDTH>",
-            "checked body and specialization",
-        ),
-        (
-            "i32, width()",
-            "E0291",
-            "<i32, width()>",
-            "checked body and specialization",
-        ),
-        (
-            "i32, FIXED",
-            "E0291",
-            "<i32, FIXED>",
-            "checked body and specialization",
-        ),
-        (
             "Buffer<i32>, 4",
             "E0291",
             "<i32>",
@@ -383,33 +353,156 @@ fn explicit_generic_arguments_follow_the_selected_callable_schema() {
 }
 
 #[test]
+fn an_explicit_application_selects_a_frame_from_the_original_call() {
+    use nocter_model::{GenericApplication, ValueApplication, ValueCode};
+    let unit =
+        accepted("func pass<T>(take item: T): T { item^ }\nfunc run(): i32 { pass<i32>(42) }");
+    let run = named(&unit, "run").typed();
+    let template = ValueCode::Declaration(named(&unit, "pass").typed().source_owner());
+    let root = unit.program().bind_code(run.code(), []).unwrap();
+    let (call, _) = run
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| {
+            matches!(
+                &expression.kind,
+                crate::value_access::ExpressionKind::Call { .. }
+            )
+        })
+        .unwrap();
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(10_000).unwrap(),
+    );
+    let frame = unit
+        .instantiate_invocation(
+            &root,
+            ValueApplication {
+                owner: run.code(),
+                call,
+            },
+            &mut work,
+        )
+        .unwrap();
+    let integer = unit
+        .program()
+        .data_type(nocter_model::BuiltinType::I32)
+        .unwrap();
+    assert_eq!(frame.code(), template);
+    assert_eq!(
+        frame.generic_application(),
+        Some(&GenericApplication::new([integer.into()]))
+    );
+}
+
+#[test]
 fn an_explicit_application_checks_values_against_the_concrete_signature() {
-    for (operand, code, origin) in [
-        ("[true, false]", "E0370", "true"),
-        ("[1, 2]", "E0291", "<i32, 2>"),
-    ] {
-        let text = format!(
+    let source = |operand| {
+        format!(
             "func keep<T, const N: usize>(take parts: [T; N]): [T; N] {{ parts^ }}\nfunc run(): void {{ let _ = keep<i32, 2>({operand}) }}"
-        );
-        let (sources, tree) = input(&text);
-        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
-        let SourceFailure::Checking(Failure::Body {
-            failure: BodyFailure::Rejected(error),
-            ..
-        }) = failure
+        )
+    };
+    let (sources, tree) = input(&source("[true, false]"));
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(error),
+        ..
+    }) = failure
+    else {
+        panic!("expected an operand diagnostic, got {failure:?}");
+    };
+    let diagnostic = error.source();
+    assert_eq!(diagnostic.code(), "E0370");
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostic.primary().span().range()),
+        Some("true")
+    );
+    accepted(&source("[1, 2]"));
+}
+
+#[test]
+fn explicit_generic_arguments_freeze_the_selected_type_and_usize_namespaces() {
+    use nocter_model::{BuiltinType, GenericValue, UsizeTerm};
+    for (arguments, builtin) in [
+        ("i32, WIDTH", Some(BuiltinType::I32)),
+        ("i32, (WIDTH)", Some(BuiltinType::I32)),
+        ("WIDTH, WIDTH", None),
+        ("i32, width()", Some(BuiltinType::I32)),
+        ("i32, FIXED", Some(BuiltinType::I32)),
+    ] {
+        let unit = accepted(&format!(
+            "struct WIDTH {{}}\nconst WIDTH: usize = 2 + 2\nstatic FIXED: usize = 4\nconst func width(): usize {{ WIDTH }}\nfunc run(): void {{ template<{arguments}>() }}\nfunc template<T, const N: usize>(): void {{}}"
+        ));
+        let body = named(&unit, "run").typed();
+        let application = body
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(_, expression)| {
+                let crate::value_access::ExpressionKind::Call { arguments, .. } = &expression.kind
+                else {
+                    return None;
+                };
+                arguments.generic_application()
+            })
+            .unwrap();
+        let [
+            GenericValue::Type(data),
+            GenericValue::Usize(UsizeTerm::Value(4)),
+        ] = application.as_slice()
         else {
-            panic!("{operand}: expected a source diagnostic, got {failure:?}");
+            panic!("incorrect specialization for {arguments}: {application:?}");
         };
-        let diagnostic = error.source();
-        assert_eq!(diagnostic.code(), code, "{operand}: {diagnostic:?}");
+        assert_eq!(unit.program().data_kind(*data), builtin);
         assert_eq!(
-            sources
-                .get(tree.source())
-                .unwrap()
-                .text_at(diagnostic.primary().span().range()),
-            Some(origin)
+            unit.program().nominal_identity(*data).is_some(),
+            builtin.is_none()
         );
     }
+}
+
+#[test]
+fn a_runtime_generic_application_does_not_gain_required_evaluation() {
+    let (sources, tree) =
+        input("func pass<T>(take value: T): T { value^ }\nconst computed: i32 = pass<i32>(42)");
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let diagnostic = match &failure {
+        SourceFailure::Checking(Failure::Const { diagnostic, .. }) => diagnostic.source(),
+        SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) => diagnostic.source(),
+        _ => panic!("expected a constant-evaluation diagnostic: {failure:?}"),
+    };
+    assert_eq!(diagnostic.code(), "E0421");
+    assert!(
+        diagnostic
+            .message()
+            .contains("runtime-only function `pass`")
+    );
+}
+
+#[test]
+fn a_body_type_that_cannot_be_substituted_is_reported_at_the_call() {
+    let (sources, tree) = input(
+        "func reserve<T>(take item: T): void { let unused: T! = item^ }\nfunc run(): void { let value: i32! = 42\nreserve<i32!>(value^) }",
+    );
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(error),
+        ..
+    }) = failure
+    else {
+        panic!("expected an application diagnostic, got {failure:?}");
+    };
+    assert_eq!(error.rule(), crate::value_access::Rule::UnsupportedData);
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(error.source().primary().span().range()),
+        Some("reserve<i32!>(value^)")
+    );
 }
 
 #[test]

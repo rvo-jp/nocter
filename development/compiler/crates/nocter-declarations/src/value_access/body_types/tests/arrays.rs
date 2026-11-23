@@ -1,6 +1,5 @@
 use super::*;
 use nocter_model::{GenericApplication, UsizeTerm, ValueClosure, ValueFunctionOrigin};
-use std::collections::BTreeSet;
 
 fn generic_array_signature() -> (Program, AccessCodeId, UsizeTerm) {
     use crate::GenericParameterDomain::{Type, UsizeConstant};
@@ -100,11 +99,13 @@ fn exact_frames_project_body_types_with_the_selected_length() {
         program.bind_generic_call(owner, &application(4)),
         Err(CodeBindingError::InvalidGenericApplication(owner))
     );
+    let applications = [application(4), application(7)];
     let program = program
-        .project_generic_frames(BTreeMap::from([
-            ((owner, application(4)), BTreeSet::from([local])),
-            ((owner, application(7)), BTreeSet::from([local])),
-        ]))
+        .project_generic_frames(
+            applications
+                .iter()
+                .map(|arguments| (owner, arguments, [local])),
+        )
         .unwrap();
     let first = program.bind_generic_call(owner, &application(4)).unwrap();
     let second = program.bind_generic_call(owner, &application(7)).unwrap();

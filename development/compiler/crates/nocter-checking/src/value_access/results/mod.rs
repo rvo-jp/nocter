@@ -37,9 +37,9 @@ mod typing;
 pub(super) use typing::deferred_equalities;
 mod value_sources;
 pub use value_sources::{
-    CallValueSources, ValueSource, ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow,
-    ValueSourceId, ValueSourceInput, ValueSourceNode, ValueSourceRead, ValueSourceSelection,
-    ValueSourceSlot, ValueSources,
+    CallCallee, CallValueSources, ValueSource, ValueSourceBoundary, ValueSourceCarrier,
+    ValueSourceFlow, ValueSourceId, ValueSourceInput, ValueSourceNode, ValueSourceRead,
+    ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 mod unproduced;
 mod values;

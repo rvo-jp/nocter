@@ -171,15 +171,18 @@ impl Query<'_, '_> {
         let mut pending = false;
         for (bundle_id, bundle) in bundles.iter().enumerate() {
             self.step()?;
+            let Some(callee) = bundle.callee.witness_source() else {
+                return Ok(Fact::Unavailable);
+            };
             let Some(data) = self
-                .source_node(frame, bundle.callee, &ValuePath::default())
+                .source_node(frame, callee, &ValuePath::default())
                 .and_then(|node| node.data)
             else {
                 return Ok(Fact::Unavailable);
             };
             let fact = self.read(
                 owner,
-                Key::Data(frame.clone(), bundle.callee, ValuePath::default(), data),
+                Key::Data(frame.clone(), callee, ValuePath::default(), data),
             )?;
             let domain = match fact {
                 Fact::Data(data) => data,

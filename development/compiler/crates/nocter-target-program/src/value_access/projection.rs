@@ -20,16 +20,21 @@ pub(super) fn metadata(
     let program = unit.program();
     let mut roots = BTreeSet::new();
     for source in requirements::data(body, control)? {
-        if unit.local_future_data(body.typed().code(), source)
-            || unit
-                .data_evidence(source)
-                .map_err(|_| Failure::InvalidAcceptedUnit)?
-                .payload()
-                .is_none()
+        if unit.local_future_data(body.typed().code(), source) {
+            continue;
+        }
+        let data = program
+            .frame_type(control.frame(), source)
+            .map_err(|_| Failure::InvalidAcceptedUnit)?;
+        if unit
+            .data_evidence(data)
+            .map_err(|_| Failure::InvalidAcceptedUnit)?
+            .payload()
+            .is_none()
         {
             continue;
         }
-        if let Ok(key) = program.instantiate_closed_data(source) {
+        if let Ok(key) = program.instantiate_closed_data(data) {
             roots.insert(key);
         }
     }

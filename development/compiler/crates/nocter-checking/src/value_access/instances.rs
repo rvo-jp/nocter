@@ -1,9 +1,23 @@
 //! Occurrence-aware condition selection and separate frozen definition-contract metadata.
-use super::{Argument, CallKind, flow};
+use super::{Argument, CallArguments, CallKind, flow};
 use nocter_declarations::value_access::{
-    CodeInstanceKey, CodeTemplateKey, FunctionWitness, Program,
+    CodeInstanceKey, CodeTemplateKey, FunctionConstraint, FunctionWitness, Program,
 };
 use nocter_model::ValueFunctionOrigin;
+
+pub(super) fn call_contract(
+    program: &Program,
+    witness: FunctionWitness,
+    arguments: &CallArguments,
+) -> Option<FunctionConstraint> {
+    let Some(application) = arguments.generic_application() else {
+        return program.function_contract(witness);
+    };
+    let ValueFunctionOrigin::Declaration(code) = witness.origin else {
+        return None;
+    };
+    program.applied_callable_contract(code, application)
+}
 
 /// Condition checking also inspects dormant source contracts. A reached commit must use the
 /// retained source recipe; only an absent commit may use a definition-contract hypothesis.

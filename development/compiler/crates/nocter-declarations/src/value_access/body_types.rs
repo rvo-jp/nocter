@@ -10,6 +10,7 @@ mod applications;
 mod containment;
 mod contracts;
 mod generics;
+pub use generics::GenericFrameError;
 pub(super) use generics::GenericFrameTypes;
 mod inputs;
 mod resolution;

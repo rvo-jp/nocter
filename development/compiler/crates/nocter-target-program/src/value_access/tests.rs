@@ -862,6 +862,30 @@ fn checked_generic_definitions_stay_out_of_an_unrelated_instance_graph() {
 }
 
 #[test]
+fn explicit_generic_calls_close_distinct_frames_in_the_normal_instance_graph() {
+    let fixture = ValueSourceFixture::new(
+        "func pass<T>(take item: T): T { item^ }\nfunc run(): i32 { if pass<bool>(true) { pass<i32>(42) } else { 0 } }",
+    );
+    let unit = accepted(&fixture);
+    let owner = callable(&unit, "pass");
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit.clone(), root).unwrap();
+    assert_eq!(graph.instances().len(), 3);
+    let results = graph
+        .instances()
+        .iter()
+        .filter(|(_, instance)| instance.key().code() == owner.into())
+        .map(|(_, instance)| instance.result().payload().unwrap().data())
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected = [
+        nocter_model::BuiltinType::Bool,
+        nocter_model::BuiltinType::I32,
+    ]
+    .map(|data| unit.program().data_type(data).unwrap());
+    assert_eq!(results, expected.into_iter().collect());
+}
+
+#[test]
 fn empty_array_storage_has_identity_without_an_element_payload_edge() {
     for source in [
         "func run(): [i32; 0] { [] }",

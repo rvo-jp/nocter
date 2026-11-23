@@ -141,8 +141,27 @@ pub struct CallValueSources {
     pub invocation: nocter_model::ValueInvocation,
     pub parameters: BTreeMap<nocter_model::ValueParameter, usize>,
     pub origin: flow::Location,
-    pub callee: ValueSourceId,
+    pub callee: CallCallee,
     pub arguments: Box<[ValueSourceId]>,
+}
+
+/// The original callee selection. A named generic application carries compile-time arguments.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CallCallee {
+    Witness(ValueSourceId),
+    Generic {
+        code: nocter_model::AccessCodeId,
+        application: nocter_model::GenericApplication,
+    },
+}
+impl CallCallee {
+    #[must_use]
+    pub const fn witness_source(&self) -> Option<ValueSourceId> {
+        match *self {
+            Self::Witness(source) => Some(source),
+            Self::Generic { .. } => None,
+        }
+    }
 }
 /// One exact body's original value definitions and sparse incoming merge edges.
 /// IDs and canonical schemas are metadata, never source/revision or executable receipts.

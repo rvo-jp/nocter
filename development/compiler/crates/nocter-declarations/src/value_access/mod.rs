@@ -16,8 +16,8 @@ use crate::{DefinitionError, GenericParameter, GenericParameterDomain};
 mod body_types;
 mod closures;
 pub use body_types::{
-    BodyTypeError, BodyTypes, CanonicalBodyTypes, PayloadDependencies, PayloadReadiness,
-    ResolvedBodyTypes,
+    BodyTypeError, BodyTypes, CanonicalBodyTypes, GenericFrameError, PayloadDependencies,
+    PayloadReadiness, ResolvedBodyTypes,
 };
 pub use closures::Closure;
 mod aggregate;

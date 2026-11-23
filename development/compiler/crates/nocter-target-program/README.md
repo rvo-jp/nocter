@@ -78,6 +78,8 @@ or the positions in another closure. Constant/static initialization thunks rejec
 constant/static references; checking has already frozen their initializers. Static place views
 retain their global identity and ordinary data projection without adding runtime code instances. Scalar/aggregate
 runtime inputs remain ordinary data rather than specialization arguments.
+An explicit generic call selects the original code with its complete type and constant application.
+Native body channels, storage and disposal use that frame's concrete payload descriptors.
 This product grants no ABI, layout, executable cleanup or backend capability.
 Body-local required-expression code has no callable origin and cannot enter native root/callee
 selection. A declaration-owned metadata key alone supplies no runtime body; a source owner cannot

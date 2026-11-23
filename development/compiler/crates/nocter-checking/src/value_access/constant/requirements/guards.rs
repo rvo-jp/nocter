@@ -258,7 +258,10 @@ fn derives_from_projection(
             continue;
         }
         reached = true;
-        let mut pending = vec![(call.callee, expected.len())];
+        let Some(callee) = call.callee.witness_source() else {
+            return Ok(false);
+        };
+        let mut pending = vec![(callee, expected.len())];
         let mut visited = BTreeSet::new();
         let mut anchored = false;
         while let Some((value, remaining)) = pending.pop() {

@@ -102,6 +102,16 @@ impl Program {
         let contract = self
             .function_contract(selected)
             .ok_or(InputBindingError::Code(CodeBindingError::UnknownCode))?;
+        self.compound_input_schemas(&contract)
+    }
+
+    /// Classify the compound input schemas of an already selected signature.
+    /// # Errors
+    /// Rejects an unknown input schema.
+    pub fn compound_input_schemas(
+        &self,
+        contract: &crate::value_access::FunctionConstraint,
+    ) -> Result<BTreeMap<usize, TypeId>, InputBindingError> {
         let mut expected = BTreeMap::new();
         for (index, input) in contract.inputs.iter().enumerate() {
             let schema = self

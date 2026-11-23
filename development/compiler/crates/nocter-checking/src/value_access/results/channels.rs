@@ -60,6 +60,9 @@ pub(in crate::value_access) fn input(
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
     let (data, position) = input_channel(body, frame, local)?;
+    let data = program
+        .frame_type(frame, data)
+        .map_err(|_| InstantiationFailure::Unresolved)?;
     let selected = position.and_then(|position| frame.input_data(position));
     if let Some(selected) = selected.filter(|selected| selected.data() == data) {
         return Ok(selected.clone());
@@ -94,7 +97,9 @@ pub(in crate::value_access) fn result(
     if body.typed().code() != frame.code() {
         return Err(InstantiationFailure::WrongOwner);
     }
-    let data = body.typed().result_data();
+    let data = program
+        .frame_type(frame, body.typed().result_data())
+        .map_err(|_| InstantiationFailure::Unresolved)?;
     // A declaration-closed contract can describe a diverging result without producing it.
     if let Ok(key) = program.instantiate_closed_data(data) {
         return Ok(key);

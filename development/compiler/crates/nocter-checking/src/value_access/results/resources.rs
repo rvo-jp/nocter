@@ -315,7 +315,7 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
                 source = Some(key.clone());
             }
             contract
-                .instantiate(self.program, &key)
+                .instantiate_in_frame(self.program, self.frame, &key)
                 .map_err(|_| INVALID)
         })?;
         if let Some((holder, key)) = created {
@@ -343,7 +343,8 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         Ok(result)
     }
     fn closed(&self, target: TypeId) -> Option<DataInstanceKey> {
-        self.program.instantiate_closed_data(target).ok()
+        let data = self.program.frame_type(self.frame, target).ok()?;
+        self.program.instantiate_closed_data(data).ok()
     }
     fn retired(&mut self, place: &Place, data: TypeId) -> Result<DataInstanceKey, Failure> {
         if let Some(key) = self.closed(data) {

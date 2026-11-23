@@ -1200,7 +1200,11 @@ has its own evaluation root.
 
 An explicit generic application projects the selected declaration's input and result types in the
 caller's canonical body type extension. Ordinary argument preparation uses that signature and
-the original passing operations. Executable frame binding is still pending.
+the original passing operations. A direct runtime call retains the application at its original
+commit. Instance selection closes its body, input and result descriptors through the canonical
+type authority. Concrete cleanup uses the selected payload while preserving the checked moves,
+accesses and cleanup order. A runtime-only generic application retains its authored evaluator
+restriction.
 
 Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
 joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,

@@ -2,11 +2,20 @@
 use super::{BodyTypeError, BodyTypes, Program, TypeScope, structural_component};
 use crate::value_access::FunctionConstraint;
 use nocter_model::{AccessCodeId, GenericApplication, GenericValue, TypeId, TypeSubstitution};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 type TypeProjection = BTreeMap<TypeId, TypeId>;
 pub(in crate::value_access) type GenericFrameTypes =
     BTreeMap<AccessCodeId, BTreeMap<GenericApplication, TypeProjection>>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GenericFrameError {
+    Authority,
+    Application {
+        code: AccessCodeId,
+        arguments: GenericApplication,
+    },
+}
 
 impl BodyTypes {
     /// Project the selected generic declaration through a complete concrete application.
@@ -71,45 +80,69 @@ impl Program {
     /// The original symbolic declarations and types remain available for source evidence.
     /// # Errors
     /// Rejects a foreign or completed authority and applications with unresolved data.
-    pub fn project_generic_frames(
+    pub fn project_generic_frames<'a, R>(
         &self,
-        roots: BTreeMap<(AccessCodeId, GenericApplication), BTreeSet<TypeId>>,
-    ) -> Result<Self, BodyTypeError> {
+        frames: impl IntoIterator<Item = (AccessCodeId, &'a GenericApplication, R)>,
+    ) -> Result<Self, GenericFrameError>
+    where
+        R: IntoIterator<Item = TypeId>,
+    {
         if self.type_scope != TypeScope::Canonical || !self.generic_frames.is_empty() {
-            return Err(BodyTypeError::InvalidExtension);
+            return Err(GenericFrameError::Authority);
         }
-        let invalid = BodyTypeError::InvalidApplication;
         let mut types = self.types.transaction();
-        let mut frames = GenericFrameTypes::new();
-        for ((code, application), mut data) in roots {
-            let substitution = self.generic_substitution(code, &application)?;
-            let header = self.codes().get(code).ok_or(invalid)?;
-            let signature = self.declaration_contract(header).ok_or(invalid)?;
-            data.extend(signature.inputs.iter().map(|input| input.data));
-            data.insert(signature.result);
-            let mut projection = TypeProjection::new();
-            for source in data {
-                let target = project(&substitution, &mut types, source)?;
-                if source != target {
-                    projection.insert(source, target);
-                }
-            }
-            frames
+        let mut projected = GenericFrameTypes::new();
+        for (code, application, data) in frames {
+            let invalid = || GenericFrameError::Application {
+                code,
+                arguments: application.clone(),
+            };
+            let substitution = self
+                .generic_substitution(code, application)
+                .map_err(|_| invalid())?;
+            let signature = self
+                .codes()
+                .get(code)
+                .and_then(|header| self.declaration_contract(header))
+                .ok_or_else(invalid)?;
+            let projection = projected
                 .entry(code)
                 .or_default()
-                .insert(application, projection);
+                .entry(application.clone())
+                .or_default();
+            let roots = data
+                .into_iter()
+                .chain(signature.inputs.iter().map(|input| input.data))
+                .chain(std::iter::once(signature.result));
+            for source in roots {
+                if let std::collections::btree_map::Entry::Vacant(entry) = projection.entry(source)
+                {
+                    let target =
+                        project(&substitution, &mut types, source).map_err(|_| invalid())?;
+                    if source != target {
+                        entry.insert(target);
+                    }
+                }
+            }
         }
         let mut program = self.clone();
-        program.types = types.commit(&self.types).map_err(|_| invalid)?;
-        if !frames
-            .values()
-            .flat_map(BTreeMap::values)
-            .flat_map(BTreeMap::values)
-            .all(|&data| structural_component(&program, data))
-        {
-            return Err(invalid);
+        program.types = types
+            .commit(&self.types)
+            .map_err(|_| GenericFrameError::Authority)?;
+        for (&code, applications) in &projected {
+            for (arguments, projection) in applications {
+                if !projection
+                    .values()
+                    .all(|&data| structural_component(&program, data))
+                {
+                    return Err(GenericFrameError::Application {
+                        code,
+                        arguments: arguments.clone(),
+                    });
+                }
+            }
         }
-        program.generic_frames = frames.into();
+        program.generic_frames = projected.into();
         Ok(program)
     }
 }

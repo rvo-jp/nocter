@@ -248,7 +248,11 @@ fn public_loop_exit_queries_keep_one_callable_witness_and_referent_root() {
     let target = unit
         .instantiate_invocation(&frame, call, &mut healthy())
         .unwrap();
-    let value = unit.instantiate_value(&frame, bundle.callee, &mut healthy());
+    let value = unit.instantiate_value(
+        &frame,
+        bundle.callee.witness_source().unwrap(),
+        &mut healthy(),
+    );
     let root = unit.instantiate_referent_root_data(&frame, bundle.origin, referent, &mut healthy());
     let after =
         unit.instantiate_referent_root_data_after(&frame, bundle.origin, referent, &mut healthy());
@@ -268,7 +272,9 @@ fn public_loop_exit_queries_keep_one_callable_witness_and_referent_root() {
     assert_eq!(backing.environment(), value.environment());
     let metadata = unit.instance_metadata(&frame, &mut healthy()).unwrap();
     assert_eq!(
-        metadata.value(bundle.callee, &mut healthy()).unwrap(),
+        metadata
+            .value(bundle.callee.witness_source().unwrap(), &mut healthy())
+            .unwrap(),
         value
     );
 }

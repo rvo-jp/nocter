@@ -1,7 +1,8 @@
 //! Exact source value paths select occurrence contexts; a source code name cannot replace them.
 use super::{Fact, InstantiationFailure, Key, Query, StoredQuery};
 use crate::value_access::{
-    CallKind, CallValueSources, ValueSource, ValueSourceId, ValueSourceNode, ir::LocalOrigin,
+    CallCallee, CallKind, CallValueSources, ValueSource, ValueSourceId, ValueSourceNode,
+    ir::LocalOrigin,
 };
 use nocter_declarations::value_access::{
     CodeInstanceKey, ConcreteWitness, DataInstanceKey, FunctionWitness, InstanceSchema,
@@ -116,9 +117,18 @@ impl Query<'_, '_> {
         frame: &CodeInstanceKey,
         bundle: &CallValueSources,
     ) -> Result {
+        let callee = match &bundle.callee {
+            CallCallee::Witness(source) => *source,
+            CallCallee::Generic { code, application } => {
+                return Ok(self
+                    .program
+                    .bind_generic_call(*code, application)
+                    .map_or(Fact::Unavailable, Fact::Frame));
+            }
+        };
         let selected = self.read(
             owner,
-            Key::Value(frame.clone(), bundle.callee, ValuePath::default()),
+            Key::Value(frame.clone(), callee, ValuePath::default()),
         )?;
         let selected = self.adapt(selected, bundle.invocation);
         self.source_bound_bundle(owner, frame, bundle, selected)

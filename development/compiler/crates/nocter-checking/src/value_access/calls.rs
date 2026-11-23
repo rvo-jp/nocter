@@ -432,36 +432,49 @@ impl Checker<'_, '_> {
         generic: Option<NodeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let contract = if let Some(arguments) = generic {
+        let (contract, application) = if let Some(arguments) = generic {
             let (CalleeSource::Declared { .. }, ValueFunctionOrigin::Declaration(code)) =
                 (selected.source, selected.witness.origin)
             else {
                 return self.reject_unparameterized_call(arguments);
             };
             let application = self.explicit_generic_application(code, arguments)?;
-            match self.types.apply_callable_signature(code, &application) {
-                Ok(contract) => contract,
-                Err(_) => return self.reject_message(
+            let Ok(contract) = self.types.apply_callable_signature(code, &application) else {
+                return self.reject_message(
                     Rule::TypeMismatch,
                     arguments,
                     "these generic arguments do not produce a valid concrete callable signature"
                         .into(),
                     Vec::new(),
-                ),
+                );
+            };
+            let header = self
+                .program()
+                .codes()
+                .get(code)
+                .ok_or(Failure::InconsistentSyntax)?;
+            if !matches!(
+                header.kind(),
+                nocter_declarations::value_access::CodeKind::Function(
+                    nocter_model::CompileTimeGuarantee::RuntimeOnly
+                )
+            ) {
+                return self.reject(Rule::UnqualifiedGenericCallable, arguments);
             }
+            (contract, Some(application))
         } else {
             if let ValueFunctionOrigin::Declaration(code) = selected.witness.origin {
                 self.require_nongeneric_callable(code, node)?;
             }
-            self.program()
+            let contract = self
+                .program()
                 .function_contract(selected.witness)
-                .ok_or(Failure::InconsistentSyntax)?
+                .ok_or(Failure::InconsistentSyntax)?;
+            (contract, None)
         };
-        let (kind, arguments, continues) =
+        let (kind, mut arguments, continues) =
             self.prepare_call_arguments(node, arguments, selected.source, &contract, reachable)?;
-        if let Some(arguments) = generic {
-            return self.reject(Rule::UnqualifiedGenericCallable, arguments);
-        }
+        arguments.application = application;
         self.emit_selected_call(node, selected, &contract, kind, arguments, continues)
     }
 

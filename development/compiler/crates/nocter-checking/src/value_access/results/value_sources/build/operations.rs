@@ -1,6 +1,8 @@
 //! Source definitions follow actual graph actions, without rechecking access or initialization.
 use super::{Builder, CallValueSources, INVALID, Result, Slot, State, ValueSource, ValueSourceId};
-use crate::value_access::{Argument, ArgumentAction, CallKind, ExpressionKind, Referent, flow};
+use crate::value_access::{
+    Argument, ArgumentAction, CallCallee, CallKind, ExpressionKind, Referent, flow,
+};
 use nocter_model::{AccessExpressionId, AccessFlowPointId, ValueApplication, ValuePath};
 use std::collections::BTreeSet;
 
@@ -152,14 +154,9 @@ impl Builder<'_> {
             }
         }
         let callee = if *kind == CallKind::Value {
-            *values.first().ok_or(INVALID)?
+            CallCallee::Witness(*values.first().ok_or(INVALID)?)
         } else {
-            let selected = super::super::super::applications::callee(self.query, call)?;
-            self.push(
-                self.query.program().function_data(selected),
-                None,
-                ValueSource::Function(selected),
-            )
+            self.direct_callee(call, arguments)?
         };
         self.calls.entry(call).or_default().push(CallValueSources {
             kind: *kind,
@@ -236,6 +233,27 @@ impl Builder<'_> {
         );
         self.define(Slot::Expression(call), value, state)?;
         Ok(())
+    }
+    fn direct_callee(
+        &mut self,
+        call: AccessExpressionId,
+        arguments: &crate::value_access::CallArguments,
+    ) -> Result<CallCallee> {
+        let selected = super::super::super::applications::callee(self.query, call)?;
+        if let Some(application) = arguments.generic_application() {
+            let nocter_model::ValueFunctionOrigin::Declaration(code) = selected.origin else {
+                return Err(INVALID);
+            };
+            return Ok(CallCallee::Generic {
+                code,
+                application: application.clone(),
+            });
+        }
+        Ok(CallCallee::Witness(self.push(
+            self.query.program().function_data(selected),
+            None,
+            ValueSource::Function(selected),
+        )))
     }
     fn assign(
         &mut self,
