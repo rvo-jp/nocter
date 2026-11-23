@@ -14,6 +14,7 @@ impl Builder<'_> {
         match *operation {
             flow::Operation::PrepareOperand { value, .. }
             | flow::Operation::Condition(value)
+            | flow::Operation::InspectEnum { source: value, .. }
             | flow::Operation::Discard(value) => {
                 self.value(point, value, state)?;
             }

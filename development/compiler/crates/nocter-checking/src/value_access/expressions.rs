@@ -147,6 +147,9 @@ impl Checker<'_, '_> {
                     reachable,
                 );
             }
+            NodeKind::MatchExpression => {
+                return self.enum_match(node, expected, context, data_hint, reachable);
+            }
             _ => return Err(Failure::InconsistentSyntax),
         };
         if let Some(boundary) = expected {
@@ -568,10 +571,10 @@ impl Checker<'_, '_> {
             self.emit_block(clause, Vec::new(), Some(value), self.ty(value))
         }
     }
-    fn supply_conditional_results(
+    pub(super) fn supply_conditional_results(
         &mut self,
         node: NodeId,
-        blocks: [AccessBlockId; 2],
+        blocks: impl IntoIterator<Item = AccessBlockId>,
         access: Ty,
     ) -> Result<(), Failure> {
         // Once branch identities agree, give their shared result one explicit receiving schema.
@@ -593,6 +596,27 @@ impl Checker<'_, '_> {
         }
         Ok(())
     }
+    pub(super) fn merge_branch_access(
+        &mut self,
+        node: NodeId,
+        left: Option<Ty>,
+        right: Option<Ty>,
+    ) -> Result<Option<Ty>, Failure> {
+        match (left, right) {
+            (None, other) | (other, None) => Ok(other),
+            (Some(a), Some(b)) if a == b || self.defer_equal(a, b) => Ok(Some(a)),
+            (Some(a), Some(b)) => self.reject_message(
+                Rule::TypeMismatch,
+                node,
+                format!(
+                    "branches supply {} and {}; an inferred conditional needs one data type",
+                    self.type_label(a),
+                    self.type_label(b)
+                ),
+                Vec::new(),
+            ),
+        }
+    }
     fn conditional_type(
         &mut self,
         node: NodeId,
@@ -602,22 +626,7 @@ impl Checker<'_, '_> {
     ) -> Result<ValueType, Failure> {
         let known_condition = self.normal_boolean(condition);
         let (left, right) = (self.block_ty(then_block), self.block_ty(else_block));
-        let checked_access =
-            match (left.access(), right.access()) {
-                (None, other) | (other, None) => other,
-                (Some(a), Some(b)) if a == b => Some(a),
-                (Some(a), Some(b)) if self.defer_equal(a, b) => Some(a),
-                (Some(a), Some(b)) => return self.reject_message(
-                    Rule::TypeMismatch,
-                    node,
-                    format!(
-                        "branches supply {} and {}; an inferred conditional needs one data type",
-                        self.type_label(a),
-                        self.type_label(b)
-                    ),
-                    Vec::new(),
-                ),
-            };
+        let checked_access = self.merge_branch_access(node, left.access(), right.access())?;
         // Check both known shapes above, but only a normally producing branch can supply the
         // continuing value's identity. An interrupted branch has no runtime environment to join.
         let access = match (left.normal(), right.normal()) {

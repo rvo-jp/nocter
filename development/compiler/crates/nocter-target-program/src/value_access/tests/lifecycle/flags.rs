@@ -58,6 +58,7 @@ fn trace(program: &lowering::Program, choices: &[bool]) -> Vec<Step> {
                 assert!(choices.next().is_none(), "unused branch choices");
                 return steps;
             }
+            Terminator::EnumSwitch { .. } => panic!("expected Boolean branch choices"),
             Terminator::Unreachable => panic!("unexpected divergent path"),
         };
     }

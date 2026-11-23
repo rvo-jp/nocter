@@ -116,6 +116,51 @@ fn verify_enum_carrier_retirement(unit: &accepted::Unit) {
     }
 }
 
+#[test]
+fn scalar_enum_match_requires_structural_coverage_even_for_a_known_input() {
+    let root = "see ./body.nct\nenum Status { idle\nactive }\nenum Other { idle }\ntype State = Status\nfunc run(): i32";
+    for (arms, message) in [
+        ("Status.active { 1 }", "cover the complete visible enum"),
+        (
+            "Status.active { 1 }\nState.active { 2 }\n_ { 0 }",
+            "this variant already has a match arm",
+        ),
+        (
+            "_ { 0 }\nStatus.active { 1 }",
+            "the discard arm must be last",
+        ),
+        (
+            "Status.active { 1 }\nStatus.idle { 0 }\n_ { 2 }",
+            "all variants are already covered",
+        ),
+        (
+            "Status.active { 1 }\nOther.idle { 0 }",
+            "must name a variant of the same enum",
+        ),
+    ] {
+        let body =
+            format!("see ./index.nct\nfunc run(): i32 {{ match Status.active {{\n{arms}\n}} }}");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let Err(SourceFailure::Checking(accepted::Failure::Body {
+            failure: Failure::Rejected(diagnostic),
+            ..
+        })) = ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("expected coverage rejection: {body}");
+        };
+        assert!(
+            diagnostic.source().message().contains(message),
+            "{diagnostic:?}"
+        );
+    }
+}
+
 fn counts(body_increment: u64) -> Fixture {
     let body_count =
         format!("const BASE: usize = 39\nconst func width(): usize {{ BASE + {body_increment} }}");

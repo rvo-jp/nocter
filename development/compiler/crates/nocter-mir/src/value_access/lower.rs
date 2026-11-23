@@ -54,6 +54,15 @@ impl Builder<'_> {
                     yes,
                     no,
                 },
+                flow::Terminator::EnumSwitch {
+                    source,
+                    cases,
+                    fallback,
+                } => super::Terminator::EnumSwitch {
+                    source: self.value(source)?,
+                    cases,
+                    fallback,
+                },
                 flow::Terminator::Return => {
                     let data = result;
                     super::Terminator::Return(self.root(Holder::Return, data, false)?)
@@ -1346,6 +1355,7 @@ impl Builder<'_> {
                 self.slot(SlotKey::Predicate(value), data, Storage::Payload)?;
             }
             Operation::IndexFailure(_)
+            | Operation::InspectEnum { .. }
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
             | Operation::PrepareArgument { .. }

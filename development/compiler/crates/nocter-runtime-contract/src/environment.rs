@@ -58,6 +58,17 @@ impl RuntimeEnvironment {
         &self.type_representations
     }
 
+    /// The ordered tag table belonging to this exact runtime identity.
+    #[must_use]
+    pub fn scalar_enum_variants(&self, data: RuntimeDataId) -> Option<&[nocter_model::VariantId]> {
+        let RuntimeTypeRepresentation::ScalarEnum { variants } =
+            self.type_representations.get(data)?
+        else {
+            return None;
+        };
+        Some(variants)
+    }
+
     /// Check a scalar enum ordinal against the actual representation of this runtime identity.
     #[must_use]
     pub fn scalar_enum_variant(
@@ -65,12 +76,9 @@ impl RuntimeEnvironment {
         data: RuntimeDataId,
         tag: u64,
     ) -> Option<nocter_model::VariantId> {
-        let RuntimeTypeRepresentation::ScalarEnum { variants } =
-            self.type_representations.get(data)?
-        else {
-            return None;
-        };
-        variants.get(usize::try_from(tag).ok()?).copied()
+        self.scalar_enum_variants(data)?
+            .get(usize::try_from(tag).ok()?)
+            .copied()
     }
 
     /// Select one stored value-model component. This grants no initialization or access proof.

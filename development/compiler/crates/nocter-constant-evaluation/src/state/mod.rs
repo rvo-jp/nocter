@@ -390,6 +390,11 @@ pub enum Terminator {
         yes: AccessFlowPointId,
         no: AccessFlowPointId,
     },
+    EnumSwitch {
+        source: Place,
+        cases: Arc<[(u64, AccessFlowPointId)]>,
+        fallback: AccessFlowPointId,
+    },
     Return(Place),
     Unreachable,
 }

@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify scalar enum match with exact nominal coverage and original source visibility. Inspect
-one evaluated carrier, preserving the selected access operation, and route the tag through a
-single dispatch in required and native execution.
+Reserve and publish typed variant payload fields in the common nominal declaration authority.
+Verify finite record/enum containment, exact field positions, structural Copy and atomic schema
+publication. Tie payload source admission to its later execution and resource qualification.
 
 ## Remaining Contextual Representation Qualification
 
@@ -721,9 +721,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify scalar enum if-is with contextual edit/take. Keep joint calls and indices, verify
   update authority and caller-owned temporaries, and retire the acquired take carrier before the
   selected branch. Check both Copy snapshots and marked transfers, including a false test.
-- [ ] Qualify scalar enum match with the common pattern input and variant identity. Check
+- [x] Qualify scalar enum match with the common pattern input and variant identity. Check
   complete accessible coverage or final discard, per-branch cleanup, once-evaluated source,
   exact result joins, and tag dispatch through required and native execution.
+- [ ] Qualify typed enum variant payload schemas. Reserve field identities under the original
+  variant, verify mixed record/enum dependencies, field scopes, Copy and atomic failure before
+  extending source and execution admission.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

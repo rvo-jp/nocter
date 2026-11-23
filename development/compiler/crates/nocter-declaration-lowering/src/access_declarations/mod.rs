@@ -475,10 +475,14 @@ impl<'source> Context<'source> {
         let owner = self.program().nominal_identity(data)?;
         let name = self.program().symbols().get(name)?;
         let id = self.program().enumeration(owner)?.resolve_variant(name)?;
-        let accessible = self
-            .module?
-            .enum_variant_access(self.syntax.tree().source(), owner)?;
+        let accessible = self.enum_schema_visible(owner)?;
         Some(EnumVariant { id, accessible })
+    }
+    /// Whether this physical source can name the variants of the original complete schema.
+    #[must_use]
+    pub fn enum_schema_visible(&self, owner: NominalTypeId) -> Option<bool> {
+        self.module?
+            .enum_variant_access(self.syntax.tree().source(), owner)
     }
     /// Select the member identity and its accessibility from this exact physical source.
     #[must_use]

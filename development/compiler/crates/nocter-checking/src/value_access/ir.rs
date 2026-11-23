@@ -520,6 +520,12 @@ pub enum ExpressionKind {
         then_block: AccessBlockId,
         else_block: AccessBlockId,
     },
+    EnumMatch {
+        source: AccessExpressionId,
+        operation: ValueInputOperation,
+        cases: Box<[(u64, AccessBlockId)]>,
+        fallback: Option<AccessBlockId>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

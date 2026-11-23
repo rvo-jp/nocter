@@ -132,6 +132,12 @@ inspection, before either branch. Required evaluation compares the typed ordinal
 lowering reads the tag at the enum's physical width and feeds the comparison into ordinary
 Boolean control flow.
 
+Scalar `match` checks nominal variant identity and coverage using the same source visibility.
+The checked graph records one tag dispatch with the sorted cases and the fallback edge.
+Required evaluation and native lowering share that case table and read the carrier once.
+The selected arm performs the same take cleanup before executing its body, including when
+a discard arm handles an opaque enum.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

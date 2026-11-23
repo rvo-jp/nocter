@@ -96,6 +96,7 @@ impl Needed<'_> {
         match *operation {
             Operation::Evaluate(id)
             | Operation::Condition(id)
+            | Operation::InspectEnum { source: id, .. }
             | Operation::Discard(id)
             | Operation::StageReturn(id)
             | Operation::ConstructFuture(id)

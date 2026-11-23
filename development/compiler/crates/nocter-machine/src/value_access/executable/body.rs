@@ -695,6 +695,41 @@ impl<'a> Builder<'a> {
         }
         Ok(())
     }
+    fn lower_terminator(
+        &mut self,
+        terminator: &mir::Terminator,
+        points: &BTreeMap<nocter_model::AccessFlowPointId, MachineBlockId>,
+    ) -> Result<MachineTerminator, Failure> {
+        Ok(match terminator {
+            mir::Terminator::Jump(next) => {
+                MachineTerminator::Goto(MachineBranchTarget::new(points[next], []))
+            }
+            mir::Terminator::Branch { condition, yes, no } => MachineTerminator::Branch {
+                condition: self.load(condition)?,
+                then_target: MachineBranchTarget::new(points[yes], []),
+                else_target: MachineBranchTarget::new(points[no], []),
+            },
+            mir::Terminator::EnumSwitch {
+                source,
+                cases,
+                fallback,
+            } => MachineTerminator::SwitchValue {
+                subject: self.load(source)?,
+                cases: cases
+                    .iter()
+                    .map(|&(tag, point)| {
+                        MachineSwitchCase::new(
+                            MachineSwitchValue::Integer(tag.into()),
+                            MachineBranchTarget::new(points[&point], []),
+                        )
+                    })
+                    .collect(),
+                fallback: MachineBranchTarget::new(points[fallback], []),
+            },
+            mir::Terminator::Return(place) => MachineTerminator::Return(Some(self.load(place)?)),
+            mir::Terminator::Unreachable => MachineTerminator::Unreachable,
+        })
+    }
     fn action(&mut self, action: &mir::Action) -> Result<(), Failure> {
         if matches!(action.operations.as_ref(), [mir::Operation::BoundsTrap]) {
             return self.terminate(MachineTerminator::Trap(crate::MachineTrap::Bounds));
@@ -860,18 +895,7 @@ pub(super) fn source<'a>(
         ) {
             builder.action(action)?;
         }
-        let terminator = match terminator {
-            mir::Terminator::Jump(next) => {
-                MachineTerminator::Goto(MachineBranchTarget::new(points[next], []))
-            }
-            mir::Terminator::Branch { condition, yes, no } => MachineTerminator::Branch {
-                condition: builder.load(condition)?,
-                then_target: MachineBranchTarget::new(points[yes], []),
-                else_target: MachineBranchTarget::new(points[no], []),
-            },
-            mir::Terminator::Return(place) => MachineTerminator::Return(Some(builder.load(place)?)),
-            mir::Terminator::Unreachable => MachineTerminator::Unreachable,
-        };
+        let terminator = builder.lower_terminator(terminator, &points)?;
         if builder.blocks[builder.current.index()].terminator.is_some() {
             if !matches!(terminator, MachineTerminator::Unreachable) {
                 return Err(Failure::InvalidRoot);

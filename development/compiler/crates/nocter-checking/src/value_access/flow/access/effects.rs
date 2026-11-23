@@ -74,6 +74,9 @@ pub(super) fn apply(
         Operation::PrepareOperand { value, .. } | Operation::Condition(value) => {
             context.read(context.world.value(*value)?)?;
         }
+        Operation::InspectEnum { source, operation } => {
+            context.inspect_enum(*source, *operation)?;
+        }
         Operation::Forward { source, result, .. } => {
             let value = context.world.value(*source)?;
             context
@@ -135,6 +138,20 @@ pub(super) fn apply(
     )])
 }
 impl Context<'_, '_> {
+    fn inspect_enum(
+        &self,
+        source: AccessExpressionId,
+        operation: nocter_model::ValueInputOperation,
+    ) -> Result<()> {
+        let value = self.world.value(source)?;
+        if operation == nocter_model::ValueInputOperation::Edit
+            && let Some((region, actor)) = self.base_value(value)?
+        {
+            self.write(&region, actor, Mode::Update, None)
+        } else {
+            self.read(value)
+        }
+    }
     fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
         let prepared = self.commit_preparations(call)?;
         self.commit_inputs(call)?;
@@ -355,14 +372,7 @@ impl Context<'_, '_> {
             ExpressionKind::EnumCondition {
                 source, operation, ..
             } => {
-                let value = self.world.value(source)?;
-                if operation == nocter_model::ValueInputOperation::Edit
-                    && let Some((region, actor)) = self.base_value(value)?
-                {
-                    self.write(&region, actor, Mode::Update, None)?;
-                } else {
-                    self.read(value)?;
-                }
+                self.inspect_enum(source, operation)?;
                 Ok(Value::without_referent(Mode::Own))
             }
             ExpressionKind::RequirePrimary { source } => {
@@ -440,6 +450,7 @@ impl Context<'_, '_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
+            | ExpressionKind::EnumMatch { .. }
             | ExpressionKind::Call { .. }
             | ExpressionKind::Await { .. }
             | ExpressionKind::Select {

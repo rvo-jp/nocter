@@ -35,7 +35,7 @@ impl InstanceControl {
     }
     #[must_use]
     pub fn terminator(&self, point: AccessFlowPointId) -> Option<flow::Terminator> {
-        self.points.get(&point).copied()
+        self.points.get(&point).cloned()
     }
     #[must_use]
     pub fn edge_reachable(&self, from: AccessFlowPointId, to: AccessFlowPointId) -> bool {

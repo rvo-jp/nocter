@@ -90,6 +90,7 @@ impl Builder<'_> {
             // Forward operations own control-result transport; these expressions cannot fabricate a
             // new source value before the selected producing path actually forwards it.
             ExpressionKind::If { .. }
+            | ExpressionKind::EnumMatch { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::Scoped { .. }
             | ExpressionKind::Call { .. } => {

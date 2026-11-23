@@ -172,7 +172,7 @@ impl State {
         &mut self,
         typed: &TypedQuery,
         cells: &Cells,
-        terminator: Terminator,
+        terminator: &Terminator,
         successor: AccessFlowPointId,
     ) -> Result<(), IntegrityError> {
         let mut next = Self {

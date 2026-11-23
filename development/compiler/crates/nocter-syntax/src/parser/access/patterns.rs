@@ -1,8 +1,9 @@
+use super::super::CompletedMarker;
 use super::{Parser, expression::header_expression, newline};
 use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn if_condition(parser: &mut Parser<'_>) {
-    if !marked_condition(parser) {
+    if !marked_input(parser, enum_separator) {
         header_expression(parser);
         if !enum_separator(parser) {
             return;
@@ -10,6 +11,33 @@ pub(super) fn if_condition(parser: &mut Parser<'_>) {
     }
     newline::after_incomplete(parser, newline::Boundary::Statement);
     enumeration(parser);
+}
+
+pub(super) fn match_expression(parser: &mut Parser<'_>) -> CompletedMarker {
+    let marker = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        return parser.complete(marker, NodeKind::Error);
+    }
+    if !marked_input(parser, |parser| {
+        parser.at_punctuation(Punctuation::LeftBrace)
+    }) {
+        header_expression(parser);
+    }
+    parser.braced_nonempty_line_sequence(ExpectedSyntax::EnumPattern, match_arm);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::MatchExpression)
+}
+
+fn match_arm(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if parser.at_contextual(ContextualSpelling::Discard) {
+        parser.bump();
+    } else {
+        enumeration(parser);
+    }
+    super::required_block(parser);
+    parser.complete(marker, NodeKind::MatchArm);
 }
 
 fn enum_separator(parser: &mut Parser<'_>) -> bool {
@@ -21,17 +49,17 @@ fn enum_separator(parser: &mut Parser<'_>) -> bool {
     parser.eat_keyword(Keyword::Is)
 }
 
-fn marked_condition(parser: &mut Parser<'_>) -> bool {
+fn marked_input(parser: &mut Parser<'_>, complete: impl FnOnce(&mut Parser<'_>) -> bool) -> bool {
     if !super::at_input_operation(parser)
         || parser.tokens[parser.cursor].is_joint_to_next()
         || matches!(parser.nth_kind(1), TokenKind::Newline | TokenKind::Eof)
     {
         return false;
     }
-    // A failed outer trial can re-enter nested if headers during ordinary expression parsing.
+    // A failed outer trial can re-enter nested headers during ordinary expression parsing.
     // Retain failed trials at the same token and nesting depth to avoid repeating their branches.
     let site = (parser.cursor, parser.nesting);
-    if parser.unmarked_conditions.contains(&site) {
+    if parser.unmarked_branch_inputs.contains(&site) {
         return false;
     }
     let selected = parser
@@ -39,13 +67,13 @@ fn marked_condition(parser: &mut Parser<'_>) -> bool {
             |parser| {
                 super::consume_input_operation(parser);
                 header_expression(parser);
-                enum_separator(parser)
+                complete(parser)
             },
             |_, separated| *separated,
         )
         .is_some();
     if !selected {
-        parser.unmarked_conditions.insert(site);
+        parser.unmarked_branch_inputs.insert(site);
     }
     selected
 }

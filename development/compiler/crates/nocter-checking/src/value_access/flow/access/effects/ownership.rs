@@ -133,7 +133,7 @@ impl Context<'_, '_> {
     }
     pub(super) fn ownership_after(&mut self, operation: &Operation) -> Result<()> {
         match *operation {
-            Operation::IndexFailure(_) => {}
+            Operation::IndexFailure(_) | Operation::InspectEnum { .. } => {}
             Operation::BeginEvaluation(id) => self.world.resources.begin(id)?,
             Operation::EndEvaluation(id) => self.end_evaluation_ownership(id)?,
             Operation::Evaluate(id) => self.evaluate_ownership(id)?,
@@ -322,6 +322,7 @@ impl Context<'_, '_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
+            | ExpressionKind::EnumMatch { .. }
             | ExpressionKind::Call { .. }
             | ExpressionKind::Await { .. } => {
                 return Err(Failure::Integrity);

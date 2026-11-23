@@ -68,7 +68,7 @@ pub(super) fn prepare(
         for successor in body.terminator.successors() {
             if let Some(members) = backedges.get(&(point, successor)) {
                 let mut edge = state.clone();
-                edge.edge(typed, cells, body.terminator, successor)?;
+                edge.edge(typed, cells, &body.terminator, successor)?;
                 carried_edges.push((members, edge.carried_prefixes(cells)));
             }
         }

@@ -2,7 +2,10 @@ use super::super::{Graph, Initialization, IntegrityError, Location, Operation, c
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Query as TypedQuery, Referent,
 };
-use nocter_model::{AccessExpressionId, AccessFlowPointId, AccessLocalId, ValueAccessMode as Mode};
+use nocter_model::{
+    AccessExpressionId, AccessFlowPointId, AccessLocalId, ValueAccessMode as Mode,
+    ValueInputOperation,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -162,6 +165,7 @@ fn plan(
         | Operation::Condition(value)
         | Operation::Discard(value)
         | Operation::StageReturn(value) => uses.push((Carrier::Expression(*value), false)),
+        Operation::InspectEnum { source, operation } => uses.push(enum_use(*source, *operation)),
         Operation::Forward { source, result, .. } => {
             uses.push((
                 Carrier::Expression(*source),
@@ -292,6 +296,13 @@ pub(super) fn analyze(
     }
 }
 
+fn enum_use(source: AccessExpressionId, operation: ValueInputOperation) -> (Carrier, bool) {
+    (
+        Carrier::Expression(source),
+        operation == ValueInputOperation::Edit,
+    )
+}
+
 fn expression_uses(
     typed: &TypedQuery,
     id: AccessExpressionId,
@@ -334,10 +345,7 @@ fn expression_uses(
         ExpressionKind::EnumCondition {
             source, operation, ..
         } => {
-            uses.push((
-                Carrier::Expression(source),
-                operation == nocter_model::ValueInputOperation::Edit,
-            ));
+            uses.push(enum_use(source, operation));
         }
         ExpressionKind::RequirePrimary { source }
         | ExpressionKind::Repeat { seed: source }
@@ -365,7 +373,8 @@ fn expression_uses(
         | ExpressionKind::Await { .. }
         | ExpressionKind::Scoped { .. }
         | ExpressionKind::Block { .. }
-        | ExpressionKind::If { .. } => {
+        | ExpressionKind::If { .. }
+        | ExpressionKind::EnumMatch { .. } => {
             return Err(INVALID);
         }
     }

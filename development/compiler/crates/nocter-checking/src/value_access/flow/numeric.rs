@@ -219,7 +219,7 @@ pub(super) fn analyze(
         }
         for successor in point.terminator.successors() {
             let mut incoming = state.clone();
-            incoming.edge(typed, &cells, point.terminator, successor)?;
+            incoming.edge(typed, &cells, &point.terminator, successor)?;
             let changed = if let Some(current) = entries.get_mut(&successor) {
                 current.merge(&incoming).ok_or(INVALID)?
             } else {

@@ -514,6 +514,7 @@ fn transfer(
             }
             Operation::PrepareOperand { value, .. }
             | Operation::Condition(value)
+            | Operation::InspectEnum { source: value, .. }
             | Operation::Discard(value)
             | Operation::StageReturn(value)
             | Operation::DriveFuture { future: value, .. }
@@ -573,7 +574,8 @@ fn evaluate(
         | ExpressionKind::Await { .. }
         | ExpressionKind::Scoped { .. }
         | ExpressionKind::Block { .. }
-        | ExpressionKind::If { .. } => return Err(INVALID),
+        | ExpressionKind::If { .. }
+        | ExpressionKind::EnumMatch { .. } => return Err(INVALID),
         ExpressionKind::Place(_) | ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => {
             require_formation(typed, facts, state, id, location, violations)?;
         }

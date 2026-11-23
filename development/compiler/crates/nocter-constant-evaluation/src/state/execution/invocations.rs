@@ -130,6 +130,19 @@ impl Executor<'_, '_> {
                 };
                 if *value { *yes } else { *no }
             }
+            Terminator::EnumSwitch {
+                source,
+                cases,
+                fallback,
+            } => {
+                let value = self.read(active.frame, source)?;
+                let super::Data::EnumTag(tag) = value.data() else {
+                    return Err(Rule::InvalidPlan);
+                };
+                cases
+                    .binary_search_by_key(tag, |&(candidate, _)| candidate)
+                    .map_or(*fallback, |index| cases[index].1)
+            }
             Terminator::Return(place) => {
                 let address = self.memory.address(&self.program, active.frame, place)?;
                 let (_, slot) = address.local()?;

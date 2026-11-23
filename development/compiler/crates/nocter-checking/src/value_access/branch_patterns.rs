@@ -5,8 +5,13 @@ use super::{
     ir::{Boundary, ExpressionKind, Projection, value_type},
 };
 use nocter_declaration_lowering::access_declarations::input_operation;
-use nocter_model::{AccessExpressionId, BuiltinType, ValueAccessMode as Mode, ValueInputOperation};
+use nocter_model::{
+    AccessExpressionId, BuiltinType, TypeId, ValueAccess, ValueAccessMode as Mode,
+    ValueInputOperation,
+};
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
+
+mod matching;
 
 impl Checker<'_, '_> {
     pub(super) fn if_condition(
@@ -21,6 +26,20 @@ impl Checker<'_, '_> {
             self.require_data(condition, boolean, source_node)?;
             return Ok(condition);
         };
+        let (data, tag) = self.scalar_variant_pattern(pattern)?;
+        let (source, operation) = self.pattern_input(node, Some(data), reachable)?;
+        self.emit(
+            node,
+            value_type(boolean, Mode::Own).with_continuation(self.ty(source).may_complete()),
+            ExpressionKind::EnumCondition {
+                source,
+                tag,
+                operation,
+            },
+        )
+    }
+
+    fn scalar_variant_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {
         let path = direct_token_iter(self.syntax().tree(), pattern)
             .filter(|token| token.kind() == TokenKind::Identifier)
             .collect::<Vec<_>>();
@@ -52,18 +71,32 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
+        Ok((data, tag))
+    }
+
+    fn pattern_input(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+        reachable: bool,
+    ) -> Result<(AccessExpressionId, ValueInputOperation), Failure> {
+        let source_node = self.direct(node, NodeKind::Expression)?;
         let operation =
             input_operation(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
         let mut source = self.expression_with_type_hint(
             source_node,
-            Some(data),
+            expected,
             Some(Projection::input(operation.access_mode())),
             reachable,
         )?;
-        self.require_data(source, data, source_node)?;
+        if let Some(data) = expected {
+            self.require_data(source, data, source_node)?;
+        }
         match operation {
             ValueInputOperation::Take => {
-                source = self.boundary(source_node, source, Boundary::Value(data))?;
+                if let Some(data) = self.ty(source).access().map(ValueAccess::data) {
+                    source = self.boundary(source_node, source, Boundary::Value(data))?;
+                }
             }
             ValueInputOperation::Edit => {
                 if let Some(place) = self.expression_referent(source) {
@@ -72,14 +105,6 @@ impl Checker<'_, '_> {
             }
             ValueInputOperation::Read => {}
         }
-        self.emit(
-            node,
-            value_type(boolean, Mode::Own).with_continuation(self.ty(source).may_complete()),
-            ExpressionKind::EnumCondition {
-                source,
-                tag,
-                operation,
-            },
-        )
+        Ok((source, operation))
     }
 }

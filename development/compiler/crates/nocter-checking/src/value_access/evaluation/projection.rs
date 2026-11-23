@@ -636,6 +636,7 @@ impl Builder<'_, '_> {
             flow::Operation::BeginEvaluation(_)
             | flow::Operation::EndEvaluation(_)
             | flow::Operation::Assign { .. }
+            | flow::Operation::InspectEnum { .. }
             | flow::Operation::Discard(_)
             | flow::Operation::Drop(_)
             | flow::Operation::StageReturn(_)
@@ -1092,6 +1093,15 @@ impl Builder<'_, '_> {
                     condition: self.aux(Key::Predicate(condition), condition)?,
                     yes,
                     no,
+                },
+                flow::Terminator::EnumSwitch {
+                    source,
+                    cases,
+                    fallback,
+                } => plan::Terminator::EnumSwitch {
+                    source: self.value(source)?,
+                    cases,
+                    fallback,
                 },
                 flow::Terminator::Return => {
                     plan::Terminator::Return(plan::Place::root(self.holder(Holder::Return)?))

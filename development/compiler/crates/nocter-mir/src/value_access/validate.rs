@@ -1102,6 +1102,16 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
             Terminator::Branch { yes, no, .. } => {
                 pending.extend([*yes, *no]);
             }
+            Terminator::EnumSwitch {
+                cases, fallback, ..
+            } => {
+                pending.extend(
+                    cases
+                        .iter()
+                        .map(|&(_, point)| point)
+                        .chain(std::iter::once(*fallback)),
+                );
+            }
             Terminator::Return(_) | Terminator::Unreachable => {}
         }
     }
@@ -1115,6 +1125,19 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
                     context.primitive(condition.data, RuntimePrimitive::Bool)
                         && body.terminators.contains_key(yes)
                         && body.terminators.contains_key(no),
+                )?;
+            }
+            Terminator::EnumSwitch { source, cases, .. } => {
+                context.place(source)?;
+                let variants = context
+                    .program
+                    .runtime
+                    .scalar_enum_variants(source.data)
+                    .ok_or_else(|| context.invalid())?;
+                context.require(
+                    cases.last().is_none_or(|&(tag, _)| {
+                        usize::try_from(tag).is_ok_and(|tag| tag < variants.len())
+                    }) && !cases.windows(2).any(|pair| pair[0].0 >= pair[1].0),
                 )?;
             }
             Terminator::Return(place) => {

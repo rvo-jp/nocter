@@ -274,6 +274,11 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     if allow_braces && parser.at_keyword(Keyword::If) {
         return if_(parser);
     }
+    if allow_braces && parser.at_keyword(Keyword::Match) {
+        return Expression {
+            completed: super::patterns::match_expression(parser),
+        };
+    }
     let marker = parser.start();
     let kind = match parser.current_kind() {
         TokenKind::Identifier => {

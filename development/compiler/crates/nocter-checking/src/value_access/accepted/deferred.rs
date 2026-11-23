@@ -240,6 +240,7 @@ fn selected<'a>(
         | Operation::Evaluate(_)
         | Operation::PrepareOperand { .. }
         | Operation::Condition(_)
+        | Operation::InspectEnum { .. }
         | Operation::BooleanConstant { .. }
         | Operation::Forward { .. }
         | Operation::BooleanAnswer { .. }

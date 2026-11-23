@@ -116,7 +116,7 @@ impl Original {
             }
             work.step().map_err(|_| Failure::WorkLimit)?;
             let block = self.graph.points().get(point).ok_or(Failure::Unresolved)?;
-            let mut terminator = block.terminator;
+            let mut terminator = block.terminator.clone();
             if let Some(probe) = self.probes.get(&point)
                 && probe.excluded(program, evidence, frame, work)?
             {

@@ -87,7 +87,7 @@ fn received_assertions_keep_the_original_check_and_exclude_only_its_continuation
             Some(if absent {
                 flow::Terminator::Unreachable
             } else {
-                check.terminator
+                check.terminator.clone()
             })
         );
         assert_eq!(selected.reachable(next), !absent);
@@ -149,7 +149,10 @@ fn empty_and_positive_received_domains_select_distinct_original_continuations() 
     assert_eq!(absent.frame(), &frames[0]);
     assert_eq!(positive.frame(), &frames[1]);
     assert_eq!(absent.terminator(point), Some(flow::Terminator::Jump(no)));
-    assert_eq!(positive.terminator(point), Some(original.terminator));
+    assert_eq!(
+        positive.terminator(point),
+        Some(original.terminator.clone())
+    );
     let (call, _) = body
         .typed()
         .body()
@@ -165,18 +168,11 @@ fn empty_and_positive_received_domains_select_distinct_original_continuations() 
             )
         })
         .unwrap();
-    let invocation = &unit
-        .value_sources(frames[0].code())
-        .unwrap()
-        .call(call)
-        .unwrap()[0];
+    let sources = unit.value_sources(frames[0].code()).unwrap();
+    let invocation = &sources.call(call).unwrap()[0];
     assert!(!absent.reachable(invocation.origin.point));
     assert!(positive.reachable(invocation.origin.point));
-    assert!(
-        !absent
-            .call_reachable(unit.value_sources(frames[0].code()).unwrap(), call)
-            .unwrap()
-    );
+    assert!(!absent.call_reachable(sources, call).unwrap());
     assert!(
         absent
             .call_reachable(unit.value_sources(root.code()).unwrap(), call)
@@ -258,7 +254,7 @@ fn nested_absence_shares_representation_without_erasing_outer_tag_control() {
                     Some(PayloadSchema::Optional(_))
                 );
                 let expected = if nested || index == 2 {
-                    block.terminator
+                    block.terminator.clone()
                 } else {
                     flow::Terminator::Jump(no)
                 };
@@ -334,7 +330,7 @@ fn compound_received_domains_prune_only_the_selected_component() {
                 let expected = if primary && index == 0 {
                     flow::Terminator::Jump(no)
                 } else {
-                    block.terminator
+                    block.terminator.clone()
                 };
                 assert_eq!(
                     control.terminator(point),

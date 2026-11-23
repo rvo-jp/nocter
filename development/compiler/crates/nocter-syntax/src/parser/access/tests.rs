@@ -275,6 +275,42 @@ fn nested_plain_conditions_with_contextual_names_keep_their_calls() {
 }
 
 #[test]
+fn match_headers_share_the_separating_gap_rule_and_require_an_arm() {
+    use crate::{direct_node, direct_node_iter};
+    for (input, marked) in [
+        ("take (value^)", true),
+        ("take(value)", false),
+        ("edit[index]", false),
+    ] {
+        let source = format!(
+            "func check(): i32 {{ match {input} {{\nState.active {{ 1 }}\n_ {{ 0 }}\n}} }}"
+        );
+        let parsed = tree(&source, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+        let (branch, _) = parsed
+            .nodes()
+            .find(|(_, node)| node.kind() == NodeKind::MatchExpression)
+            .unwrap();
+        assert_eq!(
+            direct_node(&parsed, branch, NodeKind::InputOperation).is_some(),
+            marked
+        );
+        assert_eq!(
+            direct_node_iter(&parsed, branch, NodeKind::MatchArm).count(),
+            2
+        );
+        super::super::snapshots::assert_token_projection(&parsed, input);
+    }
+    assert!(
+        tree(
+            "func check(): i32 { match value {} }",
+            ParseGoal::V2CoreUnit
+        )
+        .has_errors()
+    );
+}
+
+#[test]
 fn corpus_uses_the_production_goal_with_lossless_tokens_and_structural_snapshots() {
     let root = root();
     let manifest =

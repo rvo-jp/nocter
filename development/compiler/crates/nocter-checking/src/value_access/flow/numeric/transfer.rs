@@ -154,33 +154,7 @@ pub(super) fn action(
                 forget_locals(cells, state);
             }
         }
-        Operation::CommitCall(id) => {
-            // May-writes forget their actual current targets. Independent owned scalar cells
-            // and earlier frozen operands survive; unknown aliases/callees remain conservative.
-            if let Some(targets) = cells.call_writes.at(id) {
-                for &target in targets {
-                    if let Some(cell) = cells.local(typed, target) {
-                        state.forget(cell);
-                    } else if !super::owned_base(typed, target) {
-                        forget_locals(cells, state);
-                    }
-                }
-            } else {
-                forget_locals(cells, state);
-            }
-            if let Some(target) = cells.value(id) {
-                state.forget(target);
-                if let Some(value) = typed
-                    .body()
-                    .expressions()
-                    .get(id)
-                    .ok_or(INVALID)?
-                    .normal_integer()
-                {
-                    state.assume(target, ZERO, value);
-                }
-            }
-        }
+        Operation::CommitCall(id) => commit_call(typed, cells, state, id)?,
         Operation::DriveFuture { result, .. } => {
             // The logical step alone supplies neither an output value nor an outside-write proof.
             forget_locals(cells, state);
@@ -204,6 +178,7 @@ pub(super) fn action(
         | Operation::BeginEvaluation(_)
         | Operation::EndEvaluation(_)
         | Operation::Condition(_)
+        | Operation::InspectEnum { .. }
         | Operation::BooleanConstant { .. }
         | Operation::BooleanAnswer { .. }
         | Operation::PrepareArgument { .. }
@@ -214,14 +189,48 @@ pub(super) fn action(
     }
     Ok(())
 }
+fn commit_call(
+    typed: &TypedQuery,
+    cells: &Cells,
+    state: &mut Equalities,
+    id: AccessExpressionId,
+) -> Result<(), IntegrityError> {
+    // May-writes forget their actual current targets. Independent owned scalar cells
+    // and earlier frozen operands survive; unknown aliases/callees remain conservative.
+    if let Some(targets) = cells.call_writes.at(id) {
+        for &target in targets {
+            if let Some(cell) = cells.local(typed, target) {
+                state.forget(cell);
+            } else if !super::owned_base(typed, target) {
+                forget_locals(cells, state);
+            }
+        }
+    } else {
+        forget_locals(cells, state);
+    }
+    if let Some(target) = cells.value(id) {
+        state.forget(target);
+        if let Some(value) = typed
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(INVALID)?
+            .normal_integer()
+        {
+            state.assume(target, ZERO, value);
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn edge(
     typed: &TypedQuery,
     cells: &Cells,
     state: &mut Equalities,
-    terminator: Terminator,
+    terminator: &Terminator,
     successor: AccessFlowPointId,
 ) -> Result<(), IntegrityError> {
-    if let Terminator::Branch { condition, yes, no } = terminator {
+    if let Terminator::Branch { condition, yes, no } = *terminator {
         let expression = typed.body().expressions().get(condition).ok_or(INVALID)?;
         let numeric_truth = if let ExpressionKind::Binary { operation, .. } = expression.kind {
             cells

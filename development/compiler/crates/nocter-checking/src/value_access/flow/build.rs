@@ -4,7 +4,7 @@ use crate::value_access::{
 };
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessLoopId,
-    AccessStatementId, ArenaBuilder,
+    AccessStatementId, ArenaBuilder, ValueInputOperation,
 };
 
 type Result<T> = std::result::Result<T, IntegrityError>;
@@ -62,7 +62,7 @@ pub(super) fn build(query: &crate::value_access::Query) -> Result<Graph> {
     let points = builder.points.finish().try_map(|_, draft| {
         Ok(Point {
             actions: draft.actions.clone().into_boxed_slice(),
-            terminator: draft.terminator.ok_or(INVALID)?,
+            terminator: draft.terminator.clone().ok_or(INVALID)?,
         })
     })?;
     for (_, point) in points.iter() {
@@ -125,6 +125,88 @@ impl Builder<'_> {
             _ => Terminator::Branch { condition, yes, no },
         };
         self.terminate(point, terminator)
+    }
+    fn conditional(
+        &mut self,
+        id: AccessExpressionId,
+        condition: AccessExpressionId,
+        [then_block, else_block]: [AccessBlockId; 2],
+        entry: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let Some(end) = self.expression(condition, entry)? else {
+            return Ok(None);
+        };
+        let yes = self.point();
+        let no = self.point();
+        let join = self.point();
+        self.branch(end, condition, yes, no)?;
+        let left = self.block(then_block, yes, Output::Forward(id))?;
+        let right = self.block(else_block, no, Output::Forward(id))?;
+        for branch in [left, right].into_iter().flatten() {
+            self.terminate(branch, Terminator::Jump(join))?;
+        }
+        if left.is_none() && right.is_none() {
+            self.terminate(join, Terminator::Unreachable)?;
+            return Ok(None);
+        }
+        Ok(Some(join))
+    }
+    fn enum_match(
+        &mut self,
+        id: AccessExpressionId,
+        source: AccessExpressionId,
+        operation: ValueInputOperation,
+        cases: &[(u64, AccessBlockId)],
+        fallback: Option<AccessBlockId>,
+        entry: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let Some(end) = self.expression(source, entry)? else {
+            return Ok(None);
+        };
+        let origin = Origin::Expression(id);
+        let branches: Vec<_> = cases
+            .iter()
+            .map(|&(tag, block)| (tag, block, self.point()))
+            .collect();
+        let otherwise = self.point();
+        let join = self.point();
+        self.action(
+            end,
+            Origin::Expression(source),
+            Operation::InspectEnum { source, operation },
+        )?;
+        self.terminate(
+            end,
+            Terminator::EnumSwitch {
+                source,
+                cases: branches
+                    .iter()
+                    .map(|&(tag, _, point)| (tag, point))
+                    .collect(),
+                fallback: otherwise,
+            },
+        )?;
+        let mut continues = false;
+        for (block, point) in branches
+            .into_iter()
+            .map(|(_, block, point)| (block, point))
+            .chain(fallback.map(|block| (block, otherwise)))
+        {
+            if operation == ValueInputOperation::Take {
+                self.action(point, origin, Operation::Discard(source))?;
+            }
+            if let Some(exit) = self.block(block, point, Output::Forward(id))? {
+                self.terminate(exit, Terminator::Jump(join))?;
+                continues = true;
+            }
+        }
+        if fallback.is_none() {
+            self.terminate(otherwise, Terminator::Unreachable)?;
+        }
+        if !continues {
+            self.terminate(join, Terminator::Unreachable)?;
+        }
+        Ok(continues.then_some(join))
     }
     fn exit_frames(
         &mut self,
@@ -445,23 +527,15 @@ impl Builder<'_> {
                 then_block,
                 else_block,
             } => {
-                let Some(end) = self.expression(*condition, entry)? else {
-                    return Ok(None);
-                };
-                let yes = self.point();
-                let no = self.point();
-                let join = self.point();
-                self.branch(end, *condition, yes, no)?;
-                let left = self.block(*then_block, yes, Output::Forward(id))?;
-                let right = self.block(*else_block, no, Output::Forward(id))?;
-                for branch in [left, right].into_iter().flatten() {
-                    self.terminate(branch, Terminator::Jump(join))?;
-                }
-                if left.is_none() && right.is_none() {
-                    self.terminate(join, Terminator::Unreachable)?;
-                    return Ok(None);
-                }
-                return Ok(Some(join));
+                return self.conditional(id, *condition, [*then_block, *else_block], entry);
+            }
+            ExpressionKind::EnumMatch {
+                source,
+                operation,
+                cases,
+                fallback,
+            } => {
+                return self.enum_match(id, *source, *operation, cases, *fallback, entry);
             }
             ExpressionKind::Binary {
                 operation: Binary::And | Binary::Or,

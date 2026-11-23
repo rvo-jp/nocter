@@ -129,7 +129,8 @@ fn operation_rule(
         | ExpressionKind::Boundary { .. }
         | ExpressionKind::Unary { .. }
         | ExpressionKind::Binary { .. }
-        | ExpressionKind::If { .. } => None,
+        | ExpressionKind::If { .. }
+        | ExpressionKind::EnumMatch { .. } => None,
     })
 }
 

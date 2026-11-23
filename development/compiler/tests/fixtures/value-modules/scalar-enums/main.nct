@@ -6,13 +6,21 @@ static CATALOG: (status.State, status.State) = (CURRENT, status.State.idle)
 
 const func score(value: status.Status): i32 {
     if take value is status.State.active {
-        if value is status.State.active { 40 } else { 93 }
+        if value is status.State.active { 20 } else { 93 }
     } else {
         0
     }
 }
 
-const SCORE: i32 = score(CURRENT) + score(status.Status.idle)
+const func bucket(value: status.Status): i32 {
+    match take value {
+        status.Status.stopped { 70 }
+        status.State.active { 20 }
+        status.Status.idle { 0 }
+    }
+}
+
+const SCORE: i32 = score(CURRENT) + bucket(CURRENT) + bucket(status.Status.idle)
 
 func next_index(edit visits: i32): usize {
     visits += 1
@@ -31,12 +39,17 @@ func receive(take current: status.Status, take secret: status.Secret, take token
         writable = status.Status.stopped
     }
     if writable is status.Status.active { return 95 }
-    let values = [current, status.State.idle]
+    var values = [current, status.State.idle]
     var visits = 0
+    let selected = match edit values[next_index(visits)] {
+        status.Status.stopped { 70 }
+        status.State.active { 0 }
+        _ { 71 }
+    }
     if values[next_index(visits)] is status.Status.stopped {
         1
     } else if current is status.Status.active {
-        SCORE + visits + 1 + private_score
+        SCORE + visits + selected + private_score
     } else {
         2
     }
@@ -47,5 +60,6 @@ func main(): i32 {
     let closed = status.State.stopped
     let token = status.token()
     drop closed
-    receive(CATALOG.0, hidden^, token)
+    let opaque = match take status.secret() { _ { 0 } }
+    receive(CATALOG.0, hidden^, token) + opaque
 }

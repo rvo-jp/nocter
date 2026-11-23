@@ -6,7 +6,7 @@ mod repack;
 mod tests;
 mod validate;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use nocter_model::{
     AccessExpressionId, AccessFlowPointId, AccessInstanceId, AccessLocalId, Arena, MirLocalId,
@@ -337,6 +337,11 @@ pub enum Terminator {
         condition: Place,
         yes: AccessFlowPointId,
         no: AccessFlowPointId,
+    },
+    EnumSwitch {
+        source: Place,
+        cases: Arc<[(u64, AccessFlowPointId)]>,
+        fallback: AccessFlowPointId,
     },
     Return(Place),
     Unreachable,

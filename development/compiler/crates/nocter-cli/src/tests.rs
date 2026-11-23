@@ -1029,6 +1029,11 @@ fn installed_v2_scalar_enums_construct_and_transport_nominal_values() {
         ),
         ("var writable", "let writable", "E0387"),
         (
+            "match take status.secret() { _ { 0 } }",
+            "match take status.secret() { status.Secret.internal { 0 } }",
+            "outside its visibility boundary",
+        ),
+        (
             "drop copy_of_token",
             "if copy_of_status is status.Status.active { return 96 }\n    drop copy_of_token",
             "complete initialized value",

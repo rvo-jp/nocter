@@ -28,6 +28,7 @@ pub(in crate::value_access) fn validate(
                 flow::Operation::Evaluate(id)
                 | flow::Operation::ConstructFuture(id)
                 | flow::Operation::Condition(id)
+                | flow::Operation::InspectEnum { source: id, .. }
                 | flow::Operation::Discard(id)
                 | flow::Operation::StageReturn(id) => check(id)?,
                 flow::Operation::CommitCall(id) => {

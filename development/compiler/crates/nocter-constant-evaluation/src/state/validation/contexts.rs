@@ -117,6 +117,27 @@ fn point(
             }
             vec![*yes, *no]
         }
+        Terminator::EnumSwitch {
+            source,
+            cases,
+            fallback,
+        } => {
+            let Some(Type::ScalarEnum { variants, .. }) =
+                program.types.get(place(program, view, source)?)
+            else {
+                return Err(INVALID);
+            };
+            if cases.last().is_some_and(|&(tag, _)| tag >= *variants)
+                || cases.windows(2).any(|pair| pair[0].0 >= pair[1].0)
+            {
+                return Err(INVALID);
+            }
+            cases
+                .iter()
+                .map(|&(_, point)| point)
+                .chain(std::iter::once(*fallback))
+                .collect()
+        }
         Terminator::Return(result) => {
             if !result.fields.is_empty()
                 || plan

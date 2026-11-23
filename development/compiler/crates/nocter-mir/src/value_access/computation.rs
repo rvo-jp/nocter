@@ -15,7 +15,7 @@ use nocter_model::{AccessExpressionId, ValueAccessMode};
 use nocter_target_program::value_access::Environment;
 
 impl Builder<'_> {
-    fn value(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
+    pub(super) fn value(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
         let item = self
             .checked
             .typed()
@@ -247,6 +247,7 @@ impl Builder<'_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
+            | ExpressionKind::EnumMatch { .. }
             | ExpressionKind::Call { .. }
             | ExpressionKind::Await { .. }
             | ExpressionKind::Select {
@@ -541,6 +542,7 @@ impl Builder<'_> {
             | flow::Operation::EndEvaluation(_)
             | flow::Operation::CancelCall { .. }
             | flow::Operation::Assign { .. }
+            | flow::Operation::InspectEnum { .. }
             | flow::Operation::Discard(_)
             | flow::Operation::Drop(_)
             | flow::Operation::StageReturn(_)

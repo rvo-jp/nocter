@@ -76,6 +76,10 @@ pub enum Operation {
         value: AccessExpressionId,
     },
     Condition(AccessExpressionId),
+    InspectEnum {
+        source: AccessExpressionId,
+        operation: nocter_model::ValueInputOperation,
+    },
     BooleanConstant {
         result: AccessExpressionId,
         value: bool,
@@ -137,7 +141,7 @@ pub struct Action {
     pub operation: Operation,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Terminator {
     Jump(AccessFlowPointId),
     Branch {
@@ -145,15 +149,27 @@ pub enum Terminator {
         yes: AccessFlowPointId,
         no: AccessFlowPointId,
     },
+    EnumSwitch {
+        source: AccessExpressionId,
+        cases: Arc<[(u64, AccessFlowPointId)]>,
+        fallback: AccessFlowPointId,
+    },
     Return,
     Unreachable,
 }
 impl Terminator {
     #[must_use]
-    pub fn successors(self) -> Vec<AccessFlowPointId> {
+    pub fn successors(&self) -> Vec<AccessFlowPointId> {
         match self {
-            Self::Jump(next) => vec![next],
-            Self::Branch { yes, no, .. } => vec![yes, no],
+            Self::Jump(next) => vec![*next],
+            Self::Branch { yes, no, .. } => vec![*yes, *no],
+            Self::EnumSwitch {
+                cases, fallback, ..
+            } => cases
+                .iter()
+                .map(|&(_, point)| point)
+                .chain(std::iter::once(*fallback))
+                .collect(),
             Self::Return | Self::Unreachable => Vec::new(),
         }
     }
