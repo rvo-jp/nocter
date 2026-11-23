@@ -49,6 +49,43 @@ fn computed_array_fields_close_through_the_ordinary_source_unit() {
 }
 
 #[test]
+fn a_header_count_evaluates_distinct_generic_frames() {
+    let text = "struct Data { items: [void; width()] }\nconst func pass<T>(take item: T): T { item^ }\nconst func width(): usize { if pass<bool>(true) { pass<usize>(42) } else { 0 } }";
+    let (sources, tree) = input(text);
+    let source =
+        SourceUnit::prepare(bound(&sources, &tree)).unwrap_or_else(|failure| panic!("{failure:?}"));
+    assert_eq!(array(source.unit(), "Data", 0).length(), 42);
+}
+
+#[test]
+fn generic_evaluation_checks_cleanup_after_selecting_array_length() {
+    use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
+    let text = "see ./index.nct\nstruct Data { items: [void; width()] }\nstruct Ticket {}\nimpl Ticket { drop {} }\nconst func retire<const N: usize>(take items: [Ticket; N]): void {}\nconst func width(): usize { retire<0>([])\n42 }";
+    let fixture_for = |body: &str| {
+        nocter_test_support::ValueModuleFixture::new(
+            &[
+                (
+                    "/app/index.nct",
+                    Root,
+                    "see ./body.nct\nstruct Data\nstruct Ticket",
+                ),
+                ("/app/body.nct", Implementation, body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        )
+    };
+    let fixture = fixture_for(text);
+    let source =
+        ModuleSourceUnit::prepare(&fixture.input()).unwrap_or_else(|failure| panic!("{failure:?}"));
+    assert_eq!(array(source.unit(), "Data", 0).length(), 42);
+
+    let nonempty = text.replace("retire<0>([])", "retire<1>([Ticket {}])");
+    let fixture = fixture_for(&nonempty);
+    let failure = ModuleSourceUnit::prepare(&fixture.input()).unwrap_err();
+    assert_eq!(diagnostic(&failure).code(), "E0421", "{failure:?}");
+}
+
+#[test]
 fn a_header_count_closes_prefix_calls_before_final_whole_unit_acceptance() {
     let text = "struct Data { items: [void; width()] }\nstruct Item { value: usize }\nconst func consume(take item: Item): usize { item.value }\nconst func width(): usize { let items = [Item { value: 40 }, Item { value: 2 }]\nvar index: usize = 0\nvar total: usize = 0\nwhile index < 2 { total += consume(items[index]^)\nindex += 1 }\ntotal }\nfunc run(): i32 { 42 }";
     let (sources, tree) = input(text);

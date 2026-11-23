@@ -499,6 +499,7 @@ impl Conditions {
                 crate::value_access::evaluation::condition_step(work, code.source_owner(), origin)?;
                 match call.template().map_err(AcceptedFailure::Integrity)? {
                     CallTemplate::Code(callee) => pending.push(callee.code()),
+                    CallTemplate::Applied(_) => return Ok(false),
                     // Its actual body was preflighted as a root obligation. The formal
                     // source edge is still charged, without inventing a concrete binding frame.
                     CallTemplate::Parameter(_) => {}

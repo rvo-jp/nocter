@@ -483,6 +483,42 @@ fn a_runtime_generic_application_does_not_gain_required_evaluation() {
 }
 
 #[test]
+fn evaluatable_generic_definitions_retain_unselected_data_obligations() {
+    let unit = accepted(
+        "const func pass<T>(take value: T): T { value^ }\nconst func retire<T>(take value: T): void {}",
+    );
+    for name in ["pass", "retire"] {
+        let body = named(&unit, name);
+        let owner = body.typed().source_owner();
+        assert_eq!(
+            unit.program().bind_code(owner.into(), []),
+            Err(
+                nocter_declarations::value_access::CodeBindingError::MissingGenericApplication(
+                    owner
+                )
+            )
+        );
+    }
+}
+
+#[test]
+fn a_generic_const_definition_keeps_its_fixed_runtime_call_error() {
+    let (sources, tree) = input(
+        "func runtime(): void {}\nconst func pass<T>(take value: T): T { runtime()\nvalue^ }",
+    );
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    let SourceFailure::Checking(Failure::Const { diagnostic, .. }) = failure else {
+        panic!("expected a const definition diagnostic, got {failure:?}");
+    };
+    assert!(
+        diagnostic
+            .source()
+            .message()
+            .contains("runtime-only function `runtime`")
+    );
+}
+
+#[test]
 fn a_body_type_that_cannot_be_substituted_is_reported_at_the_call() {
     let (sources, tree) = input(
         "func reserve<T>(take item: T): void { let unused: T! = item^ }\nfunc run(): void { let value: i32! = 42\nreserve<i32!>(value^) }",

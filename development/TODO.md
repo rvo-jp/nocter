@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Admit evaluatable generic definitions under their original assumptions. Retain dependent data and
-cleanup conditions, and evaluate a fully applied frame through the ordinary required-evaluation
-path after its concrete obligations are satisfied.
+Make lexical `usize` parameters available as values in checked generic bodies. Keep each original
+parameter identity through analysis, and materialize its exact scalar in required evaluation and
+native lowering from the selected application.
 
 ## Remaining Contextual Representation Qualification
 
@@ -703,9 +703,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Connect explicit runtime calls to concrete frames. Qualify distinct types and lengths,
   exact input/return rules, original generic moves, and concrete cleanup through the ordinary
   native path. Report invalid body substitutions at the original application.
-- [ ] Admit generic const definitions and evaluate complete explicit applications through the
+- [x] Admit generic const definitions and evaluate complete explicit applications through the
   existing condition and plan authorities. Qualify symbolic obligations, precise concrete
   failures, distinct frames and unchanged authored execution permission.
+- [ ] Realize constant parameter reads in ordinary generic bodies. Verify exact lexical binding,
+  preservation across frame discovery, and identical constant/native scalar behavior with no
+  additional runtime formal.
 - [x] Admit non-generic struct construction functions and receiver methods on direct places and
   produced values. Pair complete contracts and bind `Self` to the exact nominal owner. Verify
   named CTFE/native dispatch, audiences, read/edit access, Copy supply and explicit retirement.

@@ -112,10 +112,7 @@ impl Requirements {
                     excluded_calls.insert(id);
                     continue;
                 }
-                // Named runtime generic calls have no evaluator condition edge.
-                let template = (instances::completed(arguments)
-                    && arguments.generic_application().is_none())
-                .then(|| {
+                let template = instances::completed(arguments).then(|| {
                     identity
                         .as_ref()
                         .map_err(|error| *error)
@@ -622,6 +619,7 @@ impl Requirements {
                 CallTemplate::Code(callee) => {
                     CallTemplate::Code(callee.compose(program, key).map_err(|_| INVALID)?)
                 }
+                CallTemplate::Applied(callee) => CallTemplate::Applied(callee.clone()),
                 CallTemplate::Parameter(_) => {
                     let ExpressionKind::Call {
                         target,

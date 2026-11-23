@@ -1192,19 +1192,21 @@ access/resource validation, once each. Control IDs and the type authority do not
 graph is rebuilt. A taking formal environment can therefore pass through a result without
 acquiring Copy, while a concrete named result at a caller can independently prove Copy.
 
-The accepted unit retains checked runtime generic definitions even when they have no call sites.
+The accepted unit retains checked synchronous generic definitions even when they have no call sites.
 An unresolved parameter or array extent can participate in whole-value flow and retain its cleanup
 obligation. Producer analysis leaves its callable and tag facts unknown, and the evaluator records
-the unspecialized payload as unavailable. A closed required expression inside the definition still
-has its own evaluation root.
+the unspecialized payload as a deferred definition condition. A closed required expression inside
+the definition still has its own evaluation root.
 
 An explicit generic application projects the selected declaration's input and result types in the
 caller's canonical body type extension. Ordinary argument preparation uses that signature and
-the original passing operations. A direct runtime call retains the application at its original
+the original passing operations. A direct call retains the application at its original
 commit. Instance selection closes its body, input and result descriptors through the canonical
 type authority. Concrete cleanup uses the selected payload while preserving the checked moves,
 accesses and cleanup order. A runtime-only generic application retains its authored evaluator
-restriction.
+restriction. An evaluatable application checks its concrete conditions and uses the ordinary
+required evaluator. Evaluator discovery and condition traversal preserve the complete application
+in each frame's identity.
 
 Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
 joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,

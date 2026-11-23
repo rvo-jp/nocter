@@ -129,9 +129,12 @@ fn instantiate_contract_call(
     caller: &CodeInstanceKey,
     target: ValueFunctionOrigin,
     kind: CallKind,
-    arguments: &[Argument],
+    arguments: &CallArguments,
 ) -> Result<CodeInstanceKey, flow::IntegrityError> {
     let invalid = flow::IntegrityError::InconsistentTypedBody;
+    if let Some(frame) = applied_call(program, target, kind, arguments)? {
+        return Ok(frame);
+    }
     let selected = caller
         .resolve(
             program,
@@ -186,6 +189,7 @@ fn select_contract_call(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CallTemplate {
     Code(CodeTemplateKey),
+    Applied(CodeInstanceKey),
     Parameter(FunctionWitness),
 }
 
@@ -194,9 +198,12 @@ pub(super) fn instantiate_template_call(
     caller: &CodeTemplateKey,
     target: ValueFunctionOrigin,
     kind: CallKind,
-    arguments: &[Argument],
+    arguments: &CallArguments,
 ) -> Result<CallTemplate, flow::IntegrityError> {
     let invalid = flow::IntegrityError::InconsistentTypedBody;
+    if let Some(frame) = applied_call(program, target, kind, arguments)? {
+        return Ok(CallTemplate::Applied(frame));
+    }
     let selected = caller
         .resolve(
             program,
@@ -217,6 +224,25 @@ pub(super) fn instantiate_template_call(
     program
         .bind_template(selected.origin.code().ok_or(invalid)?, bindings)
         .map(CallTemplate::Code)
+        .map_err(|_| invalid)
+}
+
+fn applied_call(
+    program: &Program,
+    target: ValueFunctionOrigin,
+    kind: CallKind,
+    arguments: &CallArguments,
+) -> Result<Option<CodeInstanceKey>, flow::IntegrityError> {
+    let Some(application) = arguments.generic_application() else {
+        return Ok(None);
+    };
+    let invalid = flow::IntegrityError::InconsistentTypedBody;
+    let (CallKind::Direct, ValueFunctionOrigin::Declaration(code)) = (kind, target) else {
+        return Err(invalid);
+    };
+    program
+        .bind_generic_call(code, application)
+        .map(Some)
         .map_err(|_| invalid)
 }
 

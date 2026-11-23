@@ -271,9 +271,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     && !query.program().codes().get(code).is_some_and(|header| {
                         matches!(
                             header.kind(),
-                            nocter_declarations::value_access::CodeKind::Function(
-                                nocter_model::CompileTimeGuarantee::RuntimeOnly
-                            )
+                            nocter_declarations::value_access::CodeKind::Function(_)
                         )
                     })
                 {

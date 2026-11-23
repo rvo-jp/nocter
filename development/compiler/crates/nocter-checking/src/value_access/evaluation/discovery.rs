@@ -42,7 +42,8 @@ impl Discovery {
         program: &Program,
         key: CodeInstanceKey,
     ) -> Result<(), flow::IntegrityError> {
-        if key.has_compound_input_contexts()
+        if key.generic_application().is_some()
+            || key.has_compound_input_contexts()
             || key.environment().is_some()
             || key
                 .witnesses()

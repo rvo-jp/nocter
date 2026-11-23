@@ -1011,7 +1011,7 @@ fn recursive_condition_edges_form_a_finite_permutation_without_chasing_root_vari
         .iter()
         .find_map(|(_, edge)| match edge {
             CallTemplate::Code(key) => Some(key),
-            CallTemplate::Parameter(_) => None,
+            CallTemplate::Applied(_) | CallTemplate::Parameter(_) => None,
         })
         .unwrap();
     assert_ne!(rotated, &root);

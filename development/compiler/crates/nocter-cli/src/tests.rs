@@ -206,7 +206,7 @@ impl Ticket {
 
 func pass<T>(take value: T): T { value^ }
 func row<T, const N: usize>(take values: [T; N]): [T; N] { values^ }
-func retire<T>(take value: T): void {}
+const func retire<T>(take value: T): void {}
 
 func main(): i32 {
     let ticket = pass<Ticket>(Ticket { state: 42 })

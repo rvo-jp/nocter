@@ -92,7 +92,7 @@ struct Shape {
     ty: Type,
     /// At least one value is representable. Unavailable variant payloads remain uninhabitable.
     supported: bool,
-    /// Definition-only hypothesis: callable parameters remain obligations, never payloads.
+    /// Definition hypothesis for deferred callable and generic-data obligations.
     contract_supported: bool,
     /// The represented domain is nonempty and contains only final-publication data.
     serializable: bool,
@@ -304,9 +304,9 @@ impl Types {
             if matches!(data, ShapeKey::Raw(_))
                 && program.symbolic_type_parameter(data.data()).is_some()
             {
-                // Definition conditions may mention a generic payload whose executable
-                // representation is still unknown.
-                self.insert(data, Type::Unavailable, false);
+                // A generic parameter is a definition condition until its data is selected.
+                let id = self.insert(data, Type::Unavailable, false);
+                self.shapes[id].contract_supported = true;
                 continue;
             }
             let Some(schema) = program.data_schema(data.data()) else {
