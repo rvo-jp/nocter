@@ -164,18 +164,17 @@ when all fields are ready. A payloadless case in a mixed enum uses the tagged la
 payload. Native lowering materializes standalone scalar enum tags as immediates and uses the scalar
 layout for nested constant data and statics.
 
-An [if-is condition](../../spec/language/patterns.md#enum-branch-input) selects the variant
-through the same declaration and audience. The checker requires the scrutinee's exact nominal
-type and evaluates it once. It checks written payload arity and nested tuple shape with the common
-binding traversal. A pattern that discards every payload position needs only the tag read. Read
-and edit leave the payload in place. Edit checks update authority during inspection. Take uses the
-ordinary Copy or transfer boundary and retires the received carrier before either branch.
+An [enum branch](../../spec/language/patterns.md#enum-branch-input) selects variants through the
+same declaration and audience. The checker requires the scrutinee's exact nominal type and
+evaluates it once. It checks written payload arity and nested tuple shape with the common binding
+traversal. The graph records one tag dispatch with sorted cases and a fallback edge. An if-is
+test supplies one case and a fallback. A match checks coverage against the visible schema.
+Required evaluation and native lowering use this case table to read the tag once.
 
-`match` checks nominal variant identity and coverage using the same source visibility.
-The checked graph records one tag dispatch with the sorted cases and the fallback edge.
-Required evaluation and native lowering share that case table and read the carrier once.
-The selected arm performs the same take cleanup before executing its body, including when
-a discard arm handles an opaque enum.
+A pattern that discards every payload position needs only the tag read. Read and edit leave
+the payload in place. Edit checks update authority during inspection. Take uses the ordinary
+Copy or transfer boundary. The selected arm retires the received carrier before executing its
+body, including an if-is fallback or a discard arm handling an opaque enum.
 
 ### Tuple Bindings
 

@@ -582,9 +582,7 @@ fn evaluate(
         ExpressionKind::GuardView { source, .. } | ExpressionKind::PrimaryCondition { source } => {
             require_referent(typed, facts, state, *source, location, violations)?;
         }
-        ExpressionKind::EnumCondition { source, .. }
-        | ExpressionKind::RequirePrimary { source }
-        | ExpressionKind::Boundary { source, .. } => {
+        ExpressionKind::RequirePrimary { source } | ExpressionKind::Boundary { source, .. } => {
             require_expression(
                 typed,
                 facts,

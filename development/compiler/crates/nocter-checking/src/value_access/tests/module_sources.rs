@@ -302,62 +302,66 @@ fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
 }
 
 fn verify_enum_carrier_retirement(unit: &accepted::Unit) {
-    use crate::value_access::{
-        ExpressionKind,
-        flow::{
-            Location, Operation,
-            resources::{Holder, Step},
-        },
+    use crate::value_access::flow::{
+        Location, Operation, Terminator,
+        resources::{Holder, Step},
     };
     use nocter_model::ValueInputOperation;
-    let (query, condition, carrier) = unit
+    let (query, source, branches) = unit
         .bodies()
         .find_map(|(_, query)| {
-            query
-                .typed()
-                .body()
-                .expressions()
-                .iter()
-                .find_map(|(id, expression)| {
-                    if let ExpressionKind::EnumCondition {
-                        source,
-                        operation: ValueInputOperation::Take,
-                        ..
-                    } = expression.kind
-                    {
-                        Some((query, id, Holder::Expression(source)))
-                    } else {
-                        None
-                    }
-                })
+            query.graph().points().iter().find_map(|(_, point)| {
+                let Terminator::EnumSwitch {
+                    source,
+                    cases,
+                    fallback,
+                } = &point.terminator
+                else {
+                    return None;
+                };
+                point
+                    .actions
+                    .iter()
+                    .any(|action| {
+                        action.operation
+                            == Operation::InspectEnum {
+                                source: *source,
+                                operation: ValueInputOperation::Take,
+                            }
+                    })
+                    .then(|| {
+                        let [(_, selected)] = cases.as_ref() else {
+                            panic!("one tested case");
+                        };
+                        (query, *source, [*selected, *fallback])
+                    })
+            })
         })
         .expect("one checked take condition");
-    let location = query
-        .graph()
-        .points()
-        .iter()
-        .find_map(|(point, block)| {
-            block
-                .actions
-                .iter()
-                .position(|action| action.operation == Operation::Evaluate(condition))
-                .map(|action| Location { point, action })
-        })
-        .expect("the condition evaluates on a reachable path");
-    let retirement =
-        |step: &Step| matches!(step, Step::Dispose { source, .. } if source.holder() == carrier);
-    let mut transitions = query.access().resources().at(location).peekable();
-    assert!(transitions.peek().is_some());
-    for transition in transitions {
-        assert!(!transition.before_steps().iter().any(retirement));
-        assert_eq!(
-            transition
-                .after_steps()
-                .iter()
-                .filter(|step| retirement(step))
-                .count(),
-            1
-        );
+    for point in branches {
+        let block = query.graph().points().get(point).unwrap();
+        assert_eq!(block.actions[0].operation, Operation::Discard(source));
+        let mut transitions = query
+            .access()
+            .resources()
+            .at(Location { point, action: 0 })
+            .peekable();
+        assert!(transitions.peek().is_some());
+        let retirement = |step: &Step| {
+            matches!(step, Step::Dispose { source: place, .. }
+                if place.holder() == Holder::Expression(source))
+        };
+        for transition in transitions {
+            assert_eq!(
+                transition
+                    .before_steps()
+                    .iter()
+                    .chain(transition.after_steps())
+                    .filter(|step| retirement(step))
+                    .count(),
+                1
+            );
+        }
     }
 }
 

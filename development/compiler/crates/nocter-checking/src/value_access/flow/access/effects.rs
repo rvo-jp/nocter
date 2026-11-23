@@ -369,12 +369,6 @@ impl Context<'_, '_> {
                 }
                 Ok(Value::without_referent(Mode::Own))
             }
-            ExpressionKind::EnumCondition {
-                source, operation, ..
-            } => {
-                self.inspect_enum(source, operation)?;
-                Ok(Value::without_referent(Mode::Own))
-            }
             ExpressionKind::RequirePrimary { source } => {
                 let value = self.world.value(source)?;
                 if value.mode != Mode::Own {

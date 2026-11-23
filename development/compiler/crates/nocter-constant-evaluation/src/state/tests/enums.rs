@@ -116,10 +116,9 @@ fn dispatch(value: Value, tested_tag: u64) -> Plan {
     let mut points = ArenaBuilder::new();
     let selected = points.insert(Point {
         actions: Box::new([action(
-            Operation::EnumCondition {
-                source: Place::root(0),
-                tag: 1,
+            Operation::Literal {
                 destination: 1,
+                value: Value::boolean(true),
             },
             &[0],
             vec![Effect::Construct(1), Effect::Dispose(Place::root(0))],
@@ -166,7 +165,7 @@ fn enum_dispatch_validates_the_active_payload_without_qualifying_other_cases() {
         (empty.clone(), 1, Some(false)),
         (payload.clone(), 1, Some(true)),
         (payload, 3, None),
-        (empty, 0, Some(false)),
+        (empty, 0, Some(true)),
         (Value::enumeration(2, vec![Value::unit()]), 2, None),
         (
             Value::enumeration(1, vec![Value::integer(42), Value::integer(0)]),

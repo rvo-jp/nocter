@@ -1,6 +1,7 @@
 use super::{
     Failure, Rule,
     annotations::Annotation,
+    branch_patterns::IfTest,
     checker::Checker,
     ir::{Binary, Boundary, ExpressionKind, Projection, Unary, ValueType, value_type},
 };
@@ -441,12 +442,16 @@ impl Checker<'_, '_> {
         construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let condition = self.if_condition(self.direct(node, NodeKind::IfCondition)?, reachable)?;
-        let branches_reachable = reachable && self.ty(condition).may_complete();
-        let known_condition = self.normal_boolean(condition);
+        let test = self.if_test(self.direct(node, NodeKind::IfCondition)?, reachable)?;
+        let (source, known_condition) = match test {
+            IfTest::Boolean(condition) => (condition, self.normal_boolean(condition)),
+            IfTest::Enum { source, .. } => (source, None),
+        };
+        let test_completes = self.ty(source).may_complete();
+        let branches_reachable = reachable && test_completes;
         // A terminating condition never reaches either branch's exact outgoing value boundary.
         // Retain construction shape for dormant declarations/operations without a value receipt.
-        let expected = expected.filter(|_| self.ty(condition).may_complete());
+        let expected = expected.filter(|_| test_completes);
         let alternative = self.direct(node, NodeKind::ElseClause).ok();
         let [then_block, else_block] = if alternative.is_some() {
             self.conditional_blocks(
@@ -472,21 +477,36 @@ impl Checker<'_, '_> {
             let else_block = self.emit_block(node, Vec::new(), Some(value), self.ty(value))?;
             [then_block, else_block]
         };
-        let ty = self.conditional_type(node, condition, then_block, else_block)?;
+        let ty = self.conditional_type(
+            node,
+            test_completes,
+            known_condition,
+            then_block,
+            else_block,
+        )?;
         if construction.is_some()
             && let Some(access) = ty.normal()
         {
             self.supply_conditional_results(node, [then_block, else_block], access)?;
         }
-        let value = self.emit(
-            node,
-            ty,
-            ExpressionKind::If {
+        let kind = match test {
+            IfTest::Boolean(condition) => ExpressionKind::If {
                 condition,
                 then_block,
                 else_block,
             },
-        )?;
+            IfTest::Enum {
+                source,
+                operation,
+                tag,
+            } => ExpressionKind::EnumMatch {
+                source,
+                operation,
+                cases: Box::new([(tag, then_block)]),
+                fallback: Some(else_block),
+            },
+        };
+        let value = self.emit(node, ty, kind)?;
         if alternative.is_none()
             && let Some(boundary) = expected
         {
@@ -620,11 +640,11 @@ impl Checker<'_, '_> {
     fn conditional_type(
         &mut self,
         node: NodeId,
-        condition: AccessExpressionId,
+        test_completes: bool,
+        known_condition: Option<bool>,
         then_block: AccessBlockId,
         else_block: AccessBlockId,
     ) -> Result<ValueType, Failure> {
-        let known_condition = self.normal_boolean(condition);
         let (left, right) = (self.block_ty(then_block), self.block_ty(else_block));
         let checked_access = self.merge_branch_access(node, left.access(), right.access())?;
         // Check both known shapes above, but only a normally producing branch can supply the
@@ -642,7 +662,7 @@ impl Checker<'_, '_> {
                 }
             })
             .or(access);
-        let completes = self.ty(condition).may_complete()
+        let completes = test_completes
             && match known_condition {
                 Some(true) => left.may_complete(),
                 Some(false) => right.may_complete(),

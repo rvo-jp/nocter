@@ -550,8 +550,7 @@ impl Builder<'_> {
             ExpressionKind::Aggregate { fields, .. } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
             ExpressionKind::Repeat { seed } => self.expression(*seed, entry)?,
-            ExpressionKind::EnumCondition { source, .. }
-            | ExpressionKind::RequirePrimary { source }
+            ExpressionKind::RequirePrimary { source }
             | ExpressionKind::AdaptFunction { source } => self.expression(*source, entry)?,
             ExpressionKind::Select { .. } | ExpressionKind::Index { .. } => {
                 return self.selection_chain(id, entry);

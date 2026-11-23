@@ -83,33 +83,22 @@ fn frozen_static_enum_checks_only_the_selected_declared_fields() {
 }
 
 #[test]
-fn tagged_enum_conditions_and_dispatch_keep_their_checked_case_domain() {
+fn tagged_enum_branches_keep_their_checked_case_domain() {
     let (program, _) = tagged_program();
     validate::program(&program).unwrap();
-    let mut condition = program.clone();
-    let body = condition.bodies.get_mut(&condition.root).unwrap();
-    let tag = body
-        .actions
-        .values_mut()
-        .flat_map(|action| &mut action.operations)
-        .find_map(|op| match op {
-            Operation::EnumCondition { tag, .. } => Some(tag),
-            _ => None,
-        })
-        .expect("source enum condition");
-    *tag = 2;
-    assert!(validate::program(&condition).is_err());
-
-    let mut dispatch = program;
-    let body = dispatch.bodies.get_mut(&dispatch.root).unwrap();
-    let cases = body
-        .terminators
-        .values_mut()
-        .find_map(|terminator| match terminator {
-            Terminator::EnumSwitch { cases, .. } => Some(cases),
-            _ => None,
-        })
-        .expect("source enum dispatch");
-    Arc::make_mut(cases).last_mut().unwrap().0 = 2;
-    assert!(validate::program(&dispatch).is_err());
+    // The source if-is and match use the same operation and their own case tables.
+    for arity in [1, 2] {
+        let mut dispatch = program.clone();
+        let body = dispatch.bodies.get_mut(&dispatch.root).unwrap();
+        let cases = body
+            .terminators
+            .values_mut()
+            .find_map(|terminator| match terminator {
+                Terminator::EnumSwitch { cases, .. } if cases.len() == arity => Some(cases),
+                _ => None,
+            })
+            .expect("source enum dispatch");
+        Arc::make_mut(cases).last_mut().unwrap().0 = 2;
+        assert!(validate::program(&dispatch).is_err());
+    }
 }

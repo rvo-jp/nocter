@@ -128,11 +128,6 @@ impl Builder<'_> {
                     destination,
                 }
             }
-            ExpressionKind::EnumCondition { source, tag, .. } => Operation::EnumCondition {
-                source: self.value(source)?,
-                tag,
-                destination,
-            },
             ExpressionKind::GuardView { source, primary } => {
                 let source = self.referent(source, destination.data)?;
                 return Ok(vec![

@@ -2,41 +2,41 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{Boundary, ExpressionKind, Projection, value_type},
+    ir::{Boundary, Projection},
 };
 use nocter_declaration_lowering::access_declarations::input_operation;
 use nocter_model::{
-    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueAccessMode as Mode,
-    ValueInputOperation,
+    AccessExpressionId, BuiltinType, FieldPath, TypeId, ValueAccess, ValueInputOperation,
 };
 use nocter_syntax::{NodeId, NodeKind, TokenKind, direct_token_iter};
 
 mod matching;
 
+#[derive(Clone, Copy)]
+pub(super) enum IfTest {
+    Boolean(AccessExpressionId),
+    Enum {
+        source: AccessExpressionId,
+        operation: ValueInputOperation,
+        tag: u64,
+    },
+}
+
 impl Checker<'_, '_> {
-    pub(super) fn if_condition(
-        &mut self,
-        node: NodeId,
-        reachable: bool,
-    ) -> Result<AccessExpressionId, Failure> {
-        let source_node = self.direct(node, NodeKind::Expression)?;
-        let boolean = self.data(BuiltinType::Bool);
+    pub(super) fn if_test(&mut self, node: NodeId, reachable: bool) -> Result<IfTest, Failure> {
         let Ok(pattern) = self.direct(node, NodeKind::EnumPattern) else {
+            let source_node = self.direct(node, NodeKind::Expression)?;
             let condition = self.expression(source_node, None, reachable)?;
-            self.require_data(condition, boolean, source_node)?;
-            return Ok(condition);
+            self.require_data(condition, self.data(BuiltinType::Bool), source_node)?;
+            return Ok(IfTest::Boolean(condition));
         };
         let (data, tag) = self.tag_pattern(pattern)?;
         let (source, operation) = self.pattern_input(node, Some(data), reachable)?;
-        self.emit(
-            node,
-            value_type(boolean, Mode::Own).with_continuation(self.ty(source).may_complete()),
-            ExpressionKind::EnumCondition {
-                source,
-                tag,
-                operation,
-            },
-        )
+        Ok(IfTest::Enum {
+            source,
+            operation,
+            tag,
+        })
     }
 
     fn tag_pattern(&self, pattern: NodeId) -> Result<(TypeId, u64), Failure> {

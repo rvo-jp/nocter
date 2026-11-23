@@ -600,16 +600,6 @@ impl<'a> Builder<'a> {
                 let value = self.primary_condition(address, source.data)?;
                 self.store(destination, value)?;
             }
-            mir::Operation::EnumCondition {
-                source,
-                tag,
-                destination,
-            } => {
-                let base = self.place(source)?;
-                let (data, address) = self.enum_tag_address(base, source.data)?;
-                let value = self.tag_matches(address, data, *tag)?;
-                self.store(destination, value)?;
-            }
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => self.constant(destination, value)?,
             mir::Operation::Copy {

@@ -298,11 +298,6 @@ pub enum Operation {
         source: Place,
         destination: usize,
     },
-    EnumCondition {
-        source: Place,
-        tag: u64,
-        destination: usize,
-    },
     RequireVariant {
         source: Place,
         primary: bool,

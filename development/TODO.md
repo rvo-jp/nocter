@@ -754,6 +754,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Qualify the written arity of enum payload patterns and cases whose positions are discarded.
 - [x] Carry validated enum case identities in evaluator field projections and aliases. Keep active
   tag validation and exact nested paths through reads, updates, and the ownership ledger.
+- [x] Use the same case-dispatch edges for enum if-is and match, with carrier retirement on
+  the selected take path.
 - [ ] Qualify named enum payload patterns with scoped read/edit bindings and take decomposition of
   active fields. Preserve the prepared scrutinee, ownership ordering and cleanup on all exits.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,

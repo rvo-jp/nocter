@@ -47,10 +47,6 @@ impl Builder<'_> {
                 self.place(point, *source, state)?;
                 ValueSource::Opaque
             }
-            ExpressionKind::EnumCondition { source, .. } => {
-                self.value(point, *source, state)?;
-                ValueSource::Opaque
-            }
             ExpressionKind::Boundary {
                 source,
                 action: crate::value_access::BoundaryAction::TakeValue,
