@@ -107,7 +107,8 @@ pub(super) fn prepare(
         let value = checker.expression(body_root, boundary, true)?;
         checker.emit_block(body_root, Vec::new(), Some(value), checker.ty(value))?
     } else {
-        checker.block_with_entry(body_root, boundary, entry)?
+        let hint = checker.result_hint()?;
+        checker.block_with_entry(body_root, boundary, hint.as_ref(), entry)?
     };
     Ok(checker.finish(root))
 }
@@ -146,7 +147,7 @@ impl<'a, 's> Checker<'a, 's> {
                     .to_owned();
                 self.bind_local(spelling, local);
             }
-            _ => self.form_input_pattern(body, declared, local, entry)?,
+            _ => self.form_declared_pattern(body, declared, local, entry)?,
         }
         Ok(())
     }

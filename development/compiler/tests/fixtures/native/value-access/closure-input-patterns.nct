@@ -1,0 +1,34 @@
+use std/error as errors
+
+const func calculate(): i32 {
+    let extra = 2
+    let sum: func((i32, (i32, i32))): i32 = (extra; (left, (right, _))) {
+        left + right + extra
+    }
+    let adjust: func(edit (i32, i32)): void = ((value, _)) {
+        value += 1
+    }
+    let offset = (take (value, _): (i32, i32)): i32 {
+        value += 1
+        value
+    }
+    var pair = (18, 100)
+    adjust(pair)
+    if pair.0 != 19 || pair.1 != 100 { return 1 }
+    offset((sum((pair.0, (20, 100))), 100))
+}
+
+const ANSWER: i32 = calculate()
+
+func main(): i32 {
+    let receive = (take ((reason, amount), _): ((error, i32), error)): i32 {
+        if !reason.has_code("held") { return 2 }
+        amount += 1
+        amount
+    }
+    let discard = (take _: error): void { () }
+    discard(error.new("discarded", "discarded failure"))
+    if calculate() != 42 { return 3 }
+    receive(((error.new("held", "held failure"), ANSWER - 1),
+        error.new("ignored", "ignored failure")))
+}

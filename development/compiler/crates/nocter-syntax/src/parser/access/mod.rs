@@ -196,6 +196,13 @@ fn initializer(parser: &mut Parser<'_>) {
 
 fn parameter(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    input_binding(parser);
+    parser.expect_punctuation(Punctuation::Colon);
+    type_(parser);
+    parser.complete(marker, NodeKind::Parameter);
+}
+
+fn input_binding(parser: &mut Parser<'_>) {
     if (parser.at_contextual(ContextualSpelling::Edit)
         || parser.at_contextual(ContextualSpelling::Take))
         && matches!(
@@ -214,9 +221,6 @@ fn parameter(parser: &mut Parser<'_>) {
     } else {
         parser.expect_name();
     }
-    parser.expect_punctuation(Punctuation::Colon);
-    type_(parser);
-    parser.complete(marker, NodeKind::Parameter);
 }
 
 fn required_block(parser: &mut Parser<'_>) {

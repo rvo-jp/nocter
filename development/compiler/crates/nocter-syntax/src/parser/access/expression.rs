@@ -395,15 +395,7 @@ fn closure(parser: &mut Parser<'_>) -> (CompletedMarker, bool) {
         ExpectedSyntax::Parameter,
         |parser| {
             let parameter = parser.start();
-            if (parser.at_contextual(crate::ContextualSpelling::Edit)
-                || parser.at_contextual(crate::ContextualSpelling::Take))
-                && parser.nth_kind(1) == TokenKind::Identifier
-            {
-                let operation = parser.start();
-                parser.bump();
-                parser.complete(operation, NodeKind::InputOperation);
-            }
-            parser.expect_name();
+            super::input_binding(parser);
             if parser.eat_punctuation(Punctuation::Colon) {
                 super::type_(parser);
             }

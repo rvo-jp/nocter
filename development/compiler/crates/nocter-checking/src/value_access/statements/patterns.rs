@@ -33,6 +33,14 @@ impl Checker<'_, '_> {
         statements: &mut Vec<AccessStatementId>,
     ) -> Result<(), Failure> {
         let leaves = self.tuple_leaves(pattern, data)?;
+        if leaves.is_empty() {
+            return self.reject_message(
+                Rule::AnnotatedDiscard,
+                pattern,
+                "a tuple binding must name at least one component".into(),
+                Vec::new(),
+            );
+        }
         let mode = kind.access_mode();
         let carrier = if mode == Mode::Own {
             let local = self.binding_local(
@@ -49,14 +57,13 @@ impl Checker<'_, '_> {
         self.form_leaves(pattern, kind, carrier, leaves, statements)
     }
 
-    pub(in crate::value_access) fn form_input_pattern(
+    pub(in crate::value_access) fn form_declared_pattern(
         &mut self,
         body: NodeId,
         declared: &Parameter,
         local: AccessLocalId,
         statements: &mut Vec<AccessStatementId>,
     ) -> Result<(), Failure> {
-        let kind = declared.operation().binding_kind();
         let leaves = declared
             .binding()
             .named_paths()
@@ -84,17 +91,39 @@ impl Checker<'_, '_> {
                 })
             })
             .collect::<Result<Vec<_>, Failure>>()?;
+        self.form_supplied_pattern(body, local, leaves, statements)
+    }
+
+    pub(in crate::value_access) fn form_closure_pattern(
+        &mut self,
+        pattern: NodeId,
+        local: AccessLocalId,
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<(), Failure> {
+        let leaves = self.tuple_leaves(pattern, self.local_ty(local).data())?;
+        self.form_supplied_pattern(pattern, local, leaves, statements)
+    }
+
+    fn form_supplied_pattern(
+        &mut self,
+        syntax: NodeId,
+        local: AccessLocalId,
+        leaves: Vec<Leaf>,
+        statements: &mut Vec<AccessStatementId>,
+    ) -> Result<(), Failure> {
+        let input = self.locals.get(local).ok_or(Failure::InconsistentSyntax)?;
+        let kind = input.kind;
         let carrier = if kind.access_mode() == Mode::Own {
             Carrier::Owner(local)
         } else if leaves.is_empty() {
             return Ok(());
         } else {
-            let place = self.intern_place(local, FieldPath::default(), declared.data());
-            let value = self.emit_place(body, place)?;
-            statements.push(self.statement(body, Statement::PreparePlace(value))?);
+            let place = self.intern_place(local, FieldPath::default(), input.data);
+            let value = self.emit_place(syntax, place)?;
+            statements.push(self.statement(syntax, Statement::PreparePlace(value))?);
             Carrier::Place(value)
         };
-        self.form_leaves(body, kind, carrier, leaves, statements)
+        self.form_leaves(syntax, kind, carrier, leaves, statements)
     }
 
     fn form_leaves(
@@ -191,14 +220,6 @@ impl Checker<'_, '_> {
                     .map(|(position, (syntax, data))| {
                         (syntax, data, path.project(ValueField::Tuple(position)))
                     }),
-            );
-        }
-        if leaves.is_empty() {
-            return self.reject_message(
-                Rule::AnnotatedDiscard,
-                pattern,
-                "a tuple binding must name at least one component".into(),
-                Vec::new(),
             );
         }
         Ok(leaves)

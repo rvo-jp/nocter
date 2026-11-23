@@ -130,8 +130,13 @@ names, and retains the complete binding pattern for contract/body correspondence
 catalog rebinds each named leaf independently of the body. At entry, read and edit project the
 already supplied place. Take forms leaves directly from the received value and retires the
 remainder before the authored body. A lazy producer performs these same operations when first
-driven. Cancellation before entry cleans the intact received inputs. Callable annotation and
-closure patterns and explicit dependency origins remain separate qualification tasks.
+driven. Cancellation before entry cleans the intact received inputs.
+
+Ordinary closures use the same entry operations. An annotation or expected callable contract
+determines data before checking the pattern. The selected input operation applies to all leaves.
+The closure's formal input list contains the original positions, and the body source projection
+retains each bound leaf separately from the capture environment. Callable annotation patterns
+and explicit dependency origins remain separate qualification tasks.
 
 ## Implemented Handoff
 

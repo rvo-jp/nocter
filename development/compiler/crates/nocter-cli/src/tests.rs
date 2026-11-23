@@ -848,6 +848,67 @@ fn installed_v2_tuple_inputs_preserve_the_formal_position_and_form_at_entry() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn installed_v2_closure_patterns_use_the_selected_input_contract() {
+    let tree = TempTree::new("closure-patterns");
+    let home = tree.value_access_installation();
+    let source = tree.0.join("main.nct");
+    let program =
+        include_str!("../../../tests/fixtures/native/value-access/closure-input-patterns.nct");
+    let execute = |command| {
+        execute_invocation(invocation(
+            [command, "--file", "main.nct", "--offline"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+    };
+    let render = |error: &InvocationError| {
+        error
+            .render_source_diagnostics()
+            .unwrap()
+            .unwrap_or_else(|| format!("{:?}", error.kind()))
+    };
+    fs::write(&source, program).unwrap();
+    let InvocationOutcome::Run(executed) =
+        execute("run").unwrap_or_else(|error| panic!("{}", render(&error)))
+    else {
+        panic!("expected native process execution");
+    };
+    assert_eq!(executed.status().code(), Some(42));
+
+    for (original, replacement, expected) in [
+        ("(extra; (left,", "(extra; (extra,", "E0341"),
+        (
+            "((value, _))",
+            "(take (value, _))",
+            "explicit parameter operation",
+        ),
+        (
+            "(take (value, _): (i32, i32))",
+            "(take (value, _): [i32; 2])",
+            "requires a tuple with 2 components",
+        ),
+        (
+            "(take (value, _): (i32, i32))",
+            "(take (value, _))",
+            "needs parameter data",
+        ),
+        (
+            "left + right + extra",
+            "left += 1\n left + right + extra",
+            "assignment requires a mutable value or edit access",
+        ),
+    ] {
+        let changed = program.replace(original, replacement);
+        assert_ne!(changed, program);
+        fs::write(&source, changed).unwrap();
+        let diagnostic = render(&execute("check").unwrap_err());
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn installed_v2_nominal_comparisons_use_ordered_read_inputs() {
     let tree = TempTree::new("nominal-comparisons");
     let home = tree.value_access_installation();

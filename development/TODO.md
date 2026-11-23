@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify tuple and discard patterns on closure inputs. Select data and operation from the
-existing input contract before forming leaves at closure entry. Reuse the supplied-carrier
-operations and keep captures distinct from parameter names.
+Qualify name, tuple and discard patterns on structural callable type inputs. Validate each shape
+and the names in the complete authored type, then keep the canonical callable identity based on
+positions, operations and data. Use the same projection in headers and local annotations.
 
 ## Remaining Contextual Representation Qualification
 
@@ -700,6 +700,9 @@ not a language restriction derived from the current realization boundary.
   Verify alias-normalized shapes, complete paired headers, current leaf locations, read/update
   authority, received remainder cleanup, required/native execution and deferred cancellation
   before entry.
+- [x] Qualify ordinary closure input patterns through the shared callable-entry formation.
+  Verify contextual data and operation, capture-name collisions, exact tuple shapes,
+  read/update authority, received cleanup and required/native execution.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

@@ -51,12 +51,10 @@ impl Checker<'_, '_> {
         &mut self,
         node: NodeId,
         expected: Option<Boundary>,
+        hint: Option<&Annotation>,
         entry: Vec<AccessStatementId>,
     ) -> Result<AccessBlockId, Failure> {
-        let hint = expected
-            .map(|boundary| self.contextual_type(boundary.ty().data()))
-            .transpose()?;
-        self.block_entries(node, expected, hint.as_ref(), None, true, entry)
+        self.block_entries(node, expected, hint, None, true, entry)
     }
 
     fn block_entries(
