@@ -84,6 +84,7 @@ pub enum Rule {
     ShadowedName,
     TypeMismatch,
     MissingTransfer,
+    IncompleteDestructor,
     UnusedValue,
     MissingResult,
     IntegerRange,
@@ -164,6 +165,10 @@ impl Rule {
             Self::MissingTransfer => (
                 DiagnosticCode::E0371,
                 "value construction needs Copy evidence, a produced value or explicit postfix transfer",
+            ),
+            Self::IncompleteDestructor => (
+                DiagnosticCode::E0371,
+                "moving this component would leave a value incomplete for its destructor",
             ),
             Self::UnusedValue => (
                 DiagnosticCode::E0372,

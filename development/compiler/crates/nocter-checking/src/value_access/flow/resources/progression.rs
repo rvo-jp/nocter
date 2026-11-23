@@ -75,6 +75,13 @@ impl State {
     ) -> Result<(Payload, Payload, bool)> {
         let owner = self.owned.get(&array.holder()).ok_or(INVALID)?;
         let array_payload = owner.container(typed.program(), array.fields())?;
+        if typed
+            .program()
+            .containing_destructor(owner.payload.data(), array.fields().fields())
+            .is_some()
+        {
+            return Err(INVALID);
+        }
         let Some(PayloadSchema::Array(schema)) = typed.program().data_schema(array_payload.data())
         else {
             return Err(INVALID);

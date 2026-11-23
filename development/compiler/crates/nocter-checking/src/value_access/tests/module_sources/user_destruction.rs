@@ -91,3 +91,58 @@ fn absent_destructor_bearing_components_do_not_block_required_values() {
     assert!(types.supports(program, buffer).unwrap());
     assert!(types.supports_final(program, buffer).unwrap());
 }
+
+#[test]
+fn only_whole_transfers_and_copy_snapshots_leave_destructors_with_complete_values() {
+    let prepare = |run: &str| {
+        let body = format!(
+            "see ./index.nct\n\
+             struct Item {{ value: i32 }}\n\
+             struct Handle {{ items: [Item; 1]\nitem: Item\ncount: i32 }}\n\
+             impl Handle {{ drop {{ self.count += 1 }} }}\n\
+             enum Packet {{ empty\ndata(item: Item)\nnumber(value: i32) }}\n\
+             impl Packet {{ drop {{}} }}\n\
+             func item(): Item {{ Item {{ value: 42 }} }}\n\
+             func make(): Handle {{ Handle {{ items: [item(); 1], item: item(), count: 0 }} }}\n\
+             {run}"
+        );
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, "see ./body.nct\nstruct Handle"),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        ModuleSourceUnit::prepare(&fixture.input()).map(drop)
+    };
+    for invalid in [
+        "func run(): i32 { let owner = make()\nlet moved = owner.item^\nmoved.value }",
+        "func run(): i32 { let owner = make()\nowner.count^ }",
+        "func run(): i32 { let value = make().item\nvalue.value }",
+        "func run(index: usize): i32 { let owner = make()\nlet moved = owner.items[index]^\nmoved.value }",
+        "func run(take packet: Packet): i32 { if take packet^ is Packet.data(part) { part.value } else { 0 } }",
+    ] {
+        let result = prepare(invalid);
+        let Err(SourceFailure::Checking(accepted::Failure::Body {
+            failure: Failure::Rejected(error),
+            ..
+        })) = result
+        else {
+            panic!("partial extraction must be rejected at its source: {result:?}");
+        };
+        assert_eq!(error.rule(), Rule::IncompleteDestructor, "{invalid}");
+    }
+    for valid in [
+        "func run(): i32 { var owner = make()\nowner.item = item()\nlet moved = owner^\nmoved.item.value }",
+        "func run(): i32 { let pair = (make(), 0)\nlet moved = pair.0^\nmoved.count }",
+        "func run(): i32 { make().count }",
+        "func run(take packet: Packet): i32 { if take packet^ is Packet.number(value) { value } else { 0 } }",
+    ] {
+        let result = prepare(valid);
+        assert!(
+            matches!(result, Err(SourceFailure::Checking(accepted::Failure::Flow { ref diagnostics, .. }))
+                if diagnostics.iter().any(|error| error.message().contains("verified effects"))),
+            "complete owners must reach lifecycle qualification: {valid}: {result:?}"
+        );
+    }
+}

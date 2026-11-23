@@ -176,6 +176,12 @@ impl State {
         if !value.complete(source.fields()) {
             return Err(INVALID);
         }
+        if program
+            .containing_destructor(value.payload.data(), source.fields().fields())
+            .is_some()
+        {
+            return Err(INVALID);
+        }
         if source.fields().is_root() {
             let mut owner = self.remove_root(source.holder())?;
             owner.payload = selected;
@@ -417,9 +423,12 @@ impl State {
             };
         };
         if !allow_missing
-            && value
+            && (value
                 .missing
                 .contains(&Missing::Value(source.fields().clone()))
+                || program
+                    .containing_destructor(value.payload.data(), source.fields().fields())
+                    .is_some())
         {
             return Err(INVALID);
         }

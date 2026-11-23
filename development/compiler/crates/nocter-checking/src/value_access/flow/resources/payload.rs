@@ -116,7 +116,9 @@ impl OwnedValue {
         selected: Payload,
         pending: &mut Vec<Pending>,
     ) -> Result<()> {
-        if selected.disposal() != Disposal::Aggregate {
+        if selected.disposal() != Disposal::Aggregate
+            || program.data_destructor(selected.data()).is_some()
+        {
             return Err(INVALID);
         }
         let schema = program.data_schema(selected.data()).ok_or(INVALID)?;

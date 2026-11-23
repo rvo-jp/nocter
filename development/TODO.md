@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Enforce complete ownership for user-destructible values. Reject component transfers that would
-leave a destructor's receiver incomplete, including transfers through enum patterns, temporary
-projections and indexed paths. Whole-value transfers and Copy snapshots retain their meaning.
+Infer non-waiting, non-suspending destructor effects from reached checked operations, selected
+callees, resource retirement and target backing. Keep that proof separate from the exact
+ordering and instance selection of executable cleanup.
 
 ## Remaining Contextual Representation Qualification
 
@@ -779,6 +779,9 @@ not a language restriction derived from the current realization boundary.
   in retained-header layout validation.
 - [x] Exclude live user-destructible nominal values from required evaluation and final-value
   publication. Preserve zero-length storage and inactive payloads in enclosing shapes.
+- [x] Reject transfers that leave a user-destructible receiver incomplete, including component
+  moves through enum bindings, temporary projections and array indices. Retain whole-value
+  transfer, Copy snapshots and checked component replacement.
 - [ ] Infer destructor effects and integrate the complete-self body with exactly-once component
   cleanup.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,

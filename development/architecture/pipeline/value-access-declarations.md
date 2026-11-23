@@ -204,6 +204,10 @@ layout checked when reusing a sealed header product.
 The v2 parser reads the body from `drop { ... }` within an ordinary nominal implementation.
 Module binding retains the original file and behavior scope. The implicit receiver has a
 source anchor for diagnostics, and the body undergoes the ordinary type and access checks.
+The selected transfer path is checked against the destructor reservations of its containing
+values. The same ancestry check protects ownership transitions, including indexed transfers.
+Copy snapshots leave the owning carrier complete. Replacement retires and installs one
+component in a single checked transition.
 The accepted-unit boundary requires effect and component-cleanup qualification before
 allowing destructor execution.
 

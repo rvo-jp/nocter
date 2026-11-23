@@ -314,11 +314,7 @@ impl Types {
             // A destructor-bearing nominal cannot inhabit evaluator-owned storage. Its
             // reservation is already a lifecycle obligation in an early header snapshot.
             // Enclosing shapes still decide whether a component actually exists.
-            if program
-                .nominal_identity(data.data())
-                .and_then(|owner| program.reserved_destructor(owner))
-                .is_some()
-            {
+            if program.data_destructor(data.data()).is_some() {
                 self.insert(data, Type::Unavailable, false);
                 continue;
             }

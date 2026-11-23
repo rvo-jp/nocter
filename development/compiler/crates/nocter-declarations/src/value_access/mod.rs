@@ -536,6 +536,10 @@ impl Program {
         self.destructors.get(&owner).copied()
     }
     #[must_use]
+    pub fn has_destructors(&self) -> bool {
+        !self.destructors.is_empty()
+    }
+    #[must_use]
     pub fn parameters(&self) -> &SparseArena<AccessParameterId, Parameter> {
         &self.parameters
     }

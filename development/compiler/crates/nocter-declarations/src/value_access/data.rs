@@ -1,8 +1,8 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
 use super::{AggregateForm, BehaviorOwner, DeclarationId, Program};
 use nocter_model::{
-    BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeAliasId, TypeId, TypeKind,
-    ValueProjection, VariantId,
+    AccessCodeId, BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeAliasId, TypeId,
+    TypeKind, ValueProjection, VariantId,
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -295,6 +295,11 @@ impl Program {
             }
             _ => None,
         }
+    }
+    /// The user destructor of an exact nominal data type, independently of header readiness.
+    #[must_use]
+    pub fn data_destructor(&self, data: TypeId) -> Option<AccessCodeId> {
+        self.reserved_destructor(self.nominal_identity(data)?)
     }
     /// Source-name lookup for ready payload data; semantic equality uses resolved `TypeId` only.
     #[must_use]
@@ -671,6 +676,27 @@ impl Program {
             data = self.project_component(data, field, &in_bounds)?;
         }
         Some(data)
+    }
+
+    /// A strict containing value that must remain complete for its user destructor.
+    /// The caller owns place validity, enum case evidence and array bounds. A whole value can
+    /// move with its lifecycle obligation, so this deliberately excludes the selected leaf.
+    #[must_use]
+    pub fn containing_destructor<I>(
+        &self,
+        mut data: TypeId,
+        path: &[ValueProjection<I>],
+    ) -> Option<AccessCodeId> {
+        if !self.has_destructors() {
+            return None;
+        }
+        for field in path {
+            if let Some(destructor) = self.data_destructor(data) {
+                return Some(destructor);
+            }
+            data = self.project_component(data, field, &|_, _| true)?;
+        }
+        None
     }
 }
 

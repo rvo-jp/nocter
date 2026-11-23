@@ -149,7 +149,70 @@ fn validate_payload(
             SelectionAction::MovePayload
         };
     }
+    if expression.ty.may_complete()
+        && query.program().has_destructors()
+        && leaves_incomplete_destructor(query, expression)?
+    {
+        let rule = Rule::IncompleteDestructor;
+        return Err(reject(rule, rule.diagnostic().1));
+    }
     Ok(())
+}
+
+fn leaves_incomplete_destructor(
+    query: &Query,
+    expression: &crate::value_access::ir::Expression,
+) -> Result<bool, Failure> {
+    use crate::value_access::ir::SelectionAction;
+    use crate::value_access::paths::{ProjectionRoot, ProjectionRoots, known_by};
+    let body = query.body();
+    let program = query.program();
+    let data = |source| {
+        body.expressions()
+            .get(source)
+            .and_then(|source| source.ty.access())
+            .map(nocter_model::ValueAccess::data)
+            .ok_or(Failure::InconsistentSyntax)
+    };
+    match &expression.kind {
+        ExpressionKind::Select {
+            source,
+            fields,
+            action: SelectionAction::MovePayload | SelectionAction::PreparedValue { copy: false },
+        } => Ok(program
+            .containing_destructor(data(*source)?, fields.fields())
+            .is_some()),
+        ExpressionKind::Move(source) => {
+            let paths = source
+                .projections(
+                    |id| body.expressions().get(id),
+                    |id| body.blocks().get(id),
+                    ProjectionRoots::All,
+                    |_| (),
+                    |_, _| Some(()),
+                )
+                .ok_or(Failure::InconsistentSyntax)?;
+            for (root, suffix) in paths {
+                let ProjectionRoot::Place(root) = root else {
+                    return Err(Failure::InconsistentSyntax);
+                };
+                let place = body.places().get(root).ok_or(Failure::InconsistentSyntax)?;
+                let local = body
+                    .locals()
+                    .get(place.local)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let path = known_by(&place.fields, |_| ()).concat(&suffix);
+                if program
+                    .containing_destructor(local.data, path.fields())
+                    .is_some()
+                {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
 }
 
 fn resolved_descriptor(query: &Query, data: nocter_model::TypeId) -> bool {
