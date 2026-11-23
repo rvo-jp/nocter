@@ -133,6 +133,9 @@ impl Members {
                 conversions.entry(member.owner).or_default().push(id);
                 continue;
             }
+            if declaration.kind() == SurfaceDeclarationKind::Drop {
+                continue;
+            }
             let key = if let Some(family) = ComparisonFamily::of(declaration.kind()) {
                 if !matches!(member.owner, BehaviorOwner::Nominal(_)) {
                     return Err(ModuleSourcesFailure::Access(
@@ -571,7 +574,8 @@ pub(super) fn occurrences(
             | SurfaceDeclarationKind::InherentMethod
             | SurfaceDeclarationKind::Coercion
             | SurfaceDeclarationKind::Equality
-            | SurfaceDeclarationKind::Ordering => {
+            | SurfaceDeclarationKind::Ordering
+            | SurfaceDeclarationKind::Drop => {
                 let owner = declaration
                     .owner()
                     .and_then(|id| owners.get(&id))

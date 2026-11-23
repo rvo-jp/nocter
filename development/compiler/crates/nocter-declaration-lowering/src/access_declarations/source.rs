@@ -198,6 +198,26 @@ impl CodeSource {
             Some(body),
         )
     }
+    pub(in crate::access_declarations) fn destructor(
+        keyword: SyntaxToken,
+        declaration: NodeId,
+        body: NodeId,
+    ) -> Self {
+        let origin = SyntaxOrigin::Token(keyword);
+        Self::declaration(
+            CodeHeaderSource {
+                name: keyword,
+                deferred_modifier: None,
+                parameters: Box::new([ParameterSource {
+                    origin,
+                    binding: ParameterBinding::Name(origin),
+                    ty: origin,
+                }]),
+                result: declaration,
+            },
+            Some(body),
+        )
+    }
     fn header(&self) -> Option<&CodeHeaderSource> {
         match &self.kind {
             CodeSourceKind::Declaration { header, .. } => Some(header),
@@ -212,7 +232,7 @@ impl CodeSource {
     pub fn deferred_modifier(&self) -> Option<NodeId> {
         self.header()?.deferred_modifier
     }
-    /// The authored declaration name or the exact anonymous expression root.
+    /// The authored declaration anchor or the exact anonymous expression root.
     #[must_use]
     pub fn origin(&self) -> SyntaxOrigin {
         match &self.kind {
@@ -238,6 +258,11 @@ impl CodeSource {
     #[must_use]
     pub fn parameter_type(&self, position: usize) -> Option<NodeId> {
         self.parameters().get(position)?.type_node()
+    }
+    /// The authored annotation or source anchor for an implicit input type.
+    #[must_use]
+    pub fn parameter_type_origin(&self, position: usize) -> Option<SyntaxOrigin> {
+        Some(self.parameters().get(position)?.ty)
     }
     /// The result annotation, or the expression requiring a usize result for anonymous code.
     #[must_use]

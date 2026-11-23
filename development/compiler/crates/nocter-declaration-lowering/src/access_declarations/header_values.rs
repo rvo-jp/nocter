@@ -53,7 +53,10 @@ impl Context<'_> {
                             return Err(SourceMismatch::InconsistentSyntax);
                         }
                     }
-                    (DeclarationId::Code(_), ParsedHeader::Test { .. }) => {}
+                    (
+                        DeclarationId::Code(_),
+                        ParsedHeader::Test { .. } | ParsedHeader::Destructor { .. },
+                    ) => {}
                     _ => return Err(SourceMismatch::InconsistentSyntax),
                 }
             }

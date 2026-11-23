@@ -328,6 +328,47 @@ fn named_enum_leaves_are_scoped_to_the_selected_case() {
 }
 
 #[test]
+fn destructor_bodies_use_the_implicit_edit_receiver_before_lifecycle_admission() {
+    let prepare = |body: &str| {
+        let implementation = format!(
+            "see ./index.nct\nstruct Handle {{ value: i32 }}\nimpl Handle {{ drop {{ {body} }} }}"
+        );
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, "see ./body.nct\nstruct Handle"),
+                ("/app/body.nct", Implementation, &implementation),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        ModuleSourceUnit::prepare(&fixture.input()).map(drop)
+    };
+    let checked = prepare("self.value += 1");
+    let Err(SourceFailure::Checking(accepted::Failure::Flow { diagnostics, .. })) = checked else {
+        panic!("the typed destructor must reach the lifecycle boundary: {checked:?}");
+    };
+    assert!(
+        diagnostics
+            .iter()
+            .any(|error| error.message().contains("verified effects"))
+    );
+
+    for (body, rule) in [
+        ("self.value = true", Rule::TypeMismatch),
+        ("drop self", Rule::InvalidDrop),
+    ] {
+        let invalid = prepare(body);
+        let Err(SourceFailure::Checking(accepted::Failure::Body {
+            failure: Failure::Rejected(error),
+            ..
+        })) = invalid
+        else {
+            panic!("invalid body must fail checking: {invalid:?}");
+        };
+        assert_eq!(error.rule(), rule);
+    }
+}
+
+#[test]
 fn required_enum_values_preserve_the_selected_tag_in_compound_constants() {
     use nocter_model::FrozenNode;
     let fixture = Fixture::new(

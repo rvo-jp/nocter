@@ -133,8 +133,20 @@ pub(super) enum ParsedHeader {
         declaration: nocter_syntax::NodeId,
         body: nocter_syntax::NodeId,
     },
+    Destructor {
+        keyword: SyntaxToken,
+        declaration: nocter_syntax::NodeId,
+        body: nocter_syntax::NodeId,
+    },
 }
 impl ParsedHeader {
+    fn body(&self) -> Option<nocter_syntax::NodeId> {
+        match self {
+            Self::Code(header) => header.body,
+            Self::Test { body, .. } | Self::Destructor { body, .. } => Some(*body),
+            _ => None,
+        }
+    }
     fn executable_source(&self) -> Option<CodeSource> {
         match self {
             Self::Code(header)
@@ -148,6 +160,11 @@ impl ParsedHeader {
                 declaration,
                 body,
             } => Some(CodeSource::test(*name, *declaration, *body)),
+            Self::Destructor {
+                keyword,
+                declaration,
+                body,
+            } => Some(CodeSource::destructor(*keyword, *declaration, *body)),
             _ => None,
         }
     }
@@ -193,14 +210,7 @@ impl<'syntax> PairedModuleSources<'syntax> {
         bind_sources(&self, &scopes, &declarations, &mut reservations)?;
         let body_scopes = parsed
             .iter()
-            .filter_map(|(raw, header)| {
-                if let ParsedHeader::Code(header) = header
-                    && let Some(member) = members.get(raw)
-                {
-                    return header.body.map(|body| (body, member.lookup));
-                }
-                None
-            })
+            .filter_map(|(raw, header)| Some((header.body()?, members.get(raw)?.lookup)))
             .collect();
         let (exports, lexical) = super::module_imports::ModuleExports::bind(
             &self,
@@ -789,6 +799,24 @@ fn collect_headers(
                         })
                     })
                 }
+                SurfaceDeclarationKind::Drop => {
+                    syntax(paired, declaration.source()).and_then(|s| {
+                        let node = declaration.node();
+                        let keyword = nocter_syntax::direct_token(
+                            s.tree(),
+                            node,
+                            nocter_syntax::TokenKind::Identifier,
+                        )
+                        .ok_or_else(integrity)?;
+                        let body = nocter_syntax::declaration_body(s.tree(), node)
+                            .ok_or_else(integrity)?;
+                        Ok(ParsedHeader::Destructor {
+                            keyword,
+                            declaration: node,
+                            body,
+                        })
+                    })
+                }
                 SurfaceDeclarationKind::Field
                 | SurfaceDeclarationKind::Variant
                 | SurfaceDeclarationKind::TypeBehavior
@@ -820,7 +848,7 @@ fn reserve_canonical(
             ParsedHeader::Record(header) => (true, Some(header.source.name)),
             ParsedHeader::Enumeration(header) => (true, Some(header.source.name)),
             ParsedHeader::Alias(header) => (false, Some(header.source.name)),
-            ParsedHeader::Test { .. } => (false, None),
+            ParsedHeader::Test { .. } | ParsedHeader::Destructor { .. } => (false, None),
         };
         ordered.push((
             !record,
@@ -833,26 +861,14 @@ fn reserve_canonical(
     ordered.sort_unstable();
     let first_code = ordered.partition_point(|(code, ..)| !code);
     for &(_, _, name, id) in &ordered[..first_code] {
-        let definition = paired.contracts.representation(id).unwrap_or(id);
-        let physical = paired.inventory.declarations()[definition.index()];
-        let scope = scopes[physical.source().index()];
-        let name = name.ok_or_else(integrity)?;
-        let nominal = match parsed.get(&definition).ok_or_else(integrity)? {
-            ParsedHeader::Record(header) => {
-                reservations.reserve_record_in(scope, name, header.fields.len())
-            }
-            ParsedHeader::Enumeration(header) if !header.opaque => reservations.reserve_enum_in(
-                scope,
-                name,
-                header
-                    .source
-                    .variants
-                    .iter()
-                    .map(|variant| variant.fields.len()),
-            ),
-            _ => return Err(integrity()),
-        }
-        .map_err(|_| integrity())?;
+        let nominal = reserve_nominal(
+            paired,
+            parsed,
+            scopes,
+            reservations,
+            id,
+            name.ok_or_else(integrity)?,
+        )?;
         declarations[id.index()] = Some(DeclarationId::Nominal(nominal));
     }
     let members = members::occurrences(paired, declarations, scopes, reservations)?;
@@ -899,11 +915,76 @@ fn reserve_canonical(
                     .reserve_test(scopes[declaration.source().index()], spelling)
                     .map(DeclarationId::Code)
             }
+            ParsedHeader::Destructor { .. } => {
+                let member = members.get(&id).ok_or_else(integrity)?;
+                Ok(DeclarationId::Code(reserve_destructor(
+                    paired,
+                    declaration,
+                    *member,
+                    reservations,
+                )?))
+            }
         }
         .map_err(|_| integrity())?;
         declarations[id.index()] = Some(semantic);
     }
     Ok(members)
+}
+
+fn reserve_nominal(
+    paired: &PairedModuleSources<'_>,
+    parsed: &BTreeMap<SurfaceDeclarationId, ParsedHeader>,
+    scopes: &[ScopeId],
+    reservations: &mut Reservations,
+    id: SurfaceDeclarationId,
+    name: Symbol,
+) -> Result<NominalTypeId, ModuleSourcesFailure> {
+    let definition = paired.contracts.representation(id).unwrap_or(id);
+    let physical = paired.inventory.declarations()[definition.index()];
+    let scope = scopes[physical.source().index()];
+    match parsed.get(&definition).ok_or_else(integrity)? {
+        ParsedHeader::Record(header) => {
+            reservations.reserve_record_in(scope, name, header.fields.len())
+        }
+        ParsedHeader::Enumeration(header) if !header.opaque => reservations.reserve_enum_in(
+            scope,
+            name,
+            header
+                .source
+                .variants
+                .iter()
+                .map(|variant| variant.fields.len()),
+        ),
+        _ => return Err(integrity()),
+    }
+    .map_err(|_| integrity())
+}
+
+fn reserve_destructor(
+    paired: &PairedModuleSources<'_>,
+    declaration: crate::SurfaceDeclaration,
+    member: members::MemberOccurrence,
+    reservations: &mut Reservations,
+) -> Result<AccessCodeId, ModuleSourcesFailure> {
+    use super::SourceRoleRule;
+    use nocter_declarations::{DefinitionError, value_access::BehaviorOwner};
+    let bound = syntax(paired, declaration.source())?;
+    let failure = |rule| {
+        ModuleSourcesFailure::Access(super::source_roles::role_failure(
+            bound,
+            rule,
+            declaration.node(),
+        ))
+    };
+    let BehaviorOwner::Nominal(owner) = member.owner else {
+        return Err(failure(SourceRoleRule::DestructorOwner));
+    };
+    reservations
+        .reserve_destructor(member.lookup, owner)
+        .map_err(|error| match error {
+            DefinitionError::AlreadyDefined => failure(SourceRoleRule::DuplicateDestructor),
+            _ => integrity(),
+        })
 }
 fn bind_sources(
     paired: &PairedModuleSources<'_>,

@@ -75,6 +75,73 @@ fn scalar_enum_pairs_keep_copy_policy_and_original_variant_audience() {
 }
 
 #[test]
+fn destructor_header_binds_its_original_body_and_implicit_receiver() {
+    let mut scoped = inventory(
+        &[
+            ("/app/index.nct", Root, "see ./body.nct\nstruct Handle"),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nstruct Handle { value: i32 }\nimpl Handle { drop {} }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair()
+    .unwrap()
+    .reserve_names()
+    .unwrap();
+    let DeclarationId::Nominal(owner) = scoped
+        .declaration(declaration(
+            &scoped,
+            "/app/index.nct",
+            Kind::Struct,
+            "Handle",
+        ))
+        .unwrap()
+    else {
+        panic!("nominal owner");
+    };
+    let codes = scoped.code_ids().collect::<Vec<_>>();
+    let &[drop] = codes.as_slice() else {
+        panic!("one lifecycle code")
+    };
+    assert_eq!(advance(&mut scoped, owner).unwrap(), HeaderProgress::Ready);
+    assert_eq!(advance(&mut scoped, drop).unwrap(), HeaderProgress::Ready);
+    let sealed = scoped.seal().unwrap();
+    let current = sealed.current().unwrap();
+    current.verify_header_values(|_| None).unwrap();
+    let code = sealed.program().codes().get(drop).unwrap();
+    assert_eq!(code.kind(), CodeKind::Destructor(owner));
+    assert!(code.name().is_none());
+    let source = current.code_source(drop).unwrap();
+    assert!(source.body().is_some());
+    assert!(source.parameter_origin(0, None).is_some());
+    assert!(source.parameter_type(0).is_none());
+}
+
+#[test]
+fn destructor_duplication_is_reported_across_separate_impl_fragments() {
+    let headers = inventory(
+        &[
+            ("/app/index.nct", Root, "see ./body.nct\nstruct Handle"),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nstruct Handle {}\nimpl Handle { drop {} }\nimpl Handle { drop {} }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    ).pair().unwrap().reserve_names();
+    let Err(ModuleSourcesFailure::Access(Failure::SourceRole(error))) = headers else {
+        panic!("duplicate destructor must have a source diagnostic: {headers:?}");
+    };
+    assert_eq!(error.rule(), SourceRoleRule::DuplicateDestructor);
+}
+
+#[test]
 fn scalar_enum_headers_reject_empty_repeated_or_second_representations() {
     for (text, code) in [
         ("enum State {}", "E0200"),

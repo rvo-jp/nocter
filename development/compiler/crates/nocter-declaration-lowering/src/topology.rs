@@ -1098,6 +1098,10 @@ fn collect_tree_symbols(
                 if bodies.contains(&node) {
                     continue;
                 }
+                if value_access && kind == NodeKind::DropDeclaration {
+                    // Destruction supplies a receiver even when the body never spells its name.
+                    spellings.push("self".into());
+                }
                 if value_access
                     && let Some(operator) = crate::surface_origin::comparison_operator(tree, node)
                 {

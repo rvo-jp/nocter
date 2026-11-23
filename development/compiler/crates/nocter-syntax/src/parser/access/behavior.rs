@@ -16,6 +16,12 @@ pub(super) fn declaration(parser: &mut Parser<'_>) {
 fn member(parser: &mut Parser<'_>) {
     let declaration = parser.start();
     directives::prefix(parser, false);
+    if parser.at_contextual(ContextualSpelling::Drop) {
+        parser.bump();
+        required_block(parser);
+        parser.complete(declaration, NodeKind::DropDeclaration);
+        return;
+    }
     if parser.contextual_at(
         parser.cursor + usize::from(parser.at_keyword(Keyword::Const)),
         ContextualSpelling::Coerce,

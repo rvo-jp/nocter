@@ -22,10 +22,10 @@ pub(super) fn body(
             .get(parameter)
             .ok_or(Failure::InconsistentSyntax)?
             .data();
-        let syntax = source
-            .parameter_type(position)
+        let origin = source
+            .parameter_type_origin(position)
             .ok_or(Failure::InconsistentSyntax)?;
-        pending.push((data, SyntaxOrigin::Node(syntax)));
+        pending.push((data, origin));
     }
     require_roots(program, syntax, &pending)
 }

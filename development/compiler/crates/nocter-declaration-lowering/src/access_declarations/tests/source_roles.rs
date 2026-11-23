@@ -109,6 +109,18 @@ fn role_checks_do_not_replace_primitive_authority_or_change_role_from_filename()
 }
 
 #[test]
+fn destructor_bodies_belong_in_implementation_sources() {
+    let (sources, tree) = input("impl Handle { drop {} }", ParseGoal::V2CoreUnit);
+    assert!(!tree.has_errors());
+    let syntax = bound(&sources, &tree);
+    validate_source_role(syntax, ModuleSourceKind::Implementation).unwrap();
+    assert!(matches!(
+        validate_source_role(syntax, ModuleSourceKind::Root),
+        Err(Failure::SourceRole(diagnostic)) if diagnostic.rule() == SourceRoleRule::BodyInContract
+    ));
+}
+
+#[test]
 fn visibility_is_a_root_contract_directive_not_an_implementation_or_single_file_mode() {
     for text in [
         "#visibility: \"/\"\nfunc run(): i32 { 42 }",

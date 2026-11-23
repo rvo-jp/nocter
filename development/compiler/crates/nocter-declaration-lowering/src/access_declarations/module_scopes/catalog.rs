@@ -136,7 +136,7 @@ fn register_header_types(
     ) -> Result<(), ModuleSourcesFailure>,
 ) -> Result<(), ModuleSourcesFailure> {
     match header {
-        ParsedHeader::Test { .. } => {}
+        ParsedHeader::Test { .. } | ParsedHeader::Destructor { .. } => {}
         ParsedHeader::Enumeration(header) => {
             for (variant, types) in header.field_types.iter().enumerate() {
                 for (field, data) in types.iter().enumerate() {

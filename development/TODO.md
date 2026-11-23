@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind authored destructor bodies to the reserved nominal lifecycle header. Qualify ordinary
-implementation placement and duplicate diagnostics, then check bodies under the implicit
-receiver and unit result. Executable admission depends on verified effects and cleanup.
+Expose the exact reserved destructor identity to lifecycle and required-evaluation queries before
+body admission. Preserve its original nominal owner and require the relevant effect evidence
+before using destructor-bearing storage in compile-time or executable cleanup.
 
 ## Remaining Contextual Representation Qualification
 
@@ -772,8 +772,11 @@ not a language restriction derived from the current realization boundary.
   incomplete.
 - [x] Reserve and publish one anonymous destructor header per nominal family with implicit
   edit self and unit completion. Check the published Copy policy before granting header readiness.
-- [ ] Bind destructor declarations in ordinary implementation sources, infer their effects, and
-  integrate their complete-self body with exactly-once component cleanup in execution.
+- [x] Bind authored destructor declarations in ordinary implementation sources and check their
+  bodies under the implicit receiver and unit result. Reject contract bodies and duplicate
+  definitions, and retain the executable admission boundary.
+- [ ] Infer destructor effects and integrate the complete-self body with exactly-once component
+  cleanup. Make early header and required-value queries recognize reserved lifecycle obligations.
 - [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)

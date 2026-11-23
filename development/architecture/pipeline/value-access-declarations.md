@@ -199,6 +199,12 @@ input is a complete `edit self` receiver of that family, and its result is unit.
 publishes only after the nominal schema establishes its effective Copy policy. A Copy family
 cannot publish a destructor. The declaration has no source name or function witness.
 
+The v2 parser reads the body from `drop { ... }` within an ordinary nominal implementation.
+Module binding retains the original file and behavior scope. The implicit receiver has a
+source anchor for diagnostics, and the body undergoes the ordinary type and access checks.
+The accepted-unit boundary requires effect and component-cleanup qualification before
+allowing destructor execution.
+
 ### Tuple Bindings
 
 Local `let` and `var` [tuple patterns](../../spec/language/patterns.md#one-operation-over-a-pattern)

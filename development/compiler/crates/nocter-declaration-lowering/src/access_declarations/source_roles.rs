@@ -17,6 +17,8 @@ pub enum SourceRoleRule {
     EnumVariantMemberNameConflict,
     TypeBehaviorOwner,
     ComparisonOwner,
+    DestructorOwner,
+    DuplicateDestructor,
     ConstructionResult,
     IdentityConversion,
     DuplicateConversion,
@@ -147,6 +149,7 @@ fn attached_callable(kind: NodeKind) -> bool {
             | NodeKind::CoercionDeclaration
             | NodeKind::EqualityOperator
             | NodeKind::OrderingOperator
+            | NodeKind::DropDeclaration
     )
 }
 
@@ -202,6 +205,14 @@ pub(super) fn role_failure(
         SourceRoleRule::ComparisonOwner => (
             DiagnosticCode::E0231,
             "this comparison entry requires a nominal owner",
+        ),
+        SourceRoleRule::DestructorOwner => (
+            DiagnosticCode::E0231,
+            "a destructor requires a nominal owner",
+        ),
+        SourceRoleRule::DuplicateDestructor => (
+            DiagnosticCode::E0241,
+            "this nominal family already declares a destructor",
         ),
         SourceRoleRule::ConstructionResult => (
             DiagnosticCode::E0370,
